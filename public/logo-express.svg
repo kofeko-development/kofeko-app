@@ -1,0 +1,17 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 220 40"
+  width="180"
+  height="30"
+>
+  <text
+    x="0"
+    y="28"
+    font-family="sans-serif"
+    font-size="24"
+    font-weight="bold"
+  >
+    <tspan fill="hsl(271, 33%, 55%)">Kofeko</tspan>
+    <tspan fill="hsl(210, 29%, 29%)"> Express</tspan>
+  </text>
+</svg>

@@ -1,0 +1,191 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-body: 'Nunito', sans-serif;
+    --font-headline: 'Nunito', sans-serif;
+    
+    --background: 270 20% 98%;
+    --foreground: 210 29% 29%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 29% 29%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 29% 29%;
+    --primary: 271 33% 55%;
+    --primary-foreground: 0 0% 98%;
+    --primary-light: 271 40% 65%;
+    --secondary: 358 100% 80%;
+    --secondary-foreground: 210 29% 29%;
+    --muted: 220 20% 96.1%;
+    --muted-foreground: 220 8.9% 43.1%;
+    --accent: 271 40% 65%;
+    --accent-foreground: 0 0% 98%;
+    --accent-mint: 154 44% 79%;
+    --accent-peach: 35 100% 82%;
+    --accent-lavender: 240 67% 94%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 271 33% 55%;
+    --radius: 1.25rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 10% 3.9%;
+    --sidebar-primary: 271 33% 55%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 270 20% 96%;
+    --sidebar-accent-foreground: 271 33% 55%;
+    --sidebar-border: 240 5.9% 90%;
+    --sidebar-ring: 271 33% 55%;
+  }
+
+  .dark {
+    --background: 210 29% 29%;
+    --foreground: 0 0% 98%;
+    --card: 210 29% 29%;
+    --card-foreground: 0 0% 98%;
+    --popover: 210 29% 29%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 271 33% 55%;
+    --primary-foreground: 0 0% 98%;
+    --primary-light: 271 40% 65%;
+    --secondary: 358 100% 80%;
+    --secondary-foreground: 210 29% 29%;
+    --muted: 220 3.8% 25.1%;
+    --muted-foreground: 210 4% 65.1%;
+    --accent: 271 40% 65%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 29%;
+    --input: 220 13% 29%;
+    --ring: 271 33% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+  
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+    100% { transform: translateY(0px); }
+  }
+}
+
+@layer utilities {
+  .animation-delay-1000 {
+    animation-delay: 1s;
+  }
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  .animation-delay-3000 {
+    animation-delay: 3s;
+  }
+}
+
+@layer components {
+  .btn-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-light)) 100%);
+    @apply text-primary-foreground;
+  }
+  .btn-gradient:hover {
+    @apply shadow-lg;
+    transform: translateY(-3px);
+  }
+
+  .btn-glass {
+    @apply bg-primary text-primary-foreground transition-all duration-300;
+  }
+  .btn-glass:hover {
+    @apply shadow-lg;
+    transform: translateY(-3px);
+    filter: brightness(1.1);
+  }
+
+  .cta-section {
+    @apply py-20 text-white;
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-light)) 50%, hsl(var(--secondary)) 100%);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    @apply p-12 rounded-lg border border-white/20;
+  }
+
+  .feature-card {
+    @apply bg-white p-10 rounded-lg text-center shadow-sm border border-primary/5 transition-all duration-300 h-full relative overflow-hidden;
+  }
+  .feature-card:hover {
+    transform: translateY(-10px);
+    @apply shadow-md;
+  }
+  .feature-card::before {
+    content: '';
+    @apply absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-accent scale-x-0 transition-transform duration-300;
+  }
+  .feature-card:hover::before {
+    @apply scale-x-100;
+  }
+
+  /* Vision Strip Styles */
+  .future-vision {
+      @apply bg-background py-20;
+  }
+  .vision-container {
+      @apply container text-center;
+  }
+  .vision-container h2 {
+      @apply text-4xl font-semibold;
+  }
+  .vision-subtitle {
+      @apply text-lg text-muted-foreground mt-2 mb-12;
+  }
+  .vision-grid {
+      @apply grid grid-cols-2 md:grid-cols-4 gap-6;
+  }
+  .vision-card {
+      @apply bg-card p-6 rounded-lg shadow-sm border border-border/50 flex flex-col items-center justify-start text-center h-full;
+  }
+  .vision-card-icon-wrapper {
+      @apply h-16 w-16 mb-4 rounded-full bg-primary/10 flex items-center justify-center;
+  }
+  .vision-card-icon {
+      @apply w-8 h-8 text-primary;
+  }
+  .vision-card h3 {
+      @apply text-xl font-bold mb-2;
+  }
+  .vision-card p {
+      @apply text-sm text-muted-foreground flex-grow;
+  }
+  .badge-live, .badge-soon {
+      @apply text-xs font-bold px-3 py-1 rounded-full mt-4;
+  }
+  .badge-live {
+      @apply bg-green-500/20 text-green-700;
+  }
+  .badge-soon {
+      @apply bg-yellow-500/20 text-yellow-700;
+  }
+  .vision-cta {
+      @apply mt-16 max-w-2xl mx-auto;
+  }
+  .vision-cta p {
+      @apply text-muted-foreground mb-4;
+  }
+  .cta-btn {
+      @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+}

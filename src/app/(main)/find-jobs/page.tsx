@@ -1,0 +1,126 @@
+
+
+'use client';
+import { useState, useMemo } from 'react';
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Briefcase, MapPin, ArrowUpRight, Search } from "lucide-react";
+import { jobs } from "@/lib/jobs-data";
+
+
+export default function FindJobsPage() {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [locationFilter, setLocationFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
+
+    const filteredJobs = useMemo(() => {
+        return jobs.filter(job => {
+            if (job.status !== 'open') return false;
+
+            const searchLower = searchTerm.toLowerCase();
+            const matchesSearch = searchLower === '' ||
+                job.title.toLowerCase().includes(searchLower) ||
+                job.company.toLowerCase().includes(searchLower) ||
+                job.description.toLowerCase().includes(searchLower);
+
+            const matchesLocation = locationFilter === 'all' || job.location.toLowerCase().includes(locationFilter.toLowerCase());
+            
+            let jobType = 'onsite';
+            if (job.location.toLowerCase() === 'remote') {
+                jobType = 'remote';
+            }
+            // This is a simplification; a real app might have a dedicated field.
+            // For now, let's assume jobs can also be 'hybrid' if not explicitly remote.
+            
+            const matchesType = typeFilter === 'all' || typeFilter === jobType || (typeFilter === 'hybrid' && jobType === 'onsite');
+
+
+            return matchesSearch && matchesLocation && matchesType;
+        });
+    }, [searchTerm, locationFilter, typeFilter]);
+
+
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+                <div>
+                <h1 className="text-3xl font-bold font-headline">Find Your Next Opportunity</h1>
+                <p className="text-muted-foreground">Browse through our open positions and find your perfect fit.</p>
+                </div>
+            </div>
+            
+            <Card>
+                <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="relative md:col-span-2">
+                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                placeholder="Search by title, company, or keyword..." 
+                                className="pl-10"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                             />
+                        </div>
+                        <Select value={locationFilter} onValueChange={setLocationFilter}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Filter by location" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Locations</SelectItem>
+                                <SelectItem value="remote">Remote</SelectItem>
+                                <SelectItem value="new york">New York, NY</SelectItem>
+                                <SelectItem value="san francisco">San Francisco, CA</SelectItem>
+                                <SelectItem value="austin">Austin, TX</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Filter by job type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Job Types</SelectItem>
+                                <SelectItem value="remote">Remote</SelectItem>
+                                <SelectItem value="onsite">Onsite</SelectItem>
+                                <SelectItem value="hybrid">Hybrid</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div className="flex flex-col gap-4">
+                {filteredJobs.length > 0 ? filteredJobs.map(job => (
+                    <Card key={job.id} className="hover:bg-muted/50 transition-colors">
+                        <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-lg hover:text-primary transition-colors">
+                                    <Link href={`/open-positions/${job.id}`}>{job.title}</Link>
+                                </h3>
+                                <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                                    <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.company}</span>
+                                    <span className="flex items-center gap-2"><MapPin className="size-4" /> {job.location}</span>
+                                </div>
+                                <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.description}</p>
+                            </div>
+                            <Button asChild className="shrink-0">
+                                <Link href={`/open-positions/${job.id}`}>
+                                View & Apply <ArrowUpRight className="ml-2 size-4" />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )) : (
+                     <Card>
+                        <CardContent className="p-12 text-center text-muted-foreground">
+                            <p className="font-semibold">No jobs found</p>
+                            <p className="text-sm">Try adjusting your filters to find more opportunities.</p>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+        </div>
+    );
+}
