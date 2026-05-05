@@ -1,0 +1,133 @@
+.legacyHome {
+  background: linear-gradient(135deg, #f8f9ff 0%, #fef7f0 50%, #f0f8ff 100%);
+}
+
+.legacyHome :global(.hero-section) {
+  padding-top: 100px;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(248, 249, 255, 0.7) 0%, rgba(254, 247, 240, 0.7) 100%);
+}
+
+.legacyHome :global(.hero-title) {
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1.1;
+  font-weight: 700;
+  background: linear-gradient(135deg, #8b5fbf, #ff9a9e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.legacyHome :global(.section-title) {
+  font-size: 2.5rem;
+  font-weight: 400;
+  color: #2d3748;
+}
+
+.legacyHome :global(.section-subtitle-1) {
+  font-size: 1.2rem;
+  color: #718096;
+}
+
+.legacyHome :global(.hero-dashboard) {
+  border-radius: 20px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15), 0 10px 20px rgba(139, 95, 191, 0.15);
+}
+
+.legacyHome :global(.kofeko-accordion .accordion-item) {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(139, 95, 191, 0.1);
+  border: 1px solid rgba(139, 95, 191, 0.06);
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.legacyHome :global(.kofeko-accordion .accordion-button) {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 1.25rem 1.5rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.legacyHome :global(.kofeko-accordion .accordion-button.active) {
+  background: linear-gradient(135deg, rgba(139, 95, 191, 0.08), rgba(255, 154, 158, 0.08));
+  color: #8b5fbf;
+}
+
+.legacyHome :global(.kofeko-accordion .accordion-body) {
+  padding: 0 1.5rem 1.25rem;
+  color: #718096;
+  font-size: 0.95rem;
+}
+
+.legacyHome :global(.feature-visual) {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 15px 35px rgba(139, 95, 191, 0.2));
+  border-radius: 20px;
+}
+
+.legacyHome :global(.how-it-works-new) {
+  padding: 50px 0;
+  background: #fff;
+}
+
+.legacyHome :global(.hiw-grid) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.legacyHome :global(.hiw-step) {
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(139, 95, 191, 0.08);
+  text-align: center;
+}
+
+.legacyHome :global(.hiw-number) {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.legacyHome :global(.yellow) { color: #f5b942; }
+.legacyHome :global(.green) { color: #4caf7a; }
+.legacyHome :global(.coral) { color: #f28b82; }
+.legacyHome :global(.pink) { color: #e76ba3; }
+
+.legacyHome :global(.hiw-illustration) {
+  width: 140px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.legacyHome :global(.about-section) {
+  padding: 100px 0;
+  background: linear-gradient(135deg, #f7fafc 0%, #fff 100%);
+}
+
+.legacyHome :global(.about-dashboard) {
+  max-width: 80%;
+  filter: drop-shadow(0 20px 40px rgba(139, 95, 191, 0.15));
+}
+
+@media (max-width: 1024px) {
+  .legacyHome :global(.hiw-grid) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .legacyHome :global(.hiw-grid) {
+    grid-template-columns: 1fr;
+  }
+}

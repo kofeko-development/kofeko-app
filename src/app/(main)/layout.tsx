@@ -40,12 +40,27 @@ import { Badge } from '@/components/ui/badge';
 import AppFooter from '@/components/app-footer';
 
 
-const recruiterRoutes = ['/dashboard', '/job-postings', '/profile', '/applicants', '/team', '/jd-builder', '/assessments', '/company-profile', '/subscription', '/about', '/interviews'];
-const candidateRoutes = ['/find-jobs', '/dashboard', '/inbox', '/my-applications', '/profile', '/open-positions'];
+const routePermissions: { route: string; permissions: string[] }[] = [
+  { route: '/dashboard', permissions: ['job:read', 'candidate:read'] },
+  { route: '/job-postings', permissions: ['job:read'] },
+  { route: '/jd-builder', permissions: ['job:create'] },
+  { route: '/assessments', permissions: ['evaluation:read'] },
+  { route: '/interviews', permissions: ['pipeline:read'] },
+  { route: '/applicants', permissions: ['candidate:read'] },
+  { route: '/team', permissions: ['user:read'] },
+  { route: '/company-profile', permissions: ['company:read'] },
+  { route: '/subscription', permissions: ['company:update'] },
+  { route: '/find-jobs', permissions: ['job:read'] },
+  { route: '/my-applications', permissions: ['pipeline:read'] },
+  { route: '/inbox', permissions: ['communication:read'] },
+  { route: '/open-positions', permissions: ['job:read'] },
+  { route: '/profile', permissions: [] },
+  { route: '/about', permissions: [] },
+];
 
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, loading } = useAuth();
+  const { user, hasPermission, logout, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -57,23 +72,24 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    if (user.role === 'operator') {
+    if (hasPermission('rbac:manage')) {
       router.push('/admin/dashboard');
       return;
     }
 
-    // Basic role-based route protection
-    const baseRoute = '/' + pathname.split('/')[1];
-    if (user.role === 'recruiter' && !recruiterRoutes.some(r => pathname.startsWith(r))) {
-        router.push('/dashboard');
-    }
-    if (user.role === 'candidate' && !candidateRoutes.some(r => pathname.startsWith(r))) {
-        router.push('/dashboard');
+    const matched = routePermissions.find(({ route }) => pathname.startsWith(route));
+    if (!matched) {
+      router.push('/dashboard');
+      return;
     }
 
-  }, [user, loading, router, pathname]);
+    const allowed = matched.permissions.length === 0 || matched.permissions.some((permission) => hasPermission(permission));
+    if (!allowed) {
+        router.push('/dashboard');
+    }
+  }, [user, loading, router, pathname, hasPermission]);
   
-  if (loading || !user || user.role === 'operator') {
+  if (loading || !user || hasPermission('rbac:manage')) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
@@ -82,14 +98,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }
 
   const allRecruiterNav = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['HR Admin', 'Hiring Manager', 'Interviewer'] },
-    { href: '/jd-builder', label: 'JD Builder', icon: FilePlus2, roles: ['HR Admin'] },
-    { href: '/job-postings', label: 'Job Postings', icon: Briefcase, roles: ['HR Admin', 'Hiring Manager', 'Interviewer'] },
-    { href: '/assessments', label: 'Assessments', icon: Sparkles, roles: ['HR Admin', 'Hiring Manager'] },
-    { href: '/interviews', label: 'Interviews', icon: Mic, roles: ['HR Admin', 'Hiring Manager', 'Interviewer'] },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['job:read', 'candidate:read'] },
+    { href: '/jd-builder', label: 'JD Builder', icon: FilePlus2, permissions: ['job:create'] },
+    { href: '/job-postings', label: 'Job Postings', icon: Briefcase, permissions: ['job:read'] },
+    { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'] },
+    { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'] },
   ];
   
-  const recruiterNav = allRecruiterNav.filter(item => user.companyRole && item.roles.includes(user.companyRole));
+  const recruiterNav = allRecruiterNav.filter((item) => item.permissions.some((permission) => hasPermission(permission)));
 
   const candidateNavLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -126,7 +142,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <div className="flex flex-col space-y-1">
                     <div className="flex items-center justify-between">
                         <p className="text-sm font-medium leading-none">{user.name}</p>
-                        {user.companyRole && <Badge variant="outline">{user.companyRole}</Badge>}
+                        {user.backendRoles?.[0] && <Badge variant="outline">{user.backendRoles[0]}</Badge>}
                     </div>
                     <p className="text-xs leading-none text-muted-foreground">
                     {user.email}
@@ -146,7 +162,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         <span>Company Profile</span>
                     </Link>
                 </DropdownMenuItem>
-                {user.companyRole === 'HR Admin' && (
+                {hasPermission('company:update') && (
                   <>
                     <DropdownMenuItem asChild>
                         <Link href="/subscription">
@@ -271,7 +287,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     )
   }
 
-  if (user.role === 'recruiter') {
+  const isRecruiterExperience = hasPermission('job:create') || hasPermission('job:update') || hasPermission('user:read');
+
+  if (isRecruiterExperience) {
     return (
         <TooltipProvider>
         <SidebarProvider>
@@ -319,7 +337,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (user.role === 'candidate') {
+  if (!isRecruiterExperience) {
      return (
         <div className="flex min-h-screen flex-col bg-muted/40">
             <CandidateHeader />

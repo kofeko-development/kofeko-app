@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 const adminRoutes = ['/admin/dashboard', '/admin/users', '/admin/recruiters', '/admin/candidates'];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, loading } = useAuth();
+  const { user, hasPermission, logout, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -43,15 +43,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    if (user.role !== 'operator') {
+    if (!hasPermission('rbac:manage')) {
       logout();
       router.push('/login');
       return;
     }
 
-  }, [user, loading, router, pathname, logout]);
+  }, [user, loading, router, pathname, logout, hasPermission]);
   
-  if (loading || !user || user.role !== 'operator') {
+  if (loading || !user || !hasPermission('rbac:manage')) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>

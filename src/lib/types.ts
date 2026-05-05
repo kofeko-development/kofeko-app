@@ -14,6 +14,8 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  permissions?: string[];
+  backendRoles?: string[];
   phone?: string;
   coverLetter?: string;
   skills?: string[];

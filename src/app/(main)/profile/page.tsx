@@ -16,7 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 
 export default function ProfilePage() {
-    const { user, login, loading } = useAuth();
+    const { user, updateCurrentUser, loading } = useAuth();
     const { toast } = useToast();
     const router = useRouter();
     
@@ -97,7 +97,7 @@ export default function ProfilePage() {
                     linkedinProfileUrl: user.role === 'recruiter' ? linkedinUrl : user.linkedinProfileUrl,
                     resumeUrl: resumeFile ? resumeFile.name : user.resumeUrl,
                 };
-                login(updatedUser); 
+                updateCurrentUser(updatedUser); 
             }
 
             toast({

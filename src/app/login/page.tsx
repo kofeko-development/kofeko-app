@@ -10,67 +10,71 @@ import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { allUsers } from "@/lib/admin-data";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
+  const [tenantSlug, setTenantSlug] = useState(process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'demo-tenant');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // In a real app, this would be an API call to your backend.
-    // Here, we simulate checking credentials against our mock user data.
-    setTimeout(() => {
-        const user = allUsers.find(u => u.email === email);
+    try {
+      const user = await login({ tenantSlug, email, password });
+      if (user.status && user.status !== 'active') {
+        toast({
+          title: 'Account Not Active',
+          description: 'This account is currently pending or suspended. Please contact support.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-        if (user) {
-            // In a real app, you'd also verify the password.
-            if (user.status !== 'active') {
-                toast({
-                    title: 'Account Not Active',
-                    description: 'This account is currently pending or suspended. Please contact support.',
-                    variant: 'destructive'
-                });
-                setIsLoading(false);
-                return;
-            }
-            
-            login(user);
-            
-            if (user.role === 'operator') {
-                router.push('/admin/dashboard');
-            } else {
-                router.push('/dashboard');
-            }
-        } else {
-            toast({
-                title: 'Login Failed',
-                description: 'Invalid email or password. Please try again.',
-                variant: 'destructive'
-            });
-            setIsLoading(false);
-        }
-    }, 1000);
+      if (user.role === 'operator') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      toast({
+        title: 'Login Failed',
+        description: error instanceof Error ? error.message : 'Invalid email or password. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
 
   return (
     <Card className="mx-auto max-w-sm w-full">
       <CardHeader>
-        <CardTitle className="text-2xl">Login</CardTitle>
+        <CardTitle className="text-2xl">Company Login</CardTitle>
         <CardDescription>
-          Enter your email and password below to access your account.
+          Enter tenant slug, email and password to access your company account.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleLogin} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="tenantSlug">Tenant Slug</Label>
+            <Input
+              id="tenantSlug"
+              type="text"
+              placeholder="demo-tenant"
+              required
+              value={tenantSlug}
+              onChange={(e) => setTenantSlug(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -113,10 +117,13 @@ export default function LoginPage() {
 
         </form>
         <div className="mt-4 text-center text-sm">
-          Don&apos;t have an account?{" "}
+          Don&apos;t have a company account?{" "}
           <Link href="/signup" className="underline">
-            Sign up
+            Company Sign Up
           </Link>
+        </div>
+        <div className="mt-2 text-center text-sm">
+          Candidate user? <Link href="/candidate-auth?mode=login" className="underline">Login as Candidate</Link>
         </div>
       </CardContent>
     </Card>

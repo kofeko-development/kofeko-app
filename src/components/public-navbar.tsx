@@ -11,7 +11,10 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 
 const publicNavLinks = [
-    { href: '/open-positions', label: 'Jobs' },
+    { href: '/#home', label: 'Home' },
+    { href: '/#features', label: 'Features' },
+    { href: '/#how-it-works', label: 'How It Works' },
+    { href: '/about', label: 'About' },
 ];
 
 export default function PublicNavbar() {
@@ -36,7 +39,7 @@ export default function PublicNavbar() {
         )}>
             <div className="container">
                 <div className="flex h-20 items-center">
-                    <Link href="/login">
+                    <Link href="/">
                          <Logo />
                     </Link>
 
@@ -60,11 +63,11 @@ export default function PublicNavbar() {
                                  { user ? (
                                     <Link href="/dashboard">Dashboard</Link>
                                  ) : (
-                                    <Link href="/login">Log In</Link>
+                                    <Link href="/register">Log In</Link>
                                  )}
                              </Button>
                              <Button asChild className="btn-glass shadow-md">
-                                <Link href="/early-access">Get Early Access</Link>
+                                <Link href="/register">Register Interest</Link>
                             </Button>
                         </div>
                     </div>
@@ -101,10 +104,10 @@ export default function PublicNavbar() {
                             ) : (
                                 <>
                                     <Button asChild variant="outline" className="w-full">
-                                        <Link href="/login">Login</Link>
+                                        <Link href="/register">Login</Link>
                                     </Button>
                                     <Button asChild className="w-full btn-glass shadow-md">
-                                        <Link href="/early-access">Get Early Access</Link>
+                                        <Link href="/register">Register Interest</Link>
                                     </Button>
                                 </>
                             )}

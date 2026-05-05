@@ -14,18 +14,26 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
-import type { User } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { allUsers } from "@/lib/admin-data";
+
+const toTenantSlug = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-');
 
 function SignupFormComponent() {
-  const { login } = useAuth();
+  const { registerAdmin } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
+  const [tenantName, setTenantName] = useState('Demo Tenant');
+  const [tenantSlug, setTenantSlug] = useState(process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'demo-tenant');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,53 +48,65 @@ function SignupFormComponent() {
   }, [searchParams]);
 
 
-  const handleSignup = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    const existingUser = allUsers.find(u => u.email === email && u.status === 'active');
-    if (existingUser) {
-        toast({
-            title: 'Account Already Exists',
-            description: `An active ${existingUser.role} account with this email already exists. Please log in.`,
-            variant: 'destructive',
-        });
-        setIsLoading(false);
-        return;
+
+    const [firstName, ...rest] = name.trim().split(' ');
+    const lastName = rest.join(' ') || 'User';
+
+    try {
+      await registerAdmin({
+        tenantName,
+        tenantSlug,
+        firstName: firstName || 'Platform',
+        lastName,
+        email,
+        password,
+      });
+
+      toast({
+        title: "Account Created!",
+        description: "Tenant admin account created successfully.",
+      });
+
+      router.push('/dashboard');
+    } catch (error) {
+      toast({
+        title: 'Signup Failed',
+        description: error instanceof Error ? error.message : 'Failed to create account',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setTimeout(() => {
-        const newCandidate: User = {
-            uid: `candidate-${Date.now()}`,
-            name,
-            email,
-            role: 'candidate',
-            status: 'active'
-        };
-        allUsers.push(newCandidate); 
-        login(newCandidate);
-
-        toast({
-            title: "Account Created!",
-            description: "Welcome to Kofeko! Please complete your profile to continue.",
-        });
-
-        router.push('/profile');
-
-    }, 1500);
-
   };
 
   return (
     <Card className="mx-auto max-w-sm w-full">
       <CardHeader>
-        <CardTitle className="text-xl">Create your Applicant Profile</CardTitle>
+        <CardTitle className="text-xl">Create Company Admin Account</CardTitle>
         <CardDescription>
-         New Applicant? Create your account here to get started.
+          Create a new tenant and admin user.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSignup} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="tenant-name">Tenant Name</Label>
+            <Input id="tenant-name" value={tenantName} onChange={e => setTenantName(e.target.value)} required disabled={isLoading}/>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tenant-slug">Tenant Slug</Label>
+            <Input
+              id="tenant-slug"
+              value={tenantSlug}
+              onChange={e => setTenantSlug(toTenantSlug(e.target.value))}
+              required
+              disabled={isLoading}
+            />
+            <p className="text-xs text-muted-foreground">Use lowercase letters, numbers, and hyphens only.</p>
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="full-name">Full name</Label>
             <Input id="full-name" name="full-name" value={name} onChange={e => setName(e.target.value)} required disabled={isLoading}/>
@@ -116,10 +136,13 @@ function SignupFormComponent() {
           </Button>
         </form>
         <div className="mt-4 text-center text-sm">
-          Already have an account?{" "}
+          Already have a company account?{" "}
           <Link href="/login" className="underline">
-            Login
+            Company Login
           </Link>
+        </div>
+        <div className="mt-2 text-center text-sm">
+          Looking for candidate access? <Link href="/candidate-auth?mode=signup" className="underline">Candidate Sign Up</Link>
         </div>
       </CardContent>
     </Card>
