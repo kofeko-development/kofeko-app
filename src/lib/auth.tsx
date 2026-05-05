@@ -7,15 +7,32 @@ type LoginInput = {
   tenantSlug: string;
   email: string;
   password: string;
+  otp?: string;
 };
 
 type RegisterAdminInput = {
-  tenantName: string;
-  tenantSlug: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
+  companyName: string;
+  companyAddress: {
+    country: string;
+    state: string;
+    city: string;
+    zipCode: string;
+    fullAddress: string;
+  };
+  industry: string;
+  companySize: string;
+  companyType: 'startup' | 'enterprise' | 'agency' | 'non_profit';
+  foundedYear: number;
+  companyWebsite: string;
+  officialCompanyAddress: string;
+  phoneNumber?: string;
+  companyLogo: string;
+  shortDescription: string;
+  linkedinUrl?: string;
+  twitterUrl?: string;
+  termsAccepted: true;
+  contactName: string;
+  contactEmail: string;
 };
 
 type RegisterCandidateInput = {
@@ -50,7 +67,7 @@ interface AuthContextType {
   user: User | null;
   hasPermission: (permission: string) => boolean;
   login: (input: LoginInput) => Promise<User>;
-  registerAdmin: (input: RegisterAdminInput) => Promise<User>;
+  registerAdmin: (input: RegisterAdminInput) => Promise<void>;
   loginCandidate: (input: LoginCandidateInput) => Promise<User>;
   registerCandidate: (input: RegisterCandidateInput) => Promise<User>;
   updateCurrentUser: (nextUser: User) => void;
@@ -214,7 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const registerAdmin = async (input: RegisterAdminInput) => {
-    const response = await fetch(`${API_BASE_URL}/auth/register-admin`, {
+    const response = await fetch(`${API_BASE_URL}/auth/register-company-request`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -226,18 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(await getErrorMessage(response));
     }
 
-    const payload = (await response.json()) as ApiEnvelope<{
-      accessToken: string;
-      refreshToken: string;
-      user: BackendUser;
-    }>;
-
-    localStorage.setItem(ACCESS_TOKEN_KEY, payload.data.accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, payload.data.refreshToken);
-
-    const mappedUser = mapBackendUser(payload.data.user);
-    setUser(mappedUser);
-    return mappedUser;
+    await response.json();
   };
 
   const registerCandidate = async (input: RegisterCandidateInput) => {

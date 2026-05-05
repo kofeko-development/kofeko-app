@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [tenantSlug, setTenantSlug] = useState(process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'demo-tenant');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -26,7 +27,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const user = await login({ tenantSlug, email, password });
+      const user = await login({ tenantSlug, email, password, otp: otp || undefined });
       if (user.status && user.status !== 'active') {
         toast({
           title: 'Account Not Active',
@@ -101,6 +102,17 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="otp">OTP (first login after approval)</Label>
+            <Input
+              id="otp"
+              type="text"
+              placeholder="Enter OTP shared by superadmin"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              disabled={isLoading}
             />
           </div>
           
