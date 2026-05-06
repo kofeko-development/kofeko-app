@@ -28,31 +28,56 @@ import {
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { stageOneApi } from '@/lib/stage1-2-api';
 
 export default function TeamManagementPage() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isInviting, setIsInviting] = useState(false);
 
     // In a real app, you would fetch users belonging to the current user's company
     const teamMembers = allUsers.filter(u => u.company === user?.company && u.role === 'recruiter');
     
-    const handleInvite = (e: React.FormEvent<HTMLFormElement>) => {
+    const mapRoleToBackend = (role: string) => {
+        if (role === 'Hiring Manager') return 'hr_manager';
+        if (role === 'Interviewer') return 'interviewer';
+        return undefined;
+    };
+
+    const handleInvite = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const name = formData.get('name') as string;
         const email = formData.get('email') as string;
         const role = formData.get('role') as string;
+        const [firstName, ...rest] = name.trim().split(' ');
+        const lastName = rest.join(' ') || 'User';
 
-        // In a real app, this would trigger a backend process to send an invitation email
-        console.log('Inviting new member:', { name, email, role });
-        
-        toast({
-            title: "Invitation Sent!",
-            description: `${name} has been invited to join the team as a ${role}.`,
-        });
-        
-        setIsDialogOpen(false);
+        try {
+            setIsInviting(true);
+            await stageOneApi.inviteUser({
+                firstName,
+                lastName,
+                email,
+                roleName: mapRoleToBackend(role),
+            });
+
+            toast({
+                title: "Invitation Sent!",
+                description: `${name} has been invited to join the team as a ${role}.`,
+            });
+
+            setIsDialogOpen(false);
+        } catch (error) {
+            toast({
+                title: 'Invite failed',
+                description: error instanceof Error ? error.message : 'Unable to send invitation.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsInviting(false);
+        }
     };
 
     return (
@@ -60,7 +85,7 @@ export default function TeamManagementPage() {
             <div className="flex items-center justify-between">
                 <div>
                 <h1 className="text-3xl font-bold font-headline">Team Management</h1>
-                <p className="text-muted-foreground">Invite and manage your organization's members.</p>
+                <p className="text-muted-foreground">Invite and manage your {"organization's"} members.</p>
                 </div>
                 <div className="flex gap-2">
                     <Button asChild variant="outline">
@@ -111,7 +136,9 @@ export default function TeamManagementPage() {
                                     </div>
                                 </div>
                                 <DialogFooter>
-                                    <Button type="submit">Send Invite</Button>
+                                    <Button type="submit" disabled={isInviting}>
+                                        {isInviting ? 'Sending...' : 'Send Invite'}
+                                    </Button>
                                 </DialogFooter>
                             </form>
                         </DialogContent>

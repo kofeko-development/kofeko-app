@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User } from './types';
+import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, apiRequest, clearAuthStorage } from './api-client';
 
 type LoginInput = {
   tenantSlug: string;
@@ -57,12 +58,6 @@ type BackendUser = {
   status?: 'active' | 'invited' | 'suspended';
 };
 
-type ApiEnvelope<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
-
 interface AuthContextType {
   user: User | null;
   hasPermission: (permission: string) => boolean;
@@ -76,19 +71,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const ACCESS_TOKEN_KEY = 'kofeko_access_token';
-const REFRESH_TOKEN_KEY = 'kofeko_refresh_token';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5000/api/v1';
-
-const getErrorMessage = async (response: Response) => {
-  try {
-    const payload = await response.json();
-    return payload?.message ?? 'Request failed';
-  } catch {
-    return 'Request failed';
-  }
-};
-
 const mapBackendUser = (backendUser: BackendUser): User => {
   const fullName = `${backendUser.firstName ?? ''} ${backendUser.lastName ?? ''}`.trim();
   const permissions = backendUser.permissions ?? [];
@@ -119,45 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const meResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${storedToken}`,
-          },
-        });
-
-        if (meResponse.ok) {
-          const payload = (await meResponse.json()) as ApiEnvelope<BackendUser>;
-          setUser(mapBackendUser(payload.data));
-          return;
-        }
-
-        if (meResponse.status === 401) {
-          const refreshed = await refreshAccessToken();
-          if (!refreshed) {
-            clearSession();
-            return;
-          }
-
-          const refreshedToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-          if (!refreshedToken) {
-            clearSession();
-            return;
-          }
-
-          const retryResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-            headers: {
-              Authorization: `Bearer ${refreshedToken}`,
-            },
-          });
-
-          if (retryResponse.ok) {
-            const payload = (await retryResponse.json()) as ApiEnvelope<BackendUser>;
-            setUser(mapBackendUser(payload.data));
-            return;
-          }
-        }
-
-        clearSession();
+        const me = await apiRequest<BackendUser>('/auth/me', { auth: true });
+        setUser(mapBackendUser(me));
       } catch (error) {
         console.error('Failed to initialize auth session', error);
         clearSession();
@@ -171,56 +116,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearSession = () => {
     setUser(null);
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-  };
-
-  const refreshAccessToken = async () => {
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!refreshToken) {
-      return false;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const payload = (await response.json()) as ApiEnvelope<{ accessToken: string }>;
-      localStorage.setItem(ACCESS_TOKEN_KEY, payload.data.accessToken);
-      return true;
-    } catch (error) {
-      console.error('Failed to refresh access token', error);
-      return false;
-    }
+    clearAuthStorage();
   };
 
   const login = async (input: LoginInput) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      throw new Error(await getErrorMessage(response));
-    }
-
-    const payload = (await response.json()) as ApiEnvelope<{
+    const payload = await apiRequest<{
       accessToken: string;
       refreshToken: string;
       user: BackendUser;
-    }>;
+    }>('/auth/login', { method: 'POST', body: input });
 
     localStorage.setItem(ACCESS_TOKEN_KEY, payload.data.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, payload.data.refreshToken);
@@ -231,39 +135,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const registerAdmin = async (input: RegisterAdminInput) => {
-    const response = await fetch(`${API_BASE_URL}/auth/register-company-request`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      throw new Error(await getErrorMessage(response));
-    }
-
-    await response.json();
+    await apiRequest('/auth/register-company-request', { method: 'POST', body: input });
   };
 
   const registerCandidate = async (input: RegisterCandidateInput) => {
-    const response = await fetch(`${API_BASE_URL}/auth/register-candidate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      throw new Error(await getErrorMessage(response));
-    }
-
-    const payload = (await response.json()) as ApiEnvelope<{
+    const payload = await apiRequest<{
       accessToken: string;
       refreshToken: string;
       user: BackendUser;
-    }>;
+    }>('/auth/register-candidate', { method: 'POST', body: input });
 
     localStorage.setItem(ACCESS_TOKEN_KEY, payload.data.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, payload.data.refreshToken);
@@ -273,23 +153,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginCandidate = async (input: LoginCandidateInput) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login-candidate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      throw new Error(await getErrorMessage(response));
-    }
-
-    const payload = (await response.json()) as ApiEnvelope<{
+    const payload = await apiRequest<{
       accessToken: string;
       refreshToken: string;
       user: BackendUser;
-    }>;
+    }>('/auth/login-candidate', { method: 'POST', body: input });
 
     localStorage.setItem(ACCESS_TOKEN_KEY, payload.data.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, payload.data.refreshToken);
@@ -309,13 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (refreshToken) {
       try {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ refreshToken }),
-        });
+        await apiRequest('/auth/logout', { method: 'POST', body: { refreshToken } });
       } catch (error) {
         console.error('Logout request failed', error);
       }

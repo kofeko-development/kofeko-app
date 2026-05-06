@@ -1,83 +1,155 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UploadCloud } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
-import Image from 'next/image';
+import { companyApi, CompanyProfilePayload } from '@/lib/stage1-2-api';
+
+type FormState = CompanyProfilePayload;
+
+const defaultFormState: FormState = {
+  companyName: '',
+  industry: '',
+  companySize: '11-50',
+  companyType: 'startup',
+  foundedYear: new Date().getFullYear(),
+  companyWebsite: '',
+  officialCompanyAddress: '',
+  phoneNumber: '',
+  companyLogo: '',
+  shortDescription: '',
+  linkedinUrl: '',
+  twitterUrl: '',
+  termsAccepted: true,
+};
 
 export default function CompanyProfilePage() {
-    const { user, login, loading } = useAuth();
+    const { user, loading } = useAuth();
     const { toast } = useToast();
     const router = useRouter();
-    
-    const [companyName, setCompanyName] = useState('');
-    const [about, setAbout] = useState('');
-    const [values, setValues] = useState('');
-    const [mission, setMission] = useState('');
-    const [logo, setLogo] = useState<File | null>(null);
-    const [logoPreview, setLogoPreview] = useState<string | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
 
-    const canEdit = user?.companyRole === 'HR Admin';
+    const [form, setForm] = useState<FormState>(defaultFormState);
+    const [isHydrating, setIsHydrating] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [hasCompanyProfile, setHasCompanyProfile] = useState(false);
+
+    const canEdit = useMemo(
+      () => Boolean(user?.permissions?.includes('company:update')),
+      [user?.permissions],
+    );
 
     useEffect(() => {
-        if (user && user.role === 'recruiter') {
-            setCompanyName(user.company || '');
-            // In a real app, these would come from a company profile object
-            setAbout('');
-            setValues('');
-            setMission('');
-            // and a logo URL
+        if (!user) return;
+        if (user.role !== 'recruiter') {
+          setIsHydrating(false);
+          return;
         }
-    }, [user]);
 
-    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setLogo(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setLogoPreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    }
+        const loadCompany = async () => {
+          try {
+            const profile = await companyApi.get();
+            setForm({
+              companyName: profile.company.companyName ?? '',
+              industry: profile.company.industry ?? '',
+              companySize: profile.company.companySize,
+              companyType: profile.company.companyType,
+              foundedYear: profile.company.foundedYear ?? new Date().getFullYear(),
+              companyWebsite: profile.company.companyWebsite ?? '',
+              officialCompanyAddress: profile.company.officialCompanyAddress ?? '',
+              phoneNumber: profile.company.phoneNumber ?? '',
+              companyLogo: profile.company.companyLogo ?? '',
+              shortDescription: profile.company.shortDescription ?? '',
+              linkedinUrl: profile.company.linkedinUrl ?? '',
+              twitterUrl: profile.company.twitterUrl ?? '',
+              termsAccepted: true,
+            });
+            setHasCompanyProfile(true);
+          } catch (error) {
+            if (error instanceof Error && error.message.toLowerCase().includes('not found')) {
+              setHasCompanyProfile(false);
+              return;
+            }
+            toast({
+              title: 'Unable to load company profile',
+              description: error instanceof Error ? error.message : 'Please refresh and try again.',
+              variant: 'destructive',
+            });
+          } finally {
+            setIsHydrating(false);
+          }
+        };
 
-    const handleSaveChanges = (e: React.FormEvent) => {
+        void loadCompany();
+    }, [user, toast]);
+
+    const updateField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
+      setForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleSaveChanges = async (e: FormEvent) => {
         e.preventDefault();
         if (!canEdit) return;
+        if (form.shortDescription.trim().length < 20) {
+          toast({
+            title: 'Description too short',
+            description: 'Short description must be at least 20 characters.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (!form.termsAccepted) {
+          toast({
+            title: 'Terms required',
+            description: 'Please accept the terms before saving.',
+            variant: 'destructive',
+          });
+          return;
+        }
 
         setIsSaving(true);
-        setTimeout(() => {
-            if(user) {
-                // In a real app you would save this to a specific company collection in your DB,
-                // including uploading the logo file and storing its URL.
-                console.log({
-                    companyName,
-                    about,
-                    values,
-                    mission,
-                    logoName: logo?.name
-                });
-            }
+        try {
+            const payload: CompanyProfilePayload = {
+              ...form,
+              phoneNumber: form.phoneNumber || undefined,
+              linkedinUrl: form.linkedinUrl || undefined,
+              twitterUrl: form.twitterUrl || undefined,
+            };
 
+            if (hasCompanyProfile) {
+              await companyApi.update(payload);
+            } else {
+              await companyApi.create(payload);
+              setHasCompanyProfile(true);
+            }
             toast({
                 title: 'Company Profile Updated',
                 description: 'Your changes have been saved successfully.',
             });
-            setIsSaving(false);
-        }, 1500);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to save profile.';
+          if (message.toLowerCase().includes('already exists')) {
+            setHasCompanyProfile(true);
+            toast({
+              title: 'Profile already exists',
+              description: 'Switched to update mode. Please click save again.',
+            });
+          } else {
+            toast({ title: 'Save failed', description: message, variant: 'destructive' });
+          }
+        } finally {
+          setIsSaving(false);
+        }
     };
 
-    if (loading || !user) {
+    if (loading || isHydrating || !user) {
         return (
             <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -102,39 +174,66 @@ export default function CompanyProfilePage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Company Details</CardTitle>
+                        <CardDescription>
+                          {hasCompanyProfile ? 'Update your saved company profile details.' : 'Create your company profile for your tenant.'}
+                        </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="grid md:grid-cols-2 gap-6 items-center">
-                             <div className="space-y-2">
-                                <Label htmlFor="companyName">Company Name</Label>
-                                <Input id="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} disabled={!canEdit} />
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="companyName">Company Name</Label>
+                              <Input id="companyName" value={form.companyName} onChange={(e) => updateField('companyName', e.target.value)} disabled={!canEdit} required />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="logo">Company Logo</Label>
-                                <div className="flex items-center gap-4">
-                                    <div className="w-20 h-20 bg-muted rounded-lg flex items-center justify-center border">
-                                        {logoPreview ? (
-                                            <Image src={logoPreview} alt="Logo preview" width={80} height={80} className="object-contain rounded-lg" />
-                                        ) : (
-                                            <UploadCloud className="h-8 w-8 text-muted-foreground" />
-                                        )}
-                                    </div>
-                                    <Input id="logo" type="file" onChange={handleLogoChange} accept="image/*" className="file:text-primary file:font-semibold" disabled={!canEdit} />
-                                </div>
+                              <Label htmlFor="industry">Industry</Label>
+                              <Input id="industry" value={form.industry} onChange={(e) => updateField('industry', e.target.value)} disabled={!canEdit} required />
                             </div>
                         </div>
-
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="companySize">Company Size</Label>
+                            <Input id="companySize" value={form.companySize} onChange={(e) => updateField('companySize', e.target.value as FormState['companySize'])} disabled={!canEdit} required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="companyType">Company Type</Label>
+                            <Input id="companyType" value={form.companyType} onChange={(e) => updateField('companyType', e.target.value as FormState['companyType'])} disabled={!canEdit} required />
+                          </div>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="foundedYear">Founded Year</Label>
+                            <Input id="foundedYear" type="number" value={form.foundedYear} onChange={(e) => updateField('foundedYear', Number(e.target.value))} disabled={!canEdit} required />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="phoneNumber">Phone Number</Label>
+                            <Input id="phoneNumber" value={form.phoneNumber ?? ''} onChange={(e) => updateField('phoneNumber', e.target.value)} disabled={!canEdit} />
+                          </div>
+                        </div>
                         <div className="space-y-2">
-                            <Label htmlFor="about">About Us</Label>
-                            <Textarea id="about" placeholder="What makes your company special?" value={about} onChange={e => setAbout(e.target.value)} className="min-h-[150px]" disabled={!canEdit} />
+                          <Label htmlFor="companyWebsite">Company Website</Label>
+                          <Input id="companyWebsite" value={form.companyWebsite} onChange={(e) => updateField('companyWebsite', e.target.value)} disabled={!canEdit} required />
                         </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="mission">Mission</Label>
-                            <Textarea id="mission" placeholder="What is your company's mission?" value={mission} onChange={e => setMission(e.target.value)} className="min-h-[100px]" disabled={!canEdit} />
+                        <div className="space-y-2">
+                          <Label htmlFor="officialCompanyAddress">Official Company Address</Label>
+                          <Input id="officialCompanyAddress" value={form.officialCompanyAddress} onChange={(e) => updateField('officialCompanyAddress', e.target.value)} disabled={!canEdit} required />
                         </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="values">Company Values</Label>
-                            <Textarea id="values" placeholder="e.g., Innovation, Customer-Centric, Integrity" value={values} onChange={e => setValues(e.target.value)} className="min-h-[100px]" disabled={!canEdit} />
+                        <div className="space-y-2">
+                          <Label htmlFor="companyLogo">Company Logo URL</Label>
+                          <Input id="companyLogo" value={form.companyLogo} onChange={(e) => updateField('companyLogo', e.target.value)} disabled={!canEdit} required />
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
+                            <Input id="linkedinUrl" value={form.linkedinUrl ?? ''} onChange={(e) => updateField('linkedinUrl', e.target.value)} disabled={!canEdit} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="twitterUrl">Twitter URL</Label>
+                            <Input id="twitterUrl" value={form.twitterUrl ?? ''} onChange={(e) => updateField('twitterUrl', e.target.value)} disabled={!canEdit} />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="shortDescription">Short Description</Label>
+                            <Textarea id="shortDescription" value={form.shortDescription} onChange={e => updateField('shortDescription', e.target.value)} className="min-h-[120px]" disabled={!canEdit} required />
                         </div>
                     </CardContent>
                 </Card>
