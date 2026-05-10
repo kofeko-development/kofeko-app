@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -15,18 +15,21 @@ const SUPERADMIN_TOKEN_KEY = 'kofeko_superadmin_token';
 export default function SuperAdminLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const submittingRef = useRef(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin/login`, {
+      const response = await fetch(`${API_BASE_URL}/superadmin/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -42,6 +45,7 @@ export default function SuperAdminLoginPage() {
         variant: 'destructive',
       });
     } finally {
+      submittingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -56,8 +60,16 @@ export default function SuperAdminLoginPage() {
         <CardContent>
           <form onSubmit={onSubmit} className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="username">Username</Label>
-              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required disabled={isLoading} />
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
