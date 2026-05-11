@@ -35,6 +35,8 @@ type RegisterAdminInput = {
   linkedinUrl?: string;
   twitterUrl?: string;
   termsAccepted: true;
+  /** From POST /auth/register-company-email-otp/verify after confirming the email code. */
+  emailVerificationToken: string;
 };
 
 type RegisterCandidateInput = {
@@ -147,7 +149,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const registerAdmin = async (input: RegisterAdminInput) => {
-    await apiRequest('/auth/register-company-request', { method: 'POST', body: input });
+    await apiRequest('/auth/register-company-request', {
+      method: 'POST',
+      body: input,
+    });
   };
 
   const registerCandidate = async (input: RegisterCandidateInput) => {
