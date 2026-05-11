@@ -17,6 +17,7 @@ import {
   LogOut,
   Building,
   Briefcase,
+  FilePlus2,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo from '@/components/logo';
@@ -44,14 +45,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     if (!hasPermission('rbac:manage')) {
-      logout();
-      router.push('/login');
       return;
     }
 
   }, [user, loading, router, pathname, logout, hasPermission]);
   
-  if (loading || !user || !hasPermission('rbac:manage')) {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
@@ -59,8 +58,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-sm text-muted-foreground">Redirecting to login…</div>
+      </div>
+    );
+  }
+
+  if (!hasPermission('rbac:manage')) {
+    return (
+      <div className="flex h-screen items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold">Access denied</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your account doesn&apos;t have access to the admin panel.
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button onClick={() => router.push('/dashboard')}>Go to dashboard</Button>
+            <Button variant="outline" onClick={() => void logout()}>Log out</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const navItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
     { href: '/admin/recruiters', label: 'Recruiters', icon: Briefcase },
     { href: '/admin/candidates', label: 'Candidates', icon: Users },
   ];
@@ -99,6 +124,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/profile')}>
+                <Building className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={logout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>

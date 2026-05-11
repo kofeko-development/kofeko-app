@@ -10,16 +10,17 @@ import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { ApiError } from "@/lib/api-client";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
-  const [tenantSlug, setTenantSlug] = useState(process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'demo-tenant');
+  const [tenantSlug, setTenantSlug] = useState('');
+  const [showTenantSlug, setShowTenantSlug] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -27,7 +28,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const user = await login({ tenantSlug, email, password, otp: otp || undefined });
+      const user = await login({ email, password, tenantSlug: showTenantSlug ? tenantSlug : undefined });
       if (user.status && user.status !== 'active') {
         toast({
           title: 'Account Not Active',
@@ -43,6 +44,15 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setShowTenantSlug(true);
+        toast({
+          title: 'Multiple company accounts found',
+          description: 'Please enter your company slug to continue.',
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: 'Login Failed',
         description: error instanceof Error ? error.message : 'Invalid email or password. Please try again.',
@@ -59,23 +69,25 @@ export default function LoginPage() {
       <CardHeader>
         <CardTitle className="text-2xl">Company Login</CardTitle>
         <CardDescription>
-          Enter tenant slug, email and password to access your company account.
+          Enter your email and password to access your company account.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleLogin} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="tenantSlug">Tenant Slug</Label>
-            <Input
-              id="tenantSlug"
-              type="text"
-              placeholder="demo-tenant"
-              required
-              value={tenantSlug}
-              onChange={(e) => setTenantSlug(e.target.value)}
-              disabled={isLoading}
-            />
-          </div>
+          {showTenantSlug ? (
+            <div className="grid gap-2">
+              <Label htmlFor="tenantSlug">Company Slug</Label>
+              <Input
+                id="tenantSlug"
+                placeholder="your-company-slug"
+                required
+                value={tenantSlug}
+                onChange={(e) => setTenantSlug(e.target.value)}
+                disabled={isLoading}
+              />
+              <p className="text-xs text-muted-foreground">Ask your admin for the company slug if you don't know it.</p>
+            </div>
+          ) : null}
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -104,28 +116,22 @@ export default function LoginPage() {
                 disabled={isLoading}
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="otp">OTP (first login after approval)</Label>
-            <Input
-              id="otp"
-              type="text"
-              placeholder="Enter OTP shared by superadmin"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              disabled={isLoading}
-            />
-          </div>
           
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+            <Button asChild variant="outline" className="w-full sm:flex-1">
+              <Link href="/register">Register</Link>
+            </Button>
+            <Button type="submit" className="w-full sm:flex-1" disabled={isLoading}>
+              {isLoading ? (
                 <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging in…
                 </>
               ) : (
-                'Login'
+                'Log in'
               )}
-          </Button>
+            </Button>
+          </div>
 
         </form>
         <div className="mt-4 text-center text-sm">

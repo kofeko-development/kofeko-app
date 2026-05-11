@@ -13,9 +13,9 @@ import PublicNavbar from "@/components/public-navbar";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import sanitizeHtml from 'sanitize-html';
-import { jobs } from '@/lib/jobs-data';
 import AppFooter from '@/components/app-footer';
 import MainLayout from '@/app/(main)/layout';
+import { portalApi, type PortalJobDetail } from '@/lib/portal-api';
 
 function PageContent({ 
   job, 
@@ -127,50 +127,41 @@ export default function JobApplicationPage() {
         }
     }, [user]);
 
-    const job = jobs.find(j => j.id === id);
+    const [job, setJob] = useState<PortalJobDetail | null>(null);
+    const [jobLoading, setJobLoading] = useState(true);
+
+    useEffect(() => {
+        setJobLoading(true);
+        portalApi
+            .getJob(id)
+            .then((res) => setJob(res))
+            .catch((err) => {
+                toast({
+                    title: 'Job not found',
+                    description: err instanceof Error ? err.message : 'Please go back and try again.',
+                    variant: 'destructive',
+                });
+                setJob(null);
+            })
+            .finally(() => setJobLoading(false));
+    }, [id, toast]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        let effectiveResume = resume;
-        if (user && user.resumeUrl && !resume) {
-            // In a real app, you might want to fetch the file object. For demo, we create a placeholder.
-            effectiveResume = new File([], user.resumeUrl);
-        }
-
-        if (!name || !email || !effectiveResume) {
-            toast({
-                title: 'Missing Information',
-                description: 'Please fill out all required fields and attach your resume.',
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        setIsLoading(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        if (user) {
-            // Logged-in user applied
-            toast({
-                title: "Application Submitted!",
-                description: "Your application has been received.",
-            });
-            router.push('/my-applications');
-        } else {
-             // New user applied, redirect to additional questions page
-             const query = new URLSearchParams({
-                name,
-                email,
-                jobId: id,
-             }).toString();
-             router.push(`/apply/${id}/questions?${query}`);
-        }
-
-        setIsLoading(false);
+        toast({
+            title: 'Apply coming soon',
+            description: 'Job applications will be enabled once the portal apply API is wired into this UI.',
+        });
     };
     
+    if (jobLoading) {
+         return (
+             <div className="flex h-screen w-screen items-center justify-center">
+                 <div className="text-center text-muted-foreground">Loading job...</div>
+             </div>
+         );
+    }
+
     if (!job) {
          return (
              <div className="flex h-screen w-screen items-center justify-center">
@@ -194,7 +185,7 @@ export default function JobApplicationPage() {
         coverLetter,
         setCoverLetter,
         setResume,
-        isLoading
+        isLoading: isLoading || jobLoading,
     };
     
 

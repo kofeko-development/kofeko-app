@@ -2,11 +2,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import PublicNavbar from '@/components/public-navbar';
 import AppFooter from '@/components/app-footer';
+import { useAuth } from '@/lib/auth';
 import styles from './home-legacy.module.css';
+
+function dashboardHrefForUser(role: string | undefined) {
+  return role === 'operator' ? '/admin/dashboard' : '/dashboard';
+}
 
 const featureItems = [
   {
@@ -38,6 +44,24 @@ const featureItems = [
 
 export default function HomePage() {
   const [activeFeature, setActiveFeature] = useState(2);
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    if (user) {
+      router.replace(dashboardHrefForUser(user.role));
+    }
+  }, [user, loading, router]);
+
+  if (loading || user) {
+    return (
+      <div className={`flex min-h-screen flex-col items-center justify-center ${styles.legacyHome}`}>
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent" aria-hidden />
+        <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex min-h-screen flex-col ${styles.legacyHome}`} id="home">
@@ -56,9 +80,9 @@ export default function HomePage() {
               <p className="text-lg text-muted-foreground">
                 Instead of forcing rigid workflows or black-box scores, Kofeko organizes messy hiring inputs, surfaces decision-critical signals, and keeps shortlists moving.
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Button asChild className="btn-glass">
-                  <Link href="/register">Get Early Access</Link>
+                  <Link href="/register">Register</Link>
                 </Button>
                 <Button asChild variant="outline">
                   <Link href="#features">Learn More</Link>

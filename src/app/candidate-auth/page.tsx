@@ -9,26 +9,47 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { signInWithPopup } from 'firebase/auth';
+import { firebaseAuth, googleAuthProvider } from '@/lib/firebase-client';
 
 function CandidateAuthContent() {
-  const { loginCandidate, registerCandidate } = useAuth();
+  const { loginCandidate, loginCandidateWithGoogle, registerCandidate } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = useMemo(() => (searchParams.get('mode') === 'signup' ? 'signup' : 'login'), [searchParams]);
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const passwordMismatch =
+    mode === 'signup' && confirmPassword.length > 0 && password.length > 0 && password !== confirmPassword;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       if (mode === 'signup') {
+        if (password !== confirmPassword) {
+          throw new Error('Passwords do not match.');
+        }
+
+        const trimmed = fullName.trim();
+        if (!trimmed) {
+          throw new Error('Please enter your name.');
+        }
+
+        const parts = trimmed.split(/\s+/).filter(Boolean);
+        const firstName = parts[0] ?? '';
+        const lastName = parts.slice(1).join(' ') || 'Candidate';
+
         await registerCandidate({ firstName, lastName, email, password });
         toast({ title: 'Candidate account created', description: 'Welcome to Kofeko candidate portal.' });
       } else {
@@ -47,6 +68,25 @@ function CandidateAuthContent() {
     }
   };
 
+  const onGoogle = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const cred = await signInWithPopup(firebaseAuth, googleAuthProvider);
+      const idToken = await cred.user.getIdToken();
+      await loginCandidateWithGoogle({ idToken });
+      toast({ title: 'Login successful', description: 'Signed in with Google.' });
+      router.push('/dashboard');
+    } catch (error) {
+      toast({
+        title: 'Google sign-in failed',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/20 px-4">
       <Card className="w-full max-w-md">
@@ -61,29 +101,101 @@ function CandidateAuthContent() {
             {mode === 'signup' && (
               <>
                 <div className="grid gap-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} required disabled={isLoading} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} required disabled={isLoading} />
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    disabled={isLoading || isGoogleLoading}
+                  />
                 </div>
               </>
             )}
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading || isGoogleLoading}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading || isGoogleLoading}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowPassword((v) => !v)}
+                  disabled={isLoading || isGoogleLoading}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  <span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>
+                </Button>
+              </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            {mode === 'signup' ? (
+              <div className="grid gap-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    disabled={isLoading || isGoogleLoading}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    disabled={isLoading || isGoogleLoading}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground"
+                  >
+                    {showConfirmPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    <span className="sr-only">{showConfirmPassword ? 'Hide password' : 'Show password'}</span>
+                  </Button>
+                </div>
+                {passwordMismatch ? (
+                  <p className="text-xs text-destructive">Passwords do not match.</p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading || passwordMismatch}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {mode === 'signup' ? 'Create Candidate Account' : 'Login as Candidate'}
             </Button>
           </form>
+
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <div className="text-xs text-muted-foreground">OR</div>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <Button variant="outline" className="w-full" onClick={onGoogle} disabled={isLoading || isGoogleLoading}>
+            {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Continue with Google
+          </Button>
 
           <div className="mt-4 text-center text-sm">
             {mode === 'signup' ? (

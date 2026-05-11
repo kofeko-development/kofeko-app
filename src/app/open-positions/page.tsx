@@ -2,16 +2,64 @@
 'use client';
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, MapPin, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import PublicNavbar from "@/components/public-navbar";
 import AppFooter from "@/components/app-footer";
-import { jobs } from "@/lib/jobs-data";
+import { portalApi } from "@/lib/portal-api";
+import { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+
+type JobItem = Awaited<ReturnType<typeof portalApi.listAllJobs>>["items"][number];
 
 
 export default function PublicJobsPage() {
+    const { toast } = useToast();
+    const [jobs, setJobs] = useState<JobItem[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        let cancelled = false;
+        setIsLoading(true);
+        portalApi
+            .listAllJobs({ limit: 30 })
+            .then((res) => {
+                if (!cancelled) setJobs(res.items ?? []);
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    toast({
+                        title: "Unable to load jobs",
+                        description: err instanceof Error ? err.message : "Please refresh and try again.",
+                        variant: "destructive",
+                    });
+                    setJobs([]);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setIsLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const filtered = useMemo(() => {
+        const q = searchTerm.trim().toLowerCase();
+        if (!q) return jobs;
+        return jobs.filter((j) => {
+            return (
+                j.title.toLowerCase().includes(q) ||
+                j.tenant.name.toLowerCase().includes(q) ||
+                j.description.toLowerCase().includes(q)
+            );
+        });
+    }, [jobs, searchTerm]);
+
     return (
         <div className="flex flex-col min-h-screen">
             <PublicNavbar />
@@ -24,7 +72,12 @@ export default function PublicJobsPage() {
                         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                             <div className="relative md:col-span-2">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder="Search by title, company, or keyword..." className="pl-10" />
+                                <Input
+                                    placeholder="Search by title, company, or keyword..."
+                                    className="pl-10"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
                             </div>
                             <Select>
                                 <SelectTrigger>
@@ -41,26 +94,36 @@ export default function PublicJobsPage() {
                     </div>
                 </section>
                 <section className="py-12">
-                    <div className="container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {jobs.filter(j => j.status === 'open').map(job => (
-                            <Card key={job.id} className="flex flex-col hover:shadow-md transition-shadow">
-                                <CardHeader>
-                                    <CardTitle>{job.title}</CardTitle>
-                                    <CardDescription className="flex items-center flex-wrap gap-x-4 gap-y-1 pt-2">
-                                        <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.company}</span>
-                                        <span className="flex items-center gap-2"><MapPin className="size-4" /> {job.location}</span>
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="flex-1">
-                                    <p className="text-sm text-muted-foreground line-clamp-2">{job.description}</p>
+                    <div className="container">
+                        {filtered.length ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {filtered.map((job) => (
+                                    <Card key={job.id} className="flex flex-col hover:shadow-md transition-shadow">
+                                        <CardContent className="flex-1 p-6">
+                                            <h3 className="font-semibold text-lg hover:text-primary transition-colors">
+                                                <Link href={`/open-positions/${job.id}`}>{job.title}</Link>
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground mt-1">{job.tenant.name}</p>
+                                            <p className="text-sm text-muted-foreground mt-3 line-clamp-3">{job.description}</p>
+                                            <div className="mt-5">
+                                                <Button asChild className="w-full">
+                                                    <Link href={`/open-positions/${job.id}`}>View & Apply</Link>
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <Card>
+                                <CardContent className="p-12 text-center text-muted-foreground">
+                                    <p className="font-semibold">{isLoading ? "Loading jobs..." : "No jobs available"}</p>
+                                    <p className="text-sm">
+                                        {isLoading ? "Please wait." : "Open positions will appear here once companies post jobs."}
+                                    </p>
                                 </CardContent>
-                                <CardFooter>
-                                    <Button asChild className="w-full">
-                                        <Link href={`/open-positions/${job.id}`}>View & Apply</Link>
-                                    </Button>
-                                </CardFooter>
                             </Card>
-                        ))}
+                        )}
                     </div>
                 </section>
             </main>

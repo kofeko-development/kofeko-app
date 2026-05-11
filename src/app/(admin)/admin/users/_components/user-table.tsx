@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@/lib/types';
+import { displayStatusToStaffStatus, updateStaffUserStatus } from '@/lib/admin-api';
 
 
 const getInitials = (name: string) => {
@@ -38,11 +39,30 @@ interface UserTableProps {
     users: User[];
     title: string;
     description: string;
+    loading?: boolean;
+    /** Staff listing only: PATCH user status via API. */
+    allowStatusActions?: boolean;
+    onStaffStatusUpdated?: () => void;
+    /** e.g. “Add recruiter” control shown next to the title */
+    headerAction?: React.ReactNode;
 }
 
-export default function UserTable({ users: initialUsers, title, description }: UserTableProps) {
+export default function UserTable({
+    users: initialUsers,
+    title,
+    description,
+    loading = false,
+    allowStatusActions = false,
+    onStaffStatusUpdated,
+    headerAction,
+}: UserTableProps) {
     const { toast } = useToast();
     const [users, setUsers] = useState(initialUsers);
+    const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+
+    useEffect(() => {
+        setUsers(initialUsers);
+    }, [initialUsers]);
     
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -61,22 +81,40 @@ export default function UserTable({ users: initialUsers, title, description }: U
         }).sort((a,b) => a.name.localeCompare(b.name));
     }, [users, searchTerm, statusFilter]);
 
-    const handleStatusChange = (userId: string, newStatus: User['status']) => {
-        // In a real app, this would be an API call.
-        setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, status: newStatus } : u));
-        toast({
-            title: "User status updated",
-            description: `The user has been moved to ${newStatus}.`,
-        });
+    const handleStatusChange = async (userId: string, newStatus: User['status']) => {
+        if (!allowStatusActions || !newStatus) return;
+
+        const prevSnapshot = users;
+        setUsers((prevUsers) => prevUsers.map((u) => (u.uid === userId ? { ...u, status: newStatus } : u)));
+
+        try {
+            setStatusUpdatingId(userId);
+            await updateStaffUserStatus(userId, displayStatusToStaffStatus(newStatus));
+            toast({
+                title: 'User status updated',
+                description: `The user has been moved to ${newStatus}.`,
+            });
+            onStaffStatusUpdated?.();
+        } catch (error) {
+            setUsers(prevSnapshot);
+            toast({
+                title: 'Update failed',
+                description: error instanceof Error ? error.message : 'Could not update status.',
+                variant: 'destructive',
+            });
+        } finally {
+            setStatusUpdatingId(null);
+        }
     }
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h1 className="text-3xl font-bold font-headline">{title}</h1>
                     <p className="text-muted-foreground">{description}</p>
                 </div>
+                {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
             </div>
 
              <Card>
@@ -124,7 +162,14 @@ export default function UserTable({ users: initialUsers, title, description }: U
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredUsers.map((user) => (
+                             {loading && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                        Loading…
+                                    </TableCell>
+                                </TableRow>
+                             )}
+                             {!loading && filteredUsers.map((user) => (
                                 <TableRow key={user.uid}>
                                     <TableCell>
                                         <div className="flex items-center gap-4">
@@ -149,29 +194,33 @@ export default function UserTable({ users: initialUsers, title, description }: U
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
+                                        {allowStatusActions ? (
                                          <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="outline" size="sm" disabled={user.role === 'operator'}>
+                                                <Button variant="outline" size="sm" disabled={user.role === 'operator' || statusUpdatingId === user.uid}>
                                                     Manage
                                                     <ChevronDown className="ml-2 h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent>
-                                                <DropdownMenuItem onSelect={() => handleStatusChange(user.uid, 'active')}>
+                                                <DropdownMenuItem onSelect={() => void handleStatusChange(user.uid, 'active')}>
                                                     <UserCheck className="mr-2 h-4 w-4" /> Activate User
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => handleStatusChange(user.uid, 'suspended')}>
+                                                <DropdownMenuItem onSelect={() => void handleStatusChange(user.uid, 'suspended')}>
                                                     <UserX className="mr-2 h-4 w-4" /> Suspend User
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => handleStatusChange(user.uid, 'pending')}>
+                                                <DropdownMenuItem onSelect={() => void handleStatusChange(user.uid, 'pending')}>
                                                    <Clock className="mr-2 h-4 w-4" /> Move to Pending
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+                                        ) : (
+                                            <span className="text-sm text-muted-foreground">—</span>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))}
-                             {filteredUsers.length === 0 && (
+                             {!loading && filteredUsers.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
                                         No users found.

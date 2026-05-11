@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +11,6 @@ import { Loader2, Sparkles, Copy, Save } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import sanitizeHtml from 'sanitize-html';
-import { z } from 'zod';
 import { aiApi, jobsApi } from '@/lib/stage1-2-api';
 
 function htmlToPlainText(html: string): string {
@@ -29,71 +27,7 @@ function buildJobDescriptionForDb(jobTitle: string, requirements: string, genera
   return base.slice(0, 5000);
 }
 
-const BuildJobDescriptionInputSchema = z.object({
-  jobTitle: z.string().describe('The title of the job.'),
-  requirements: z.string().describe('The key requirements and skills for the job.'),
-  location: z.string().optional().describe('The location of the job.'),
-  jobType: z.string().optional().describe('The type of job (e.g., On-site, Remote, Hybrid).'),
-  employmentType: z.string().optional().describe('The type of employment (e.g., Full-time, Part-time, Contract).'),
-});
-type BuildJobDescriptionInput = z.infer<typeof BuildJobDescriptionInputSchema>;
-
-
-function getJdTemplate(input: BuildJobDescriptionInput): string {
-  const template = `
-<div class="space-y-8">
-    <div>
-        <h2 class="text-lg font-bold font-headline mb-2 text-foreground">About Kofeko</h2>
-        <p class="text-muted-foreground">Kofeko is an AI-powered hiring co-pilot designed for startups and SMBs. We accelerate hiring by structuring roles, understanding candidates beyond keywords, and removing ambiguity at decision points — without taking control away from you.</p>
-    </div>
-
-    <div>
-        <h2 class="text-lg font-bold font-headline mb-2 text-foreground">Our Mission</h2>
-        <p class="text-muted-foreground">To empower organizations to hire smarter and faster by leveraging AI to streamline the entire recruitment lifecycle, from creating compelling job descriptions to identifying the best-fit candidates.</p>
-    </div>
-
-    <div>
-        <h2 class="text-lg font-bold font-headline mb-2 text-foreground">The Role: ${input.jobTitle}</h2>
-        <p class="text-muted-foreground">We are seeking a passionate and experienced ${input.jobTitle || 'Professional'} to join our team. In this role, you will be a key player in shaping our product's user experience. You will be responsible for leading the development of our next-generation user interfaces, creating reusable components, and ensuring our applications are performant, accessible, and scalable. You'll work closely with our design and product teams to bring innovative ideas to life.</p>
-    </div>
-
-    <div class="space-y-4">
-        <div>
-            <h3 class="font-semibold text-foreground mb-2">Core Expectations</h3>
-            <ul class="list-disc list-inside space-y-2 text-muted-foreground pl-4">
-            <li>Develop and maintain high-quality, reusable, and scalable frontend code using React and TypeScript.</li>
-            <li>Collaborate with UI/UX designers to translate wireframes and mockups into functional web applications.</li>
-            <li>Own features from conception to deployment, including architectural design, implementation, and testing.</li>
-            <li>Champion best practices for frontend development, including performance, accessibility, and testing.</li>
-            </ul>
-        </div>
-
-        <div>
-            <h3 class="font-semibold text-foreground mb-2">Required Skills & Experience</h3>
-            <ul class="list-disc list-inside space-y-2 text-muted-foreground pl-4">
-            <li>5+ years of professional experience in your field.</li>
-            <li>Expertise in relevant technologies for the role.</li>
-            <li>Strong understanding of industry best practices.</li>
-            <li>A keen eye for detail and a passion for creating excellent work.</li>
-            </ul>
-        </div>
-
-        <div>
-            <h3 class="font-semibold text-foreground mb-2">Nice to Have Skills & Certifications</h3>
-            <ul class="list-disc list-inside space-y-2 text-muted-foreground pl-4">
-            <li>Experience with data visualization libraries (e.g., D3.js, Recharts).</li>
-            <li>Familiarity with backend technologies (Node.js, GraphQL).</li>
-            <li>Contributions to open-source projects.</li>
-            <li>Relevant industry certifications.</li>
-            </ul>
-        </div>
-    </div>
-</div>
-`;
-  return template;
-}
-
-export default function JdBuilderPage() {
+export default function AdminJdCreatorPage() {
   const [jobTitle, setJobTitle] = useState('');
   const [requirements, setRequirements] = useState('');
   const [location, setLocation] = useState('');
@@ -132,10 +66,9 @@ export default function JdBuilderPage() {
         description: 'Your job description has been created.',
       });
     } catch (error) {
-      console.error(error);
       toast({
         title: 'Error Generating Description',
-        description: 'Could not generate a description. Please try again.',
+        description: error instanceof Error ? error.message : 'Could not generate a description. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -145,9 +78,7 @@ export default function JdBuilderPage() {
 
   const handleCopy = () => {
     navigator.clipboard.writeText(generatedJD);
-    toast({
-      title: 'Copied to clipboard!',
-    });
+    toast({ title: 'Copied to clipboard!' });
   };
 
   const handleSave = async () => {
@@ -207,27 +138,26 @@ export default function JdBuilderPage() {
 
   const cleanHtml = sanitizeHtml(generatedJD, {
     allowedTags: ['h2', 'h3', 'ul', 'li', 'p', 'b', 'i', 'strong', 'em', 'br', 'div'],
-    allowedAttributes: {
-      '*': ['class'],
-    },
+    allowedAttributes: { '*': ['class'] },
   });
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold font-headline">AI Job Description Builder</h1>
-          <p className="text-muted-foreground">Instantly create compelling job descriptions for any role with Atlas.</p>
+          <h1 className="text-3xl font-bold font-headline">JD Creator</h1>
+          <p className="text-muted-foreground">Post your requirements and generate a job description with AI.</p>
         </div>
       </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Create New Job Description</CardTitle>
-          <CardDescription>Enter the role details and let Atlas craft the perfect job description.</CardDescription>
+          <CardTitle>Create a new job description</CardTitle>
+          <CardDescription>Enter role details and let Atlas generate a JD in your theme.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="job-title">Job Title</Label>
                 <Input
@@ -243,14 +173,15 @@ export default function JdBuilderPage() {
                 <Label htmlFor="location">Location</Label>
                 <Input
                   id="location"
-                  placeholder="e.g., San Francisco, CA"
+                  placeholder="e.g., Ahmedabad"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   disabled={isLoading}
                 />
               </div>
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
+
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="job-type">Job Type</Label>
                 <Select value={jobType} onValueChange={setJobType} disabled={isLoading}>
@@ -283,7 +214,7 @@ export default function JdBuilderPage() {
               <Label htmlFor="requirements">Key Requirements & Skills</Label>
               <Textarea
                 id="requirements"
-                placeholder="e.g., 5+ years of React experience, proficient in TypeScript, strong understanding of UI/UX principles..."
+                placeholder="Write the requirements, responsibilities, must-haves, nice-to-haves..."
                 value={requirements}
                 onChange={(e) => setRequirements(e.target.value)}
                 className="min-h-[150px]"
@@ -291,12 +222,9 @@ export default function JdBuilderPage() {
                 required
               />
             </div>
+
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="mr-2 h-4 w-4" />
-              )}
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               Generate Description
             </Button>
           </form>
@@ -313,14 +241,10 @@ export default function JdBuilderPage() {
           {generatedJD && (
             <div className="space-y-4">
               <Label>Generated Description</Label>
-              <div
-                className="max-w-none rounded-lg border bg-muted/50 p-6 min-h-[300px] text-sm"
-                dangerouslySetInnerHTML={{ __html: cleanHtml }}
-              />
+              <div className="min-h-[300px] max-w-none rounded-lg border bg-muted/50 p-6 text-sm" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleCopy}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy
+                  <Copy className="mr-2 h-4 w-4" /> Copy
                 </Button>
                 <Button onClick={() => void handleSave()} disabled={isSaving}>
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -334,3 +258,4 @@ export default function JdBuilderPage() {
     </div>
   );
 }
+

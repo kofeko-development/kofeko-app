@@ -3,12 +3,15 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { Menu, X, LayoutDashboard } from 'lucide-react';
 import Logo from './logo';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+
+function staffDashboardHref(role: string | undefined) {
+  return role === 'operator' ? '/admin/dashboard' : '/dashboard';
+}
 
 const publicNavLinks = [
     { href: '/#home', label: 'Home' },
@@ -20,8 +23,7 @@ const publicNavLinks = [
 export default function PublicNavbar() {
     const [isOpen, setIsOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
-    const pathname = usePathname();
-    const { user } = useAuth();
+    const { user, loading } = useAuth();
 
     useEffect(() => {
         const handleScroll = () => {
@@ -58,17 +60,17 @@ export default function PublicNavbar() {
                                 </Button>
                             ))}
                         </nav>
-                        <div className="flex items-center pl-2 gap-2">
-                             <Button asChild variant="ghost" className="text-sm font-semibold text-foreground hover:text-primary hover:bg-primary/5">
-                                 { user ? (
-                                    <Link href="/dashboard">Dashboard</Link>
-                                 ) : (
-                                    <Link href="/register">Log In</Link>
-                                 )}
-                             </Button>
-                             <Button asChild className="btn-glass shadow-md">
-                                <Link href="/register">Register Interest</Link>
+                        <div className="flex items-center pl-2">
+                          {!loading && user ? (
+                            <Button asChild className="btn-glass shadow-md text-sm font-semibold">
+                              <Link href={staffDashboardHref(user.role)}>Dashboard</Link>
                             </Button>
+                          ) : null}
+                          {!loading && !user ? (
+                            <Button asChild className="btn-glass shadow-md text-sm font-semibold">
+                              <Link href="/register">Register</Link>
+                            </Button>
+                          ) : null}
                         </div>
                     </div>
 
@@ -97,20 +99,16 @@ export default function PublicNavbar() {
                             </Link>
                         ))}
                         <div className="mt-4 w-full flex flex-col gap-2">
-                            {user ? (
+                            {!loading && user ? (
                                 <Button asChild className="w-full btn-glass shadow-md">
-                                    <Link href="/dashboard"><LayoutDashboard className="mr-2"/> Go to Dashboard</Link>
+                                    <Link href={staffDashboardHref(user.role)}><LayoutDashboard className="mr-2"/> Go to Dashboard</Link>
                                 </Button>
-                            ) : (
-                                <>
-                                    <Button asChild variant="outline" className="w-full">
-                                        <Link href="/register">Login</Link>
-                                    </Button>
-                                    <Button asChild className="w-full btn-glass shadow-md">
-                                        <Link href="/register">Register Interest</Link>
-                                    </Button>
-                                </>
-                            )}
+                            ) : null}
+                            {!loading && !user ? (
+                                <Button asChild className="w-full btn-glass shadow-md">
+                                    <Link href="/register">Register</Link>
+                                </Button>
+                            ) : null}
                         </div>
                     </nav>
                 </div>

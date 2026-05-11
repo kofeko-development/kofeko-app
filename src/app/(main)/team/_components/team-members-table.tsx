@@ -1,6 +1,6 @@
 
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,10 @@ interface TeamMembersTableProps {
 export default function TeamMembersTable({ users: initialUsers }: TeamMembersTableProps) {
     const { toast } = useToast();
     const [users, setUsers] = useState(initialUsers);
+
+    useEffect(() => {
+        setUsers(initialUsers);
+    }, [initialUsers]);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 

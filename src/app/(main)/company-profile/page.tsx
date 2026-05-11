@@ -48,7 +48,8 @@ export default function CompanyProfilePage() {
 
     useEffect(() => {
         if (!user) return;
-        if (user.role !== 'recruiter') {
+        // Company staff (including tenant admins) can view the company profile.
+        if (user.role !== 'recruiter' && user.role !== 'operator') {
           setIsHydrating(false);
           return;
         }
@@ -156,7 +157,7 @@ export default function CompanyProfilePage() {
             </div>
         );
     }
-     if (user.role !== 'recruiter') {
+     if (user.role !== 'recruiter' && user.role !== 'operator') {
         router.push('/dashboard');
         return null;
     }

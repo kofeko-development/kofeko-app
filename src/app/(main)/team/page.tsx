@@ -1,9 +1,8 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { allUsers } from '@/lib/admin-data';
 import { useAuth } from '@/lib/auth';
 import type { User } from '@/lib/types';
 import TeamMembersTable from './_components/team-members-table';
@@ -29,16 +28,36 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { stageOneApi } from '@/lib/stage1-2-api';
+import { listStaffUsers, mapStaffUserToDisplay } from '@/lib/admin-api';
 
 export default function TeamManagementPage() {
-    const { user } = useAuth();
     const { toast } = useToast();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isInviting, setIsInviting] = useState(false);
+    const [teamMembers, setTeamMembers] = useState<User[]>([]);
+    const [loadingTeam, setLoadingTeam] = useState(true);
 
-    // In a real app, you would fetch users belonging to the current user's company
-    const teamMembers = allUsers.filter(u => u.company === user?.company && u.role === 'recruiter');
-    
+    const loadTeam = useCallback(async () => {
+        setLoadingTeam(true);
+        try {
+            const res = await listStaffUsers(1, 100);
+            setTeamMembers(res.items.map(mapStaffUserToDisplay));
+        } catch (e) {
+            setTeamMembers([]);
+            toast({
+                title: 'Could not load team',
+                description: e instanceof Error ? e.message : 'Try again later.',
+                variant: 'destructive',
+            });
+        } finally {
+            setLoadingTeam(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        void loadTeam();
+    }, [loadTeam]);
+
     const mapRoleToBackend = (role: string) => {
         if (role === 'Hiring Manager') return 'hr_manager';
         if (role === 'Interviewer') return 'interviewer';
@@ -69,6 +88,7 @@ export default function TeamManagementPage() {
             });
 
             setIsDialogOpen(false);
+            await loadTeam();
         } catch (error) {
             toast({
                 title: 'Invite failed',
@@ -145,8 +165,12 @@ export default function TeamManagementPage() {
                     </Dialog>
                 </div>
             </div>
-            
-            <TeamMembersTable users={teamMembers} />
+
+            {loadingTeam ? (
+                <p className="text-muted-foreground text-sm">Loading team…</p>
+            ) : (
+                <TeamMembersTable users={teamMembers} />
+            )}
 
         </div>
     );

@@ -20,6 +20,10 @@ type CompanyRequest = {
   industry: string;
   contactName: string;
   contactEmail: string;
+  phoneNumber: string;
+  adminEmail: string;
+  /** Admin chose email/password at signup; superadmin assigns tenant slug. */
+  usesSignupCredentials: boolean;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
 };
@@ -33,7 +37,6 @@ export default function SuperAdminDashboardPage() {
   const [tenantSlug, setTenantSlug] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
-  const [otp, setOtp] = useState('');
   const [reviewNotes, setReviewNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -78,24 +81,32 @@ export default function SuperAdminDashboardPage() {
     if (!selectedId) return;
     setIsSubmitting(true);
     try {
+      const req = requests.find((r) => r.id === selectedId);
+      const approveBody: Record<string, string | undefined> = {
+        tenantSlug,
+        reviewNotes: reviewNotes || undefined,
+      };
+      if (!req?.usesSignupCredentials) {
+        approveBody.adminEmail = adminEmail;
+        approveBody.adminPassword = adminPassword;
+      }
       const response = await fetch(`${API_BASE_URL}/superadmin/requests/${selectedId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem(SUPERADMIN_TOKEN_KEY)}`,
         },
-        body: JSON.stringify({ tenantSlug, adminEmail, adminPassword, otp, reviewNotes: reviewNotes || undefined }),
+        body: JSON.stringify(approveBody),
       });
-      const payload = await response.json();
+      const result = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.message ?? 'Approve failed');
+        throw new Error(result?.message ?? 'Approve failed');
       }
-      toast({ title: 'Approved', description: payload?.message ?? 'Company approved and credentials created.' });
+      toast({ title: 'Approved', description: result?.message ?? 'Company approved and credentials created.' });
       setSelectedId(null);
       setTenantSlug('');
       setAdminEmail('');
       setAdminPassword('');
-      setOtp('');
       setReviewNotes('');
       await loadRequests();
     } catch (error) {
@@ -142,6 +153,13 @@ export default function SuperAdminDashboardPage() {
 
   const selectedRequest = requests.find((request) => request.id === selectedId) ?? null;
 
+  const approveDisabled =
+    isSubmitting ||
+    !tenantSlug ||
+    (selectedRequest != null &&
+      !selectedRequest.usesSignupCredentials &&
+      (!adminEmail.trim() || adminPassword.length < 8));
+
   return (
     <div className="container py-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -171,7 +189,11 @@ export default function SuperAdminDashboardPage() {
               <CardHeader>
                 <CardTitle className="text-lg">{request.companyName}</CardTitle>
                 <CardDescription>
-                  {request.contactName} ({request.contactEmail})
+                  {request.usesSignupCredentials && request.adminEmail
+                    ? `Admin login: ${request.adminEmail}`
+                    : request.contactEmail
+                      ? `${request.contactName} (${request.contactEmail})`
+                      : [request.contactName, request.phoneNumber].filter(Boolean).join(' · ') || '—'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
@@ -184,7 +206,7 @@ export default function SuperAdminDashboardPage() {
                   variant={selectedId === request.id ? 'secondary' : 'default'}
                   onClick={() => {
                     setSelectedId(request.id);
-                    setAdminEmail(request.contactEmail);
+                    setAdminEmail(request.adminEmail || request.contactEmail || '');
                   }}
                 >
                   {selectedId === request.id ? 'Selected' : 'Review Request'}
@@ -199,26 +221,35 @@ export default function SuperAdminDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Approve or Reject: {selectedRequest.companyName}</CardTitle>
-            <CardDescription>Set tenant slug, login credentials, and OTP for first login.</CardDescription>
+            <CardDescription>
+              {selectedRequest.usesSignupCredentials
+                ? 'Assign a tenant slug. The admin will sign in with the email and password they set when registering.'
+                : 'Set tenant slug plus company admin email and password (legacy request without signup credentials).'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
+              <div className="grid gap-2 md:col-span-2">
                 <Label htmlFor="tenantSlug">Tenant Slug</Label>
-                <Input id="tenantSlug" value={tenantSlug} onChange={(e) => setTenantSlug(e.target.value)} placeholder="aryan-company" />
+                <Input id="tenantSlug" value={tenantSlug} onChange={(e) => setTenantSlug(e.target.value)} placeholder="your-company-slug" />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="adminEmail">Company Admin Email</Label>
-                <Input id="adminEmail" type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="adminPassword">Company Admin Password</Label>
-                <Input id="adminPassword" type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="otp">OTP for First Login</Label>
-                <Input id="otp" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="e.g. 463219" />
-              </div>
+              {selectedRequest.usesSignupCredentials ? (
+                <div className="md:col-span-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                  Admin email (from registration):{' '}
+                  <span className="font-medium text-foreground">{selectedRequest.adminEmail || '—'}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="adminEmail">Company Admin Email</Label>
+                    <Input id="adminEmail" type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="adminPassword">Company Admin Password</Label>
+                    <Input id="adminPassword" type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -227,7 +258,7 @@ export default function SuperAdminDashboardPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <Button onClick={onApprove} disabled={isSubmitting || !tenantSlug || !adminEmail || !adminPassword || !otp}>
+              <Button onClick={onApprove} disabled={approveDisabled}>
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Approve & Create Credentials
               </Button>

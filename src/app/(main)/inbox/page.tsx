@@ -6,24 +6,35 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { applicantNotifications, type Notification } from '@/lib/data';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Archive, ArchiveRestore, Inbox, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+type Notification = {
+    id: string;
+    date: string;
+    subject: string;
+    body: string;
+    read: boolean;
+};
 
 function InboxComponent() {
     const { user } = useAuth();
     const { toast } = useToast();
     const searchParams = useSearchParams();
     
-    // In a real app, you would fetch this data. We filter the mock data.
-    const [notifications, setNotifications] = useState<Notification[]>(
-        user ? applicantNotifications.filter(n => n.applicantId === user.uid) : []
-    );
+    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [archived, setArchived] = useState<Notification[]>([]);
     const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
     const [view, setView] = useState<'inbox' | 'archived'>('inbox');
+
+    useEffect(() => {
+        // No backend messaging API wired yet; show empty state for now.
+        setNotifications([]);
+        setArchived([]);
+        setSelectedNotification(null);
+    }, [user?.uid]);
 
     const markAsRead = (id: string) => {
         setNotifications(prev => 

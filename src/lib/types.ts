@@ -39,6 +39,8 @@ export interface Job {
   status: 'open' | 'closed' | 'draft';
   recruiterId: string;
   applicantCount: number;
+  /** Actual API status when loaded from the backend (open, paused, closed, draft). */
+  backendStatus?: 'draft' | 'open' | 'paused' | 'closed';
 }
 
 export type InterviewStatus = 'scheduled' | 'completed' | 'cancelled';

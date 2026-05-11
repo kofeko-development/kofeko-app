@@ -1,46 +1,85 @@
 
 
 'use client';
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Briefcase, MapPin, ArrowUpRight, Search } from "lucide-react";
-import { jobs } from "@/lib/jobs-data";
+import { useToast } from "@/hooks/use-toast";
+import { portalApi, type PortalJobListItem } from "@/lib/portal-api";
+
+const locationValue = (raw: string | null | undefined) => (raw ?? '').trim();
 
 
 export default function FindJobsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [locationFilter, setLocationFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
+    const [jobs, setJobs] = useState<PortalJobListItem[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        let cancelled = false;
+        setIsLoading(true);
+        portalApi
+            .listAllJobs({ limit: 100 })
+            .then((res) => {
+                if (!cancelled) setJobs(res.items ?? []);
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    toast({
+                        title: "Unable to load jobs",
+                        description: err instanceof Error ? err.message : "Please refresh and try again.",
+                        variant: "destructive",
+                    });
+                    setJobs([]);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setIsLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; toast is unstable across renders
+    }, []);
 
     const filteredJobs = useMemo(() => {
-        return jobs.filter(job => {
-            if (job.status !== 'open') return false;
-
+        return jobs.filter((job) => {
             const searchLower = searchTerm.toLowerCase();
-            const matchesSearch = searchLower === '' ||
+            const desc = (job.description ?? '').toLowerCase();
+            const matchesSearch =
+                searchLower === '' ||
                 job.title.toLowerCase().includes(searchLower) ||
-                job.company.toLowerCase().includes(searchLower) ||
-                job.description.toLowerCase().includes(searchLower);
+                job.tenant.name.toLowerCase().includes(searchLower) ||
+                desc.includes(searchLower);
 
-            const matchesLocation = locationFilter === 'all' || job.location.toLowerCase().includes(locationFilter.toLowerCase());
-            
-            let jobType = 'onsite';
-            if (job.location.toLowerCase() === 'remote') {
-                jobType = 'remote';
+            const jobLocation = locationValue(job.location).toLowerCase();
+            const matchesLocation =
+                locationFilter === 'all' || jobLocation.includes(locationFilter.toLowerCase());
+
+            const dept = (job.department ?? '').toLowerCase();
+            let workMode: 'remote' | 'hybrid' | 'onsite' = 'onsite';
+            if (dept.includes('remote') || jobLocation === 'remote' || jobLocation.includes('remote')) {
+                workMode = 'remote';
+            } else if (dept.includes('hybrid') || jobLocation.includes('hybrid')) {
+                workMode = 'hybrid';
             }
-            // This is a simplification; a real app might have a dedicated field.
-            // For now, let's assume jobs can also be 'hybrid' if not explicitly remote.
-            
-            const matchesType = typeFilter === 'all' || typeFilter === jobType || (typeFilter === 'hybrid' && jobType === 'onsite');
 
+            const matchesType =
+                typeFilter === 'all' ||
+                (typeFilter === 'remote' && workMode === 'remote') ||
+                (typeFilter === 'hybrid' && workMode === 'hybrid') ||
+                (typeFilter === 'onsite' && workMode === 'onsite');
 
             return matchesSearch && matchesLocation && matchesType;
         });
-    }, [searchTerm, locationFilter, typeFilter]);
+    }, [jobs, searchTerm, locationFilter, typeFilter]);
 
 
     return (
@@ -100,8 +139,8 @@ export default function FindJobsPage() {
                                     <Link href={`/open-positions/${job.id}`}>{job.title}</Link>
                                 </h3>
                                 <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                                    <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.company}</span>
-                                    <span className="flex items-center gap-2"><MapPin className="size-4" /> {job.location}</span>
+                                    <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.tenant.name}</span>
+                                    <span className="flex items-center gap-2"><MapPin className="size-4" /> {locationValue(job.location) || '—'}</span>
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.description}</p>
                             </div>
@@ -115,8 +154,10 @@ export default function FindJobsPage() {
                 )) : (
                      <Card>
                         <CardContent className="p-12 text-center text-muted-foreground">
-                            <p className="font-semibold">No jobs found</p>
-                            <p className="text-sm">Try adjusting your filters to find more opportunities.</p>
+                            <p className="font-semibold">{isLoading ? 'Loading jobs...' : 'No jobs available'}</p>
+                            <p className="text-sm">
+                              {isLoading ? 'Please wait.' : 'New jobs will appear here once companies post openings.'}
+                            </p>
                         </CardContent>
                     </Card>
                 )}

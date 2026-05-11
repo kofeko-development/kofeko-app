@@ -35,7 +35,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { applicantNotifications } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import AppFooter from '@/components/app-footer';
 
@@ -72,7 +71,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    if (hasPermission('rbac:manage')) {
+    // Allow admins to view shared pages like /profile without being forced back to /admin.
+    if (hasPermission('rbac:manage') && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile')) {
       router.push('/admin/dashboard');
       return;
     }
@@ -89,7 +89,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
   }, [user, loading, router, pathname, hasPermission]);
   
-  if (loading || !user || hasPermission('rbac:manage')) {
+  if (loading || !user || (hasPermission('rbac:manage') && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile'))) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
@@ -99,7 +99,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   const allRecruiterNav = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['job:read', 'candidate:read'] },
-    { href: '/jd-builder', label: 'JD Builder', icon: FilePlus2, permissions: ['job:create'] },
+    { href: '/jd-builder', label: 'JD Creator', icon: FilePlus2, permissions: ['job:create'] },
     { href: '/job-postings', label: 'Job Postings', icon: Briefcase, permissions: ['job:read'] },
     { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'] },
     { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'] },
@@ -189,8 +189,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   )
 
   const CandidateHeader = () => {
-     const unreadCount = user ? applicantNotifications.filter(n => n.applicantId === user.uid && !n.read).length : 0;
-     const notifications = user ? applicantNotifications.filter(n => n.applicantId === user.uid).slice(0, 5) : [];
+     const unreadCount = 0;
+     const notifications: Array<{ id: string; subject: string; read: boolean }> = [];
 
     return (
         <header className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-white/95 shadow-md backdrop-blur-sm">

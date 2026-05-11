@@ -22,8 +22,13 @@ export type CompanyProfileResponse = {
 };
 
 export const stageOneApi = {
-  inviteUser: (payload: { firstName: string; lastName: string; email: string; roleName?: string }) =>
-    apiRequest('/users/invite', { method: 'POST', auth: true, body: payload }),
+  inviteUser: (payload: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    roleName?: string;
+    position?: string;
+  }) => apiRequest('/users/invite', { method: 'POST', auth: true, body: payload }),
   acceptInvite: (payload: { token: string; password: string }) =>
     apiRequest('/auth/accept-invite', { method: 'POST', body: payload }),
   forgotPassword: (payload: { tenantSlug: string; email: string }) =>
@@ -38,4 +43,75 @@ export const companyApi = {
     apiRequest<CompanyProfileResponse>('/company', { method: 'POST', auth: true, body: payload }),
   update: (payload: Partial<CompanyProfilePayload>) =>
     apiRequest<CompanyProfileResponse>('/company', { method: 'PATCH', auth: true, body: payload }),
+};
+
+export const aiApi = {
+  generateJd: (payload: {
+    jobTitle: string;
+    requirements: string;
+    location?: string;
+    jobType?: string;
+    employmentType?: string;
+  }) => apiRequest<{ html: string }>('/ai/jd', { method: 'POST', auth: true, body: payload }),
+};
+
+export type CreatedJob = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  tenantId: string;
+  location?: string | null;
+  employmentType?: string | null;
+  department?: string | null;
+  requirements?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PaginatedJobsResponse = {
+  items: CreatedJob[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export const jobsApi = {
+  list: (params?: { page?: number; limit?: number; status?: string; department?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page != null) qs.set('page', String(params.page));
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.status) qs.set('status', params.status);
+    if (params?.department) qs.set('department', params.department);
+    const q = qs.toString();
+    return apiRequest<PaginatedJobsResponse>(`/jobs${q ? `?${q}` : ''}`, { auth: true });
+  },
+
+  create: (payload: {
+    title: string;
+    description: string;
+    location?: string;
+    employmentType?: string;
+    openings?: number;
+    department?: string;
+    requirements?: string;
+    niceToHave?: string;
+  }) => apiRequest<CreatedJob>('/jobs', { method: 'POST', auth: true, body: payload }),
+
+  update: (
+    jobId: string,
+    payload: Partial<{
+      title: string;
+      description: string;
+      location?: string;
+      employmentType?: string;
+      openings?: number;
+      department?: string;
+      requirements?: string;
+      niceToHave?: string;
+    }>,
+  ) => apiRequest<CreatedJob>(`/jobs/${jobId}`, { method: 'PATCH', auth: true, body: payload }),
+
+  publish: (jobId: string) => apiRequest<CreatedJob>(`/jobs/${jobId}/publish`, { method: 'POST', auth: true }),
 };
