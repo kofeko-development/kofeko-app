@@ -120,6 +120,7 @@ export type PhoneInternationalFieldProps = {
   addressCountryName?: string;
   disabled?: boolean;
   className?: string;
+  hideLabel?: boolean;
 };
 
 export function PhoneInternationalField({
@@ -130,6 +131,7 @@ export function PhoneInternationalField({
   addressCountryName,
   disabled,
   className,
+  hideLabel,
 }: PhoneInternationalFieldProps) {
   const dialOptions = React.useMemo(() => {
     const list = Country.getAllCountries() as ICountry[];
@@ -166,7 +168,7 @@ export function PhoneInternationalField({
 
   return (
     <div className={cn("flex min-w-0 w-full flex-col gap-1.5", className)}>
-      <Label className="mb-0">Phone number</Label>
+      {!hideLabel && <Label className="mb-0">Phone number</Label>}
       <div className="flex min-w-0 w-full flex-col gap-2 sm:flex-row sm:items-start">
         <DialCodeSearchable
           id="phone-dial"
@@ -191,7 +193,7 @@ export function PhoneInternationalField({
           />
         </div>
       </div>
-      
+
     </div>
   );
 }

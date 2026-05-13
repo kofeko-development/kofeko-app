@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { ApiError } from "@/lib/api-client";
 
 export default function LoginPage() {
@@ -17,11 +17,9 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [tenantSlug, setTenantSlug] = useState('');
-  /** After 409, company slug becomes required for the next attempt. */
-  const [slugRequired, setSlugRequired] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -29,11 +27,9 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const slug = tenantSlug.trim();
       const user = await login({
         email,
         password,
-        tenantSlug: slug || undefined,
       });
       if (user.status && user.status !== 'active') {
         toast({
@@ -51,10 +47,9 @@ export default function LoginPage() {
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        setSlugRequired(true);
         toast({
           title: 'Multiple company accounts found',
-          description: 'Enter your company slug below and try again.',
+          description: 'Please contact support to resolve account ambiguity.',
           variant: 'destructive',
         });
         return;
@@ -64,13 +59,7 @@ export default function LoginPage() {
         router.push('/signup-success');
         return;
       }
-      const slug = tenantSlug.trim();
-      const hint401 =
-        error instanceof ApiError &&
-          error.status === 401 &&
-          slug.length > 0
-          ? ' If this keeps failing, confirm your company slug with your admin.'
-          : '';
+      const hint401 = '';
       toast({
         title: 'Login Failed',
         description:
@@ -84,9 +73,9 @@ export default function LoginPage() {
 
 
   return (
-    <Card className="mx-auto max-w-sm w-full">
-      <CardHeader>
-        <CardTitle className="text-2xl">Company Login</CardTitle>
+    <Card className="mx-auto max-w-sm w-full shadow-lg border-primary/10">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold">Company Login</CardTitle>
         <CardDescription>
           Enter your email and password to access your company account.
         </CardDescription>
@@ -103,39 +92,40 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
+              className="h-10"
             />
           </div>
           <div className="grid gap-2">
             <div className="flex items-center">
               <Label htmlFor="password">Password</Label>
-              <Link href="/forgot-password" className="ml-auto inline-block text-sm underline">
+              <Link href="/forgot-password" className="ml-auto inline-block text-xs underline text-muted-foreground hover:text-primary transition-colors">
                 Forgot your password?
               </Link>
             </div>
-            <Input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                className="pr-10 h-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPassword((v) => !v)}
+                disabled={isLoading}
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-transparent"
+              >
+                {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                <span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>
+              </Button>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="tenantSlug">Company slug {slugRequired ? '(required)' : '(optional)'}</Label>
-            <Input
-              id="tenantSlug"
-              placeholder="your-company-slug"
-              required={slugRequired}
-              value={tenantSlug}
-              onChange={(e) => setTenantSlug(e.target.value)}
-              disabled={isLoading}
-              autoComplete="organization"
-            />
-            <p className="text-xs text-muted-foreground">
-              Use this if your admin gave you a slug, or if login says multiple accounts were found for your email.
-            </p>
-          </div>
+
 
           <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
             <Button type="submit" className="w-full" disabled={isLoading}>

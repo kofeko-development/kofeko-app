@@ -82,7 +82,7 @@ export default function ProfilePage() {
       const allCountries = Country.getAllCountries();
       // Sort by phone code length descending to match longest first (e.g. +1 242 before +1)
       const sortedCountries = [...allCountries].sort((a, b) => b.phonecode.length - a.phonecode.length);
-      
+
       const cleanPhone = user.phone.substring(1); // remove +
       let matched = false;
       for (const c of sortedCountries) {
@@ -157,6 +157,27 @@ export default function ProfilePage() {
   const isPhoneChanged = currentFullPhone.replace(/\D/g, '') !== (user?.phone || '').replace(/\D/g, '');
   const isPhoneVerified = !isPhoneChanged || (verifiedPhone?.replace(/\D/g, '') === currentFullPhone.replace(/\D/g, ''));
 
+  const hasChanges = useMemo(() => {
+    if (!user) return false;
+
+    // Check basic fields
+    if (name !== user.name) return true;
+    if (isPhoneChanged) return true;
+    if (coverLetter !== (user.coverLetter || '')) return true;
+    if (linkedinUrl !== (user.linkedinProfileUrl || '')) return true;
+
+    // Deep compare arrays using stringification for simplicity
+    const normalize = (arr: any[]) => JSON.stringify(arr?.filter(i => Object.values(i).some(v => v)) || []);
+
+    if (normalize(skills) !== normalize(user.skills || [])) return true;
+    if (normalize(hobbies) !== normalize(user.hobbies || [])) return true;
+    if (normalize(workExperience) !== normalize(user.workExperience || [])) return true;
+    if (normalize(education) !== normalize(user.education || [])) return true;
+    if (normalize(projects) !== normalize(user.projects || [])) return true;
+
+    return false;
+  }, [user, name, isPhoneChanged, coverLetter, linkedinUrl, skills, hobbies, workExperience, education, projects]);
+
   const handleVerifyPhoneWithMsg91 = () => {
     if (!currentFullPhone) {
       toast({ title: 'Invalid phone', description: 'Enter a valid phone number.', variant: 'destructive' });
@@ -193,12 +214,12 @@ export default function ProfilePage() {
         '/auth/candidate-phone-otp/verify-msg91',
         { method: 'POST', body: { accessToken: tokenToVerify } },
       );
-      
+
       setPhoneVerificationToken(token);
       setVerifiedPhone(currentFullPhone);
       toast({ title: 'Phone verified', description: 'Your phone number has been verified successfully.' });
     } catch (error) {
-       toast({ title: 'Backend verification failed', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
+      toast({ title: 'Backend verification failed', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
     }
   };
 
@@ -392,12 +413,12 @@ export default function ProfilePage() {
       return;
     }
     setIsSaving(true);
-    
+
     (async () => {
       try {
         if (user) {
           const fullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
-          
+
           if (user.role === 'candidate') {
             // Save to backend
             const updatedBackendUser = await apiRequest<BackendUser>('/portal/profile', {
@@ -416,8 +437,13 @@ export default function ProfilePage() {
                 linkedinUrl: user.linkedinProfileUrl, // Keeping existing if not changed
               },
             });
-            
-            updateCurrentUser(mapBackendUser(updatedBackendUser));
+
+            const mapped = mapBackendUser(updatedBackendUser);
+            updateCurrentUser({
+              ...mapped,
+              role: user.role, // Explicitly preserve the current role
+              permissions: user.permissions, // Preserve permissions too
+            });
           } else {
             // Recruiter / Operator (keeping existing mock logic for now or update similarly if needed)
             const updatedUser = {
@@ -547,7 +573,7 @@ export default function ProfilePage() {
 
   // Candidate Profile UI (continues below)
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 pb-24">
       <div>
         <h1 className="text-3xl font-bold font-headline">{isNewUser ? 'Complete Your Profile' : 'My Profile'}</h1>
         <p className="text-muted-foreground">
@@ -575,39 +601,44 @@ export default function ProfilePage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Phone Number</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <PhoneInternationalField
+                    phoneCountryIso={phoneCountryIso}
+                    phoneNationalDigits={phoneNationalDigits}
+                    setPhoneCountryIso={(v) => { setPhoneCountryIso(v); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
+                    setPhoneNationalDigits={(v) => { setPhoneNationalDigits(v); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
+                    disabled={isSaving || (!!verifiedPhone && !isEditingPhone)}
+                    hideLabel
+                  />
+                </div>
                 {!!verifiedPhone && !isEditingPhone && (
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 px-2 text-xs gap-1.5"
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-10 px-3 gap-1.5 shrink-0"
                     onClick={() => setIsEditingPhone(true)}
                   >
-                    <Pencil className="h-3 w-3" />
+                    <Pencil className="h-4 w-4" />
                     Edit
                   </Button>
                 )}
                 {isEditingPhone && (
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 px-2 text-xs gap-1.5 text-emerald-600"
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-10 px-3 gap-1.5 shrink-0 text-emerald-600 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50"
                     onClick={() => setIsEditingPhone(false)}
                   >
-                    <Check className="h-3 w-3" />
+                    <Check className="h-4 w-4" />
                     Done
                   </Button>
                 )}
               </div>
-              <PhoneInternationalField
-                phoneCountryIso={phoneCountryIso}
-                phoneNationalDigits={phoneNationalDigits}
-                setPhoneCountryIso={(v) => { setPhoneCountryIso(v); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
-                setPhoneNationalDigits={(v) => { setPhoneNationalDigits(v); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
-                disabled={isSaving}
-              />
-              
+
               {isPhoneChanged && !isPhoneVerified && (
                 <div className="mt-2 flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
                   <div className="flex items-center justify-between gap-2">
@@ -843,17 +874,23 @@ export default function ProfilePage() {
           </Card>
         </>
 
-        <div className="mt-6 flex justify-end">
-          <Button type="submit" disabled={isSaving}>
+        {/* Floating Save Button */}
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <Button
+            type="submit"
+            disabled={isSaving || !hasChanges}
+            className="h-12 px-8 rounded-full shadow-2xl hover:shadow-primary/20 transition-all duration-300 border border-primary/20 backdrop-blur-md disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          >
             {isSaving ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Saving...
               </>
-            ) : isNewUser ? (
-              'Save and Find Jobs'
             ) : (
-              'Save Changes'
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5" />
+                <span>{isNewUser ? 'Save and Find Jobs' : 'Save Changes'}</span>
+              </div>
             )}
           </Button>
         </div>
