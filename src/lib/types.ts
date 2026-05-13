@@ -44,7 +44,7 @@ export interface User {
 }
 
 /** Optional skill priorities for AI resume scoring (from job API `skillWeights`). */
-export type JobSkillWeight = { skill: string; weight: number };
+export type JobSkillWeight = { skill: string; weight: number; yearsOfExperience?: number };
 
 export interface Job {
   id: string;
@@ -61,6 +61,8 @@ export interface Job {
   /** Actual API status when loaded from the backend (open, paused, closed, draft). */
   backendStatus?: 'draft' | 'open' | 'paused' | 'closed';
   skillWeights?: JobSkillWeight[];
+  experienceMin?: number;
+  experienceMax?: number;
 }
 
 export type InterviewStatus = 'scheduled' | 'completed' | 'cancelled';

@@ -56,11 +56,11 @@ export const aiApi = {
     location?: string;
     jobType?: string;
     employmentType?: string;
-  }) => apiRequest<{ html: string }>('/ai/jd', { method: 'POST', auth: true, body: payload }),
+  }) => apiRequest<{ html: string; plainText: string; suggestedSkills: SkillWeight[] }>('/ai/jd', { method: 'POST', auth: true, body: payload }),
 };
 
 /** Matches backend `skillWeights` JSON — weights are integers 0–10. */
-export type SkillWeight = { skill: string; weight: number };
+export type SkillWeight = { skill: string; weight: number; yearsOfExperience?: number };
 
 export type CreatedJob = {
   id: string;
@@ -73,6 +73,8 @@ export type CreatedJob = {
   department?: string | null;
   requirements?: string | null;
   skillWeights?: SkillWeight[] | null;
+  experienceMin?: number | null;
+  experienceMax?: number | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -108,6 +110,8 @@ export const jobsApi = {
     requirements?: string;
     niceToHave?: string;
     skillWeights?: SkillWeight[];
+    experienceMin?: number;
+    experienceMax?: number;
   }) => apiRequest<CreatedJob>('/jobs', { method: 'POST', auth: true, body: payload }),
 
   update: (
@@ -122,6 +126,8 @@ export const jobsApi = {
       requirements?: string;
       niceToHave?: string;
       skillWeights?: SkillWeight[];
+      experienceMin?: number;
+      experienceMax?: number;
     }>,
   ) => apiRequest<CreatedJob>(`/jobs/${jobId}`, { method: 'PATCH', auth: true, body: payload }),
 

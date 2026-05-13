@@ -69,7 +69,10 @@ function mapApiJobToRow(j: CreatedJob): Job {
     backendStatus: backend ?? undefined,
     recruiterId: '',
     applicantCount: 0,
-    skillWeights: skillWeights?.filter((s) => s.skill.length > 0),
+    skillWeights: skillWeights?.filter((s) => s.skill.length > 0).map(s => ({
+      ...s,
+      yearsOfExperience: s.yearsOfExperience ?? 0
+    })),
   };
 }
 
@@ -87,10 +90,11 @@ export default function JobPostingsPage() {
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [formState, setFormState] = useState<{
     title: string;
-    location: string;
     description: string;
+    jobType: string;
+    employmentType: string;
     skillWeights: SkillWeight[];
-  }>({ title: '', location: '', description: '', skillWeights: [] });
+  }>({ title: '', description: '', jobType: '', employmentType: '', skillWeights: [] });
   const [loadingJobDetail, setLoadingJobDetail] = useState(false);
 
   const loadJobs = useCallback(async () => {
@@ -119,18 +123,20 @@ export default function JobPostingsPage() {
     if (editingJob) {
       setFormState({
         title: editingJob.title,
-        location: editingJob.location === '—' ? '' : editingJob.location,
         description: editingJob.description,
+        jobType: editingJob.department ?? '',
+        employmentType: editingJob.employmentType ?? '',
         skillWeights:
           editingJob.skillWeights && editingJob.skillWeights.length > 0
             ? editingJob.skillWeights.map((s) => ({
                 skill: s.skill,
                 weight: Math.min(10, Math.max(0, Math.round(s.weight))),
+                yearsOfExperience: s.yearsOfExperience ?? 3,
               }))
             : [],
       });
     } else {
-      setFormState({ title: '', location: '', description: '', skillWeights: [] });
+      setFormState({ title: '', description: '', jobType: '', employmentType: '', skillWeights: [] });
     }
   }, [editingJob]);
 
@@ -139,6 +145,7 @@ export default function JobPostingsPage() {
       .map((row) => ({
         skill: row.skill.trim(),
         weight: Math.min(10, Math.max(0, Math.round(Number(row.weight)) || 0)),
+        yearsOfExperience: Number(row.yearsOfExperience) || 0,
       }))
       .filter((row) => row.skill.length > 0);
 
@@ -185,6 +192,42 @@ export default function JobPostingsPage() {
     setFormState((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const handleGenerateWithAI = async () => {
+    if (!formState.title.trim()) {
+      toast({
+        title: 'Title required',
+        description: 'Please enter a job title first to help the AI generate the description.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const result = await aiApi.generateJd({
+        jobTitle: formState.title,
+        requirements: formState.description,
+        jobType: formState.jobType || undefined,
+        employmentType: formState.employmentType || undefined,
+      });
+
+      setFormState((prev) => ({\n        ...prev,\n        description: result.plainText,\n        skillWeights: result.suggestedSkills.length > 0 \n          ? result.suggestedSkills \n          : prev.skillWeights,\n      }));
+
+      toast({
+        title: 'JD Generated!',
+        description: 'Description and skills have been populated by AI.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Generation failed',
+        description: error instanceof Error ? error.message : 'AI could not generate the JD.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const updateSkillRow = (index: number, patch: Partial<SkillWeight>) => {
     setFormState((prev) => ({
       ...prev,
@@ -195,7 +238,7 @@ export default function JobPostingsPage() {
   const addSkillRow = () => {
     setFormState((prev) => ({
       ...prev,
-      skillWeights: [...prev.skillWeights, { skill: '', weight: 7 }],
+      skillWeights: [...prev.skillWeights, { skill: '', weight: 7, yearsOfExperience: 3 }],
     }));
   };
 
@@ -207,14 +250,16 @@ export default function JobPostingsPage() {
   };
 
   const handleJobSave = async (status: 'open' | 'draft') => {
-    const title = formState.title.trim();
-    const location = formState.location.trim();
-    const description = formState.description.trim();
-
-    if (!title || !location || !description) {
-      toast({ title: 'Missing fields', description: 'Please fill out all fields.', variant: 'destructive' });
+    const { title, description, jobType, employmentType } = formState;
+    if (!title.trim() || !description.trim()) {
+      toast({
+        title: 'Missing information',
+        description: 'Please provide a job title and description.',
+        variant: 'destructive',
+      });
       return;
     }
+
     if (description.length < 10) {
       toast({
         title: 'Description too short',
@@ -233,7 +278,10 @@ export default function JobPostingsPage() {
       return;
     }
 
-    const skillWeightsPayload = normalizedSkillWeights();
+    const skillWeightsPayload = normalizedSkillWeights().map(sw => ({
+      ...sw,
+      yearsOfExperience: Number(sw.yearsOfExperience) || 0
+    }));
 
     setIsSaving(true);
     try {
@@ -241,7 +289,8 @@ export default function JobPostingsPage() {
         await jobsApi.update(editingJob.id, {
           title,
           description: description.slice(0, 5000),
-          location: location || undefined,
+          department: jobType || undefined,
+          employmentType: employmentType || undefined,
           skillWeights: skillWeightsPayload,
         });
         if (status === 'open' && editingJob.backendStatus === 'draft') {
@@ -255,7 +304,8 @@ export default function JobPostingsPage() {
         const created = await jobsApi.create({
           title,
           description: description.slice(0, 5000),
-          location: location || undefined,
+          department: jobType || undefined,
+          employmentType: employmentType || undefined,
           skillWeights: skillWeightsPayload.length > 0 ? skillWeightsPayload : undefined,
         });
         if (status === 'open') {
@@ -481,86 +531,166 @@ export default function JobPostingsPage() {
                 : 'Fill in the details below to post a new job.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="title" className="text-right">
+          <div className="grid gap-5 py-4 overflow-y-auto max-h-[70vh] pr-2">
+            <div className="grid gap-2">
+              <Label htmlFor="title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Job Title
               </Label>
               <Input
                 id="title"
                 name="title"
-                className="col-span-3"
+                placeholder="e.g. Senior Product Designer"
                 value={formState.title}
                 onChange={handleFormChange}
                 required
+                className="h-11"
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="location" className="text-right">
-                Location
-              </Label>
-              <Input
-                id="location"
-                name="location"
-                className="col-span-3"
-                value={formState.location}
-                onChange={handleFormChange}
-                required
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Job Mode</Label>
+                <Select
+                  value={formState.jobType}
+                  onValueChange={(val) => setFormState((p) => ({ ...p, jobType: val }))}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Remote / On-site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Remote">Remote</SelectItem>
+                    <SelectItem value="On-site">On-site</SelectItem>
+                    <SelectItem value="Hybrid">Hybrid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Employment</Label>
+                <Select
+                  value={formState.employmentType}
+                  onValueChange={(val) => setFormState((p) => ({ ...p, employmentType: val }))}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Full-time / Part-time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Full-time">Full-time</SelectItem>
+                    <SelectItem value="Part-time">Part-time</SelectItem>
+                    <SelectItem value="Contract">Contract</SelectItem>
+                    <SelectItem value="Internship">Internship</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-start gap-4">
-              <Label htmlFor="description" className="text-right pt-2">
-                Description
-              </Label>
+
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Description
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto p-0 text-[11px] text-primary hover:text-primary/80"
+                  onClick={handleGenerateWithAI}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-1 h-3 w-3" />
+                  )}
+                  {formState.description.length > 0 ? 'Enhance with AI' : 'Generate with AI'}
+                </Button>
+              </div>
               <Textarea
                 id="description"
                 name="description"
-                className="col-span-3 min-h-[250px]"
+                placeholder="Write or paste the job description here..."
+                className="min-h-[180px] leading-relaxed"
                 value={formState.description}
                 onChange={handleFormChange}
                 required
               />
             </div>
-            <div className="grid grid-cols-4 items-start gap-4">
-              <Label className="text-right pt-2">Skill weights</Label>
-              <div className="col-span-3 space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Used by AI resume scoring (0–10 per skill). Optional but recommended for evaluations.
-                </p>
-                {formState.skillWeights.map((row, index) => (
-                  <div key={index} className="flex flex-wrap items-center gap-2">
-                    <Input
-                      className="min-w-[140px] flex-1"
-                      placeholder="e.g. React"
-                      value={row.skill}
-                      onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
-                      aria-label={`Skill ${index + 1}`}
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={10}
-                      step={1}
-                      className="w-20"
-                      value={row.weight}
-                      onChange={(e) =>
-                        updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
-                      }
-                      aria-label={`Weight for skill ${index + 1}`}
-                    />
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeSkillRow(index)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" size="sm" onClick={addSkillRow}>
-                  <Plus className="mr-2 h-4 w-4" />
+
+            <Separator className="my-2" />
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold">Skill priorities</h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
+                  </p>
+                </div>
+                <Button 
+                  type="button" 
+                  variant="link" 
+                  size="sm" 
+                  onClick={addSkillRow}
+                  className="h-auto p-0 text-primary font-semibold"
+                >
                   Add skill
                 </Button>
               </div>
+
+              <div className="space-y-3">
+                {formState.skillWeights.length === 0 && (
+                  <div className="text-center py-4 rounded-lg border border-dashed text-xs text-muted-foreground">
+                    No skills added yet. Add skills to enable AI scoring.
+                  </div>
+                )}
+                {formState.skillWeights.map((row, index) => (
+                  <div key={index} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <Input
+                      className="flex-1 h-10"
+                      placeholder="e.g. React"
+                      value={row.skill}
+                      onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-medium">Weight</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={10}
+                        className="w-14 h-10 text-center"
+                        value={row.weight}
+                        onChange={(e) =>
+                          updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-medium">Years</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        className="w-14 h-10 text-center"
+                        value={row.yearsOfExperience || ''}
+                        onChange={(e) =>
+                          updateSkillRow(index, { yearsOfExperience: Number.parseInt(e.target.value, 10) || 0 })
+                        }
+                      />
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => removeSkillRow(index)}
+                      className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
+
           </div>
-          <DialogFooter>
+          <DialogFooter className="mt-2">
             <Button type="button" variant="ghost" onClick={() => handleCloseDialog(false)}>
               Cancel
             </Button>
