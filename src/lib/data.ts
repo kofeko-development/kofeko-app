@@ -30,6 +30,7 @@ export const applicantNotifications: Notification[] = [
 
 export type Applicant = {
   id: string;
+  candidateId: string;
   name: string;
   email: string;
   status: 'submitted' | 'screening' | 'interview' | 'offer' | 'rejected' | 'hired';
@@ -48,6 +49,7 @@ export type Applicant = {
 export const applicantsData: Applicant[] = [
     { 
         id: '123', 
+        candidateId: 'cand-123',
         name: 'Sarah Mayer', 
         email: 'sarah.mayer@example.com', 
         status: 'screening', 
@@ -64,6 +66,7 @@ export const applicantsData: Applicant[] = [
     },
     { 
         id: 'candidate456', 
+        candidateId: 'cand-456',
         name: 'Jessica Williams', 
         email: 'candidate@kofeko.com', 
         status: 'interview', 
@@ -80,6 +83,7 @@ export const applicantsData: Applicant[] = [
     },
     { 
         id: '125', 
+        candidateId: 'cand-125',
         name: 'Jane Smith', 
         email: 'jane.smith@example.com', 
         status: 'screening', 
@@ -96,6 +100,7 @@ export const applicantsData: Applicant[] = [
     },
     { 
         id: '126', 
+        candidateId: 'cand-126',
         name: 'Peter Jones', 
         email: 'peter.jones@example.com', 
         status: 'offer', 
@@ -112,6 +117,7 @@ export const applicantsData: Applicant[] = [
     },
     { 
         id: '127', 
+        candidateId: 'cand-127',
         name: 'Michael Brown', 
         email: 'michael.brown@example.com', 
         status: 'screening', 
