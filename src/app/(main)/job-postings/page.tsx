@@ -297,13 +297,21 @@ export default function JobPostingsPage() {
     }
   };
 
-  const handleDeleteDraft = () => {
-    toast({
-      title: 'Not available',
-      description: 'Deleting drafts on the server is not supported yet. Close the job from job settings when that flow exists.',
-      variant: 'destructive',
-    });
-    setJobToDelete(null);
+  const handleDeleteDraft = async () => {
+    if (!jobToDelete) return;
+    try {
+      await jobsApi.delete(jobToDelete.id);
+      setJobs((prev) => prev.filter((j) => j.id !== jobToDelete.id));
+      toast({ title: 'Draft deleted', description: `"${jobToDelete.title}" has been deleted.` });
+    } catch (error) {
+      toast({
+        title: 'Delete failed',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setJobToDelete(null);
+    }
   };
 
   const statusVariantMap: { [key: string]: string } = {
@@ -458,14 +466,13 @@ export default function JobPostingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete draft?</AlertDialogTitle>
             <AlertDialogDescription>
-              Draft deletion on the server is not wired yet. Use this only after we add a delete API.
-              {jobToDelete ? ` (“${jobToDelete.title}”)` : ''}
+              This will permanently delete{jobToDelete ? ` "${jobToDelete.title}"` : ' this draft'}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setJobToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteDraft} className="bg-destructive hover:bg-destructive/90">
-              OK
+            <AlertDialogAction onClick={() => void handleDeleteDraft()} className="bg-destructive hover:bg-destructive/90">
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
