@@ -9,6 +9,19 @@ export interface WorkExperience {
   endDate: string;
 }
 
+export interface Education {
+  institution: string;
+  degree: string;
+  field: string;
+  dates: string;
+}
+
+export interface Project {
+  name: string;
+  description: string;
+  technologies: string[];
+}
+
 export interface User {
   uid: string;
   email: string;
@@ -20,6 +33,9 @@ export interface User {
   coverLetter?: string;
   skills?: string[];
   workExperience?: WorkExperience[];
+  education?: Education[];
+  projects?: Project[];
+  hobbies?: string[];
   company?: string; // For recruiters
   companyRole?: CompanyRole; // For recruiters
   resumeUrl?: string; // For candidates
