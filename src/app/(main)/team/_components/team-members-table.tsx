@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import type { User, CompanyRole } from '@/lib/types';
+import { updateStaffUserRole, removeStaffUser, updateStaffUserStatus } from '@/lib/admin-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,13 +52,26 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [isAlertOpen, setIsAlertOpen] = useState(false);
 
-    const handleRoleChange = (userId: string, newRole: CompanyRole) => {
-        // In a real app, this would be an API call.
-        setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, companyRole: newRole } : u));
-        toast({
-            title: "User role updated",
-            description: `The user's role has been changed to ${newRole}.`,
-        });
+    const handleRoleChange = async (userId: string, newRole: CompanyRole) => {
+        try {
+            // Map CompanyRole to backend role names
+            let backendRole = 'recruiter';
+            if (newRole === 'HR Admin') backendRole = 'hr_manager';
+            else if (newRole === 'Interviewer') backendRole = 'interviewer';
+            
+            await updateStaffUserRole(userId, backendRole);
+            setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, companyRole: newRole } : u));
+            toast({
+                title: "User role updated",
+                description: `The user's role has been changed to ${newRole}.`,
+            });
+        } catch (error) {
+            toast({
+                title: "Failed to update role",
+                description: error instanceof Error ? error.message : "An error occurred",
+                variant: 'destructive'
+            });
+        }
     }
 
     const handleRemoveClick = (user: User) => {
@@ -65,18 +79,45 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
         setIsAlertOpen(true);
     };
 
-    const handleConfirmRemove = () => {
+    const handleConfirmRemove = async () => {
          if (!selectedUser) return;
-        // In a real app, this would be an API call.
-        setUsers(prevUsers => prevUsers.filter(u => u.uid !== selectedUser.uid));
-        toast({
-            title: "User Removed",
-            description: `${selectedUser.name} has been removed from the team.`,
-            variant: 'destructive'
-        });
-        setIsAlertOpen(false);
-        setSelectedUser(null);
+         try {
+             await removeStaffUser(selectedUser.uid);
+             setUsers(prevUsers => prevUsers.filter(u => u.uid !== selectedUser.uid));
+             toast({
+                 title: "User Removed",
+                 description: `${selectedUser.name} has been removed from the team.`,
+                 variant: 'destructive'
+             });
+         } catch (error) {
+             toast({
+                 title: "Failed to remove user",
+                 description: error instanceof Error ? error.message : "An error occurred",
+                 variant: 'destructive'
+             });
+         } finally {
+             setIsAlertOpen(false);
+             setSelectedUser(null);
+         }
     }
+
+    const handleStatusChange = async (userId: string, status: 'active' | 'suspended') => {
+        try {
+            await updateStaffUserStatus(userId, status);
+            setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, status } : u));
+            toast({
+                title: `User ${status}`,
+                description: `The user has been ${status}.`,
+            });
+        } catch (error) {
+            toast({
+                title: `Failed to ${status === 'active' ? 'reactivate' : 'suspend'} user`,
+                description: error instanceof Error ? error.message : "An error occurred",
+                variant: 'destructive'
+            });
+        }
+    }
+
 
     return (
         <>
@@ -130,6 +171,15 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
                                                 <DropdownMenuItem onSelect={() => handleRoleChange(user.uid, 'Interviewer')}>
                                                     Change to Interviewer
                                                 </DropdownMenuItem>
+                                                {user.status === 'suspended' ? (
+                                                    <DropdownMenuItem onSelect={() => handleStatusChange(user.uid, 'active')}>
+                                                        Reactivate
+                                                    </DropdownMenuItem>
+                                                ) : (
+                                                    <DropdownMenuItem onSelect={() => handleStatusChange(user.uid, 'suspended')}>
+                                                        Suspend
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuItem onSelect={() => handleRemoveClick(user)} className="text-destructive focus:text-destructive">
                                                     <Trash2 className="mr-2 h-4 w-4" /> Remove User
                                                 </DropdownMenuItem>

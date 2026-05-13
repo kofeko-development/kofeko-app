@@ -90,3 +90,18 @@ export function displayStatusToStaffStatus(status: NonNullable<User['status']>):
   if (status === 'pending') return 'invited';
   return status;
 }
+
+export async function updateStaffUserRole(userId: string, roleName: string) {
+  return apiRequest<ApiStaffUser>(`/users/${userId}`, {
+    method: 'PATCH',
+    auth: true,
+    body: { roleName },
+  });
+}
+
+export async function removeStaffUser(userId: string) {
+  return apiRequest<void>(`/users/${userId}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
