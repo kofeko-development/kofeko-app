@@ -35,6 +35,8 @@ type RegisterAdminInput = {
   linkedinUrl?: string;
   twitterUrl?: string;
   termsAccepted: true;
+  /** From POST /auth/register-company-email-otp/verify after confirming the email code. */
+  emailVerificationToken: string;
 };
 
 type RegisterCandidateInput = {
@@ -85,9 +87,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const mapBackendUser = (backendUser: BackendUser): User => {
   const fullName = `${backendUser.firstName ?? ''} ${backendUser.lastName ?? ''}`.trim();
   const permissions = backendUser.permissions ?? [];
+  const roles = backendUser.roles ?? [];
   const isOperator = permissions.includes('rbac:manage');
-  const hasCandidateRole = (backendUser.roles ?? []).includes('candidate');
-  const isCandidate = !isOperator && (hasCandidateRole || (permissions.includes('candidate:read') && !permissions.includes('job:create')));
+  /** Staff vs candidate must follow backend role names — avoid inferring from permissions (e.g. interviewers may have candidate:read). */
+  const isCandidate = !isOperator && roles.includes('candidate');
   const role: User['role'] = isOperator ? 'operator' : isCandidate ? 'candidate' : 'recruiter';
 
   return {
@@ -96,7 +99,7 @@ const mapBackendUser = (backendUser: BackendUser): User => {
     name: fullName || backendUser.email,
     role,
     permissions,
-    backendRoles: backendUser.roles ?? [],
+    backendRoles: roles,
     status: backendUser.status === 'invited' ? 'pending' : backendUser.status,
   };
 };
@@ -147,7 +150,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const registerAdmin = async (input: RegisterAdminInput) => {
-    await apiRequest('/auth/register-company-request', { method: 'POST', body: input });
+    await apiRequest('/auth/register-company-request', {
+      method: 'POST',
+      body: input,
+    });
   };
 
   const registerCandidate = async (input: RegisterCandidateInput) => {

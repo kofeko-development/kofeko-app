@@ -14,11 +14,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
+import { apiRequest } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { COMPANY_SIZE_OPTIONS } from "@/lib/company-size";
+import { COMPANY_SIZE_OPTIONS, type CompanySizeValue } from "@/lib/company-size";
 import { buildE164Phone } from "@/lib/phone-e164";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,10 @@ const PhoneInternationalField = dynamic(
     ),
   },
 );
+
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
 const normalizeUrlInput = (value: string) => {
   const trimmed = value.trim();
@@ -88,14 +93,116 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
+  const [verifiedAtEmail, setVerifiedAtEmail] = useState<string | null>(null);
+  const [sendOtpLoading, setSendOtpLoading] = useState(false);
+  const [confirmOtpLoading, setConfirmOtpLoading] = useState(false);
+
   const passwordsMatch = password === confirmPassword;
   const showPasswordMismatch =
     confirmPassword.length > 0 && password.length > 0 && !passwordsMatch;
 
+  const emailLooksVerified =
+    Boolean(emailVerificationToken) &&
+    verifiedAtEmail !== null &&
+    verifiedAtEmail === normalizeEmail(adminEmail);
+
+  const handleAdminEmailChange = (value: string) => {
+    const prevNorm = normalizeEmail(adminEmail);
+    setAdminEmail(value);
+    const nextNorm = normalizeEmail(value);
+    if (prevNorm !== nextNorm) {
+      setVerifiedAtEmail(null);
+      setEmailVerificationToken(null);
+      setOtpCode('');
+      setOtpSent(false);
+    }
+  };
+
+  const handleSendEmailOtp = async () => {
+    const raw = adminEmail.trim();
+    if (!isValidEmailShape(raw)) {
+      toast({
+        title: 'Invalid email',
+        description: 'Enter a valid email address, then tap Verify.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSendOtpLoading(true);
+    try {
+      await apiRequest<{ sent: true }>('/auth/register-company-email-otp/send', {
+        method: 'POST',
+        body: { email: raw },
+      });
+      setOtpSent(true);
+      setOtpCode('');
+      setVerifiedAtEmail(null);
+      setEmailVerificationToken(null);
+      toast({
+        title: 'Code sent',
+        description: 'Check your inbox for a 6-digit verification code.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not send code',
+        description: error instanceof Error ? error.message : 'Try again in a moment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendOtpLoading(false);
+    }
+  };
+
+  const handleConfirmEmailOtp = async () => {
+    const raw = adminEmail.trim();
+    const code = otpCode.trim();
+    if (!isValidEmailShape(raw) || !/^\d{6}$/.test(code)) {
+      toast({
+        title: 'Invalid code',
+        description: 'Enter the 6-digit code from your email.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setConfirmOtpLoading(true);
+    try {
+      const { emailVerificationToken: token } = await apiRequest<{ emailVerificationToken: string }>(
+        '/auth/register-company-email-otp/verify',
+        { method: 'POST', body: { email: raw, code } },
+      );
+      setEmailVerificationToken(token);
+      setVerifiedAtEmail(normalizeEmail(raw));
+      toast({ title: 'Email verified', description: 'You can continue to company details.' });
+    } catch (error) {
+      toast({
+        title: 'Verification failed',
+        description: error instanceof Error ? error.message : 'Check the code and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setConfirmOtpLoading(false);
+    }
+  };
+
   const validateStep1 = (): boolean => {
-    const emailOk = adminEmail.trim().length > 0;
-    if (!emailOk) {
-      toast({ title: 'Email required', description: 'Enter the email you will use to log in.', variant: 'destructive' });
+    const norm = normalizeEmail(adminEmail);
+    if (!norm || !isValidEmailShape(adminEmail)) {
+      toast({
+        title: 'Invalid email',
+        description: 'Enter a valid email you will use to log in after approval.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    if (!emailLooksVerified) {
+      toast({
+        title: 'Verify your email',
+        description: 'Use Verify to get a code, then confirm it before continuing.',
+        variant: 'destructive',
+      });
       return false;
     }
     if (password.length < 8) {
@@ -132,6 +239,16 @@ export default function SignupPage() {
       return;
     }
 
+    if (!emailVerificationToken || verifiedAtEmail !== normalizeEmail(adminEmail)) {
+      toast({
+        title: 'Email not verified',
+        description: 'Go back to step 1 and verify your email with the code we sent.',
+        variant: 'destructive',
+      });
+      setStep(1);
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast({
         title: 'Passwords do not match',
@@ -159,6 +276,7 @@ export default function SignupPage() {
       await registerAdmin({
         adminEmail: adminEmail.trim(),
         password,
+        emailVerificationToken: emailVerificationToken as string,
         companyName,
         companyAddress: {
           country,
@@ -168,7 +286,7 @@ export default function SignupPage() {
           fullAddress,
         },
         industry,
-        companySize,
+        companySize: companySize as CompanySizeValue,
         companyType,
         foundedYear: Number(foundedYear),
         companyWebsite,
@@ -226,17 +344,74 @@ export default function SignupPage() {
           {step === 1 ? (
             <div className="grid gap-5">
               <div className="grid gap-2">
-                <Label htmlFor="admin-email">Email</Label>
-                <Input
-                  id="admin-email"
-                  type="email"
-                  autoComplete="email"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="h-11"
-                />
+                <Label htmlFor="admin-email">Company admin email</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                  <Input
+                    id="admin-email"
+                    type="email"
+                    autoComplete="email"
+                    value={adminEmail}
+                    onChange={(e) => handleAdminEmailChange(e.target.value)}
+                    required
+                    disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                    className="h-11 min-w-0 flex-1"
+                    placeholder="you@company.com"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-11 shrink-0 sm:w-36"
+                    disabled={
+                      isLoading ||
+                      sendOtpLoading ||
+                      confirmOtpLoading ||
+                      !isValidEmailShape(adminEmail)
+                    }
+                    onClick={() => void handleSendEmailOtp()}
+                  >
+                    {sendOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Verify'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tap Verify to receive a one-time code. You must confirm it before continuing.
+                </p>
+                {otpSent ? (
+                  <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-end sm:gap-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="email-otp">Email code</Label>
+                      <Input
+                        id="email-otp"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        pattern="\d{6}"
+                        placeholder="000000"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        disabled={isLoading || confirmOtpLoading || emailLooksVerified}
+                        className="h-11 font-mono tracking-widest"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      className="h-11"
+                      disabled={
+                        isLoading ||
+                        confirmOtpLoading ||
+                        otpCode.trim().length !== 6 ||
+                        emailLooksVerified
+                      }
+                      onClick={() => void handleConfirmEmailOtp()}
+                    >
+                      {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Confirm'}
+                    </Button>
+                  </div>
+                ) : null}
+                {emailLooksVerified ? (
+                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400" role="status">
+                    This email is verified.
+                  </p>
+                ) : null}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
@@ -250,7 +425,7 @@ export default function SignupPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       minLength={8}
-                      disabled={isLoading}
+                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
                       className={cn("h-11 pr-10", showPasswordMismatch && "border-destructive focus-visible:ring-destructive")}
                     />
                     <button
@@ -259,7 +434,7 @@ export default function SignupPage() {
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? "Hide password" : "Show password"}
                       aria-pressed={showPassword}
-                      disabled={isLoading}
+                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
                     </button>
@@ -276,7 +451,7 @@ export default function SignupPage() {
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
                       minLength={8}
-                      disabled={isLoading}
+                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
                       className={cn("h-11 pr-10", showPasswordMismatch && "border-destructive focus-visible:ring-destructive")}
                     />
                     <button
@@ -285,7 +460,7 @@ export default function SignupPage() {
                       onClick={() => setShowConfirmPassword((v) => !v)}
                       aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                       aria-pressed={showConfirmPassword}
-                      disabled={isLoading}
+                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
                     </button>
@@ -300,7 +475,13 @@ export default function SignupPage() {
               <Button
                 type="submit"
                 className="h-11 w-full"
-                disabled={isLoading || showPasswordMismatch}
+                disabled={
+                  isLoading ||
+                  sendOtpLoading ||
+                  confirmOtpLoading ||
+                  showPasswordMismatch ||
+                  !emailLooksVerified
+                }
               >
                 Continue
               </Button>

@@ -26,8 +26,12 @@ export const stageOneApi = {
     firstName: string;
     lastName: string;
     email: string;
+    /** Ignored when `permissionKeys` is non-empty (custom role). */
     roleName?: string;
+    /** Required when using custom `permissionKeys` — label for the role (email / audit). */
     position?: string;
+    /** Creates a tenant role with exactly these permission keys (invite “Other”). */
+    permissionKeys?: string[];
   }) => apiRequest('/users/invite', { method: 'POST', auth: true, body: payload }),
   acceptInvite: (payload: { token: string; password: string }) =>
     apiRequest('/auth/accept-invite', { method: 'POST', body: payload }),
@@ -55,6 +59,9 @@ export const aiApi = {
   }) => apiRequest<{ html: string }>('/ai/jd', { method: 'POST', auth: true, body: payload }),
 };
 
+/** Matches backend `skillWeights` JSON — weights are integers 0–10. */
+export type SkillWeight = { skill: string; weight: number };
+
 export type CreatedJob = {
   id: string;
   title: string;
@@ -65,6 +72,7 @@ export type CreatedJob = {
   employmentType?: string | null;
   department?: string | null;
   requirements?: string | null;
+  skillWeights?: SkillWeight[] | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -78,6 +86,8 @@ export type PaginatedJobsResponse = {
 };
 
 export const jobsApi = {
+  get: (jobId: string) => apiRequest<CreatedJob>(`/jobs/${jobId}`, { auth: true }),
+
   list: (params?: { page?: number; limit?: number; status?: string; department?: string }) => {
     const qs = new URLSearchParams();
     if (params?.page != null) qs.set('page', String(params.page));
@@ -97,6 +107,7 @@ export const jobsApi = {
     department?: string;
     requirements?: string;
     niceToHave?: string;
+    skillWeights?: SkillWeight[];
   }) => apiRequest<CreatedJob>('/jobs', { method: 'POST', auth: true, body: payload }),
 
   update: (
@@ -110,6 +121,7 @@ export const jobsApi = {
       department?: string;
       requirements?: string;
       niceToHave?: string;
+      skillWeights?: SkillWeight[];
     }>,
   ) => apiRequest<CreatedJob>(`/jobs/${jobId}`, { method: 'PATCH', auth: true, body: payload }),
 

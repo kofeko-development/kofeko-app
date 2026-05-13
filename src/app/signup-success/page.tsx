@@ -1,8 +1,7 @@
 
 'use client';
 
-import Link from "next/link";
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,39 +9,23 @@ import { CheckCircle } from "lucide-react";
 
 function SuccessContent() {
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const name = searchParams.get('name');
-    const email = searchParams.get('email');
-
-    const handleCreateProfile = () => {
-        const query = new URLSearchParams({
-            name: name || '',
-            email: email || ''
-        }).toString();
-        router.push(`/signup?${query}`);
-    }
 
     return (
         <Card className="max-w-md w-full">
             <CardHeader className="text-center">
                 <CheckCircle className="mx-auto h-12 w-12 text-green-500 mb-4" />
-                <CardTitle className="text-2xl font-bold">Application Received!</CardTitle>
+                <CardTitle className="text-2xl font-bold">Registration Received!</CardTitle>
                 <CardDescription>
-                    Thank you for your interest. Your application has been submitted successfully.
+                    Thank you for registering your company with Kofeko.
                 </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
                 <p className="text-muted-foreground mb-6">
-                    To track your application status and apply for other jobs faster, create a free profile.
+                    We will process your request, which usually takes around 24 hours. After verification, we will notify you through your registered email ID.
                 </p>
-                <Button onClick={handleCreateProfile} className="w-full">
-                    Create My Profile
+                <Button onClick={() => router.push('/')} className="w-full">
+                    Return to Home
                 </Button>
-                <div className="mt-4 text-sm">
-                    <Link href="/open-positions" className="text-muted-foreground hover:text-primary underline">
-                        Or continue browsing jobs
-                    </Link>
-                </div>
             </CardContent>
         </Card>
     );

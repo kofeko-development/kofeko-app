@@ -16,9 +16,10 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  
+
   const [tenantSlug, setTenantSlug] = useState('');
-  const [showTenantSlug, setShowTenantSlug] = useState(false);
+  /** After 409, company slug becomes required for the next attempt. */
+  const [slugRequired, setSlugRequired] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +29,12 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const user = await login({ email, password, tenantSlug: showTenantSlug ? tenantSlug : undefined });
+      const slug = tenantSlug.trim();
+      const user = await login({
+        email,
+        password,
+        tenantSlug: slug || undefined,
+      });
       if (user.status && user.status !== 'active') {
         toast({
           title: 'Account Not Active',
@@ -45,17 +51,30 @@ export default function LoginPage() {
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        setShowTenantSlug(true);
+        setSlugRequired(true);
         toast({
           title: 'Multiple company accounts found',
-          description: 'Please enter your company slug to continue.',
+          description: 'Enter your company slug below and try again.',
           variant: 'destructive',
         });
         return;
       }
+
+      if (error instanceof ApiError && error.errorCode === 'REGISTRATION_PENDING') {
+        router.push('/signup-success');
+        return;
+      }
+      const slug = tenantSlug.trim();
+      const hint401 =
+        error instanceof ApiError &&
+          error.status === 401 &&
+          slug.length > 0
+          ? ' If this keeps failing, confirm your company slug with your admin.'
+          : '';
       toast({
         title: 'Login Failed',
-        description: error instanceof Error ? error.message : 'Invalid email or password. Please try again.',
+        description:
+          (error instanceof Error ? error.message : 'Invalid email or password. Please try again.') + hint401,
         variant: 'destructive',
       });
     } finally {
@@ -74,20 +93,6 @@ export default function LoginPage() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleLogin} className="grid gap-4">
-          {showTenantSlug ? (
-            <div className="grid gap-2">
-              <Label htmlFor="tenantSlug">Company Slug</Label>
-              <Input
-                id="tenantSlug"
-                placeholder="your-company-slug"
-                required
-                value={tenantSlug}
-                onChange={(e) => setTenantSlug(e.target.value)}
-                disabled={isLoading}
-              />
-              <p className="text-xs text-muted-foreground">Ask your admin for the company slug if you don't know it.</p>
-            </div>
-          ) : null}
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -107,21 +112,33 @@ export default function LoginPage() {
                 Forgot your password?
               </Link>
             </div>
-            <Input 
-                id="password" 
-                type="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+            <Input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
             />
           </div>
-          
+          <div className="grid gap-2">
+            <Label htmlFor="tenantSlug">Company slug {slugRequired ? '(required)' : '(optional)'}</Label>
+            <Input
+              id="tenantSlug"
+              placeholder="your-company-slug"
+              required={slugRequired}
+              value={tenantSlug}
+              onChange={(e) => setTenantSlug(e.target.value)}
+              disabled={isLoading}
+              autoComplete="organization"
+            />
+            <p className="text-xs text-muted-foreground">
+              Use this if your admin gave you a slug, or if login says multiple accounts were found for your email.
+            </p>
+          </div>
+
           <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-            <Button asChild variant="outline" className="w-full sm:flex-1">
-              <Link href="/register">Register</Link>
-            </Button>
-            <Button type="submit" className="w-full sm:flex-1" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -139,12 +156,6 @@ export default function LoginPage() {
           <Link href="/signup" className="underline">
             Company Sign Up
           </Link>
-        </div>
-        <div className="mt-2 text-center text-sm">
-          Candidate user? <Link href="/candidate-auth?mode=login" className="underline">Login as Candidate</Link>
-        </div>
-        <div className="mt-2 text-center text-sm">
-          Got an invite? <Link href="/accept-invite" className="underline">Accept invite</Link>
         </div>
       </CardContent>
     </Card>
