@@ -56,7 +56,7 @@ function CandidateAuthContent() {
         await loginCandidate({ email, password });
         toast({ title: 'Login successful', description: 'Welcome back.' });
       }
-      router.push('/dashboard');
+      router.push('/find-jobs');
     } catch (error) {
       toast({
         title: mode === 'signup' ? 'Candidate signup failed' : 'Candidate login failed',
@@ -75,7 +75,7 @@ function CandidateAuthContent() {
       const idToken = await cred.user.getIdToken();
       await loginCandidateWithGoogle({ idToken });
       toast({ title: 'Login successful', description: 'Signed in with Google.' });
-      router.push('/dashboard');
+      router.push('/find-jobs');
     } catch (error) {
       toast({
         title: 'Google sign-in failed',
@@ -88,7 +88,10 @@ function CandidateAuthContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/20 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-muted/20 px-4 relative">
+      <div className="absolute top-6 right-6 text-sm">
+        Are you a company? <Link href="/login" className="underline font-medium">Login here</Link>
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>{mode === 'signup' ? 'Candidate Sign Up' : 'Candidate Login'}</CardTitle>
@@ -207,9 +210,6 @@ function CandidateAuthContent() {
                 New here? <Link href="/candidate-auth?mode=signup" className="underline">Create account</Link>
               </>
             )}
-          </div>
-          <div className="mt-2 text-center text-sm">
-            <Link href="/register" className="underline text-muted-foreground">Back to registration options</Link>
           </div>
         </CardContent>
       </Card>

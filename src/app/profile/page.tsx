@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Linkedin, PlusCircle, Trash2, X } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import type { WorkExperience } from '@/lib/types';
@@ -29,6 +29,7 @@ export default function ProfilePage() {
   const [currentSkill, setCurrentSkill] = useState('');
   const [workExperience, setWorkExperience] = useState<WorkExperience[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
 
   const isNewUser = user && !user.resumeUrl;
 
@@ -138,6 +139,75 @@ export default function ProfilePage() {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       handleAddSkill();
+    }
+  };
+
+  const handleResumeUpload = async (file: File | null) => {
+    setResumeFile(file);
+    if (!file) return;
+
+    setIsParsing(true);
+    toast({
+      title: 'Parsing resume...',
+      description: 'Extracting details using AI to auto-fill your profile.',
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+
+      const token = localStorage.getItem('kofeko_access_token');
+      const res = await fetch(
+        (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1') + '/portal/parse-resume',
+        {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error('Failed to parse resume');
+      }
+
+      const payload = await res.json();
+      const data = payload.data?.parsed;
+
+      if (data) {
+        if (data.summary) setCoverLetter(data.summary);
+        if (Array.isArray(data.skills) && data.skills.length > 0) {
+          setSkills(data.skills);
+        }
+        if (Array.isArray(data.experience) && data.experience.length > 0) {
+          const mapped = data.experience.map((e: any) => ({
+            company: e.company || '',
+            role: e.role || '',
+            startDate: e.startDate || '',
+            endDate: e.endDate || '',
+          }));
+          setWorkExperience(mapped);
+        }
+
+        if (user && payload.data?.resumeUrl) {
+          updateCurrentUser({
+            ...user,
+            resumeUrl: payload.data.resumeUrl,
+          });
+        }
+
+        toast({
+          title: 'Resume extracted successfully!',
+          description: 'We pre-filled your summary, skills, and work experience.',
+        });
+      }
+    } catch (err) {
+      toast({
+        title: 'Parsing incomplete',
+        description: 'Could not auto-extract fields. Please fill them in manually.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsParsing(false);
     }
   };
 
@@ -296,32 +366,7 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {user.role === 'recruiter' && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Company Information</CardTitle>
-              <CardDescription>Update your company's public information.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Label htmlFor="linkedin-url">Company LinkedIn URL</Label>
-                <div className="relative">
-                  <Linkedin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="linkedin-url"
-                    value={linkedinUrl}
-                    onChange={(e) => setLinkedinUrl(e.target.value)}
-                    placeholder="https://www.linkedin.com/company/your-company"
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {user.role === 'candidate' && (
-          <>
+        <>
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle>Professional Summary</CardTitle>
@@ -332,10 +377,16 @@ export default function ProfilePage() {
                   <Input
                     id="resume"
                     type="file"
-                    onChange={(e) => setResumeFile(e.target.files ? e.target.files[0] : null)}
+                    onChange={(e) => handleResumeUpload(e.target.files ? e.target.files[0] : null)}
                     className="file:font-semibold file:text-primary"
                     required={Boolean(isNewUser)}
+                    disabled={isParsing}
                   />
+                  {isParsing && (
+                    <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
+                      <Loader2 className="h-4 w-4 animate-spin" /> AI is reading your resume and filling out fields below...
+                    </div>
+                  )}
                   {user.resumeUrl && !resumeFile && <p className="text-sm text-muted-foreground">Current file: {user.resumeUrl}</p>}
                 </div>
                 <div className="space-y-2">
@@ -417,8 +468,7 @@ export default function ProfilePage() {
                 </div>
               </CardContent>
             </Card>
-          </>
-        )}
+        </>
 
         <div className="mt-6 flex justify-end">
           <Button type="submit" disabled={isSaving}>

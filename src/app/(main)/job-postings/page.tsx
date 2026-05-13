@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Bot, Pencil, ChevronDown, Send, Trash2, Edit, Loader2 } from 'lucide-react';
+import { ArrowUpRight, Bot, Pencil, ChevronDown, Send, Trash2, Edit, Loader2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import {
   AlertDialog,
@@ -39,13 +39,22 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import type { CreatedJob } from '@/lib/stage1-2-api';
+import type { CreatedJob, SkillWeight } from '@/lib/stage1-2-api';
 import { jobsApi } from '@/lib/stage1-2-api';
 
 function mapApiJobToRow(j: CreatedJob): Job {
   const backend = j.status as Job['backendStatus'];
   const uiStatus: Job['status'] =
     j.status === 'draft' ? 'draft' : j.status === 'closed' ? 'closed' : 'open';
+
+  const weights = j.skillWeights;
+  const skillWeights =
+    Array.isArray(weights) && weights.length > 0
+      ? weights.map((w) => ({
+          skill: String(w.skill ?? '').trim(),
+          weight: Math.min(10, Math.max(0, Math.round(Number(w.weight)))),
+        }))
+      : undefined;
 
   return {
     id: j.id,
@@ -60,6 +69,7 @@ function mapApiJobToRow(j: CreatedJob): Job {
     backendStatus: backend ?? undefined,
     recruiterId: '',
     applicantCount: 0,
+    skillWeights: skillWeights?.filter((s) => s.skill.length > 0),
   };
 }
 
@@ -75,7 +85,13 @@ export default function JobPostingsPage() {
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
 
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [formState, setFormState] = useState({ title: '', location: '', description: '' });
+  const [formState, setFormState] = useState<{
+    title: string;
+    location: string;
+    description: string;
+    skillWeights: SkillWeight[];
+  }>({ title: '', location: '', description: '', skillWeights: [] });
+  const [loadingJobDetail, setLoadingJobDetail] = useState(false);
 
   const loadJobs = useCallback(async () => {
     setIsLoading(true);
@@ -105,11 +121,26 @@ export default function JobPostingsPage() {
         title: editingJob.title,
         location: editingJob.location === '—' ? '' : editingJob.location,
         description: editingJob.description,
+        skillWeights:
+          editingJob.skillWeights && editingJob.skillWeights.length > 0
+            ? editingJob.skillWeights.map((s) => ({
+                skill: s.skill,
+                weight: Math.min(10, Math.max(0, Math.round(s.weight))),
+              }))
+            : [],
       });
     } else {
-      setFormState({ title: '', location: '', description: '' });
+      setFormState({ title: '', location: '', description: '', skillWeights: [] });
     }
   }, [editingJob]);
+
+  const normalizedSkillWeights = (): SkillWeight[] =>
+    formState.skillWeights
+      .map((row) => ({
+        skill: row.skill.trim(),
+        weight: Math.min(10, Math.max(0, Math.round(Number(row.weight)) || 0)),
+      }))
+      .filter((row) => row.skill.length > 0);
 
   const displayedJobs = jobs.filter((j) => {
     if (view === 'open') {
@@ -119,8 +150,29 @@ export default function JobPostingsPage() {
   });
 
   const handleOpenDialog = (job: Job | null) => {
-    setEditingJob(job);
-    setIsManualDialogOpen(true);
+    if (!job) {
+      setEditingJob(null);
+      setIsManualDialogOpen(true);
+      return;
+    }
+    setLoadingJobDetail(true);
+    void (async () => {
+      try {
+        const full = await jobsApi.get(job.id);
+        setEditingJob(mapApiJobToRow(full));
+        setIsManualDialogOpen(true);
+      } catch (error) {
+        toast({
+          title: 'Could not load job details',
+          description: error instanceof Error ? error.message : 'Try again.',
+          variant: 'destructive',
+        });
+        setEditingJob(job);
+        setIsManualDialogOpen(true);
+      } finally {
+        setLoadingJobDetail(false);
+      }
+    })();
   };
 
   const handleCloseDialog = (open?: boolean) => {
@@ -131,6 +183,27 @@ export default function JobPostingsPage() {
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormState((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const updateSkillRow = (index: number, patch: Partial<SkillWeight>) => {
+    setFormState((prev) => ({
+      ...prev,
+      skillWeights: prev.skillWeights.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    }));
+  };
+
+  const addSkillRow = () => {
+    setFormState((prev) => ({
+      ...prev,
+      skillWeights: [...prev.skillWeights, { skill: '', weight: 7 }],
+    }));
+  };
+
+  const removeSkillRow = (index: number) => {
+    setFormState((prev) => ({
+      ...prev,
+      skillWeights: prev.skillWeights.filter((_, i) => i !== index),
+    }));
   };
 
   const handleJobSave = async (status: 'open' | 'draft') => {
@@ -160,6 +233,8 @@ export default function JobPostingsPage() {
       return;
     }
 
+    const skillWeightsPayload = normalizedSkillWeights();
+
     setIsSaving(true);
     try {
       if (editingJob) {
@@ -167,6 +242,7 @@ export default function JobPostingsPage() {
           title,
           description: description.slice(0, 5000),
           location: location || undefined,
+          skillWeights: skillWeightsPayload,
         });
         if (status === 'open' && editingJob.backendStatus === 'draft') {
           await jobsApi.publish(editingJob.id);
@@ -180,6 +256,7 @@ export default function JobPostingsPage() {
           title,
           description: description.slice(0, 5000),
           location: location || undefined,
+          skillWeights: skillWeightsPayload.length > 0 ? skillWeightsPayload : undefined,
         });
         if (status === 'open') {
           await jobsApi.publish(created.id);
@@ -444,6 +521,44 @@ export default function JobPostingsPage() {
                 required
               />
             </div>
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2">Skill weights</Label>
+              <div className="col-span-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Used by AI resume scoring (0–10 per skill). Optional but recommended for evaluations.
+                </p>
+                {formState.skillWeights.map((row, index) => (
+                  <div key={index} className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="min-w-[140px] flex-1"
+                      placeholder="e.g. React"
+                      value={row.skill}
+                      onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
+                      aria-label={`Skill ${index + 1}`}
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10}
+                      step={1}
+                      className="w-20"
+                      value={row.weight}
+                      onChange={(e) =>
+                        updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
+                      }
+                      aria-label={`Weight for skill ${index + 1}`}
+                    />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeSkillRow(index)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" size="sm" onClick={addSkillRow}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add skill
+                </Button>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => handleCloseDialog(false)}>
@@ -452,13 +567,13 @@ export default function JobPostingsPage() {
             <Button
               type="button"
               variant="outline"
-              disabled={isSaving}
+              disabled={isSaving || loadingJobDetail}
               onClick={() => void handleJobSave('draft')}
             >
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {editingJob ? 'Save Changes' : 'Save as Draft'}
             </Button>
-            <Button type="button" disabled={isSaving} onClick={() => void handleJobSave('open')}>
+            <Button type="button" disabled={isSaving || loadingJobDetail} onClick={() => void handleJobSave('open')}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {editingJob ? 'Save & Publish' : 'Save & Post Job'}
             </Button>

@@ -116,8 +116,8 @@ export default function TeamManagementPage() {
                     permissionKeys: otherPermissionKeys,
                 });
                 toast({
-                    title: "Invitation Sent!",
-                    description: `${name} has been invited as “${otherRoleTitle.trim()}” with ${otherPermissionKeys.length} custom permission(s).`,
+                    title: 'Invitation sent',
+                    description: `We emailed ${email.trim()} with a welcome note, temporary password, and an accept-invite link to set their own password. Ask them to check inbox and spam.`,
                 });
             } else {
                 const roleName = accessChoice as BackendRoleName;
@@ -128,8 +128,8 @@ export default function TeamManagementPage() {
                     roleName,
                 });
                 toast({
-                    title: "Invitation Sent!",
-                    description: `${name} has been invited — ${INVITE_ACCESS_MAIN_OPTIONS.find((o) => o.value === accessChoice)?.label ?? roleName}.`,
+                    title: 'Invitation sent',
+                    description: `We emailed ${email.trim()} with a welcome note, temporary password, and an accept-invite link to set their own password. Ask them to check inbox and spam.`,
                 });
             }
 

@@ -85,7 +85,7 @@ export default function AddRecruiterPage() {
         });
         toast({
           title: 'Recruiter invited',
-          description: `We sent login details to ${em}. Custom role “${otherRoleTitle.trim()}” with ${otherPermissionKeys.length} permission(s).`,
+          description: `We emailed ${em} with a welcome message, temporary password, and an accept-invite link to set their password. Custom role: “${otherRoleTitle.trim()}”. Ask them to check inbox and spam.`,
         });
       } else {
         const roleName = accessChoice as BackendRoleName;
@@ -97,7 +97,7 @@ export default function AddRecruiterPage() {
         });
         toast({
           title: 'Recruiter invited',
-          description: `We sent login details to ${em}. Access: ${inviteBackendRoleLabel(roleName)}.`,
+          description: `We emailed ${em} with a welcome message, temporary password, and an accept-invite link (${inviteBackendRoleLabel(roleName)}). Ask them to check inbox and spam.`,
         });
       }
       router.push('/admin/recruiters');

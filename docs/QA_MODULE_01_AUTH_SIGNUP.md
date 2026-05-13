@@ -19,6 +19,34 @@
 | Blocked | 24 (awaiting manual QA in browser + inbox) |
 | Pass rate | — |
 
+### Automated (backend API)
+
+| Item | Value |
+|------|--------|
+| **Date** | 2026-05-11 |
+| **Suite** | [`Kofeko---Backend/src/__tests__/stage1.module1-auth-signup.test.ts`](../../Kofeko---Backend/src/__tests__/stage1.module1-auth-signup.test.ts) |
+| **Command** | From backend repo: `npm test -- --testPathPattern=stage1.module1-auth-signup` |
+| **Result** | **PASS** — 7 tests (requires reachable `DATABASE_URL`; same as other Jest integration tests) |
+
+**Coverage vs manual checklist:** send OTP (**1.1**), rate limit second send (**1.2**), wrong OTP (**1.3**), verify + token + **`register-company-request` 201** (**1.5**, **1.9**), invalid phone body (**1.12**), plus **candidate `register-candidate` 201** (not numbered in table). UI-only cases remain manual.
+
+### Automated (frontend browser — Playwright)
+
+| Item | Value |
+|------|--------|
+| **Date** | 2026-05-12 |
+| **Suite** | [`e2e/module1-signup.spec.ts`](../e2e/module1-signup.spec.ts) |
+| **Command** | From app repo: `npm run test:e2e` (or `npx playwright test e2e/module1-signup.spec.ts`) |
+| **Config** | [`playwright.config.ts`](../playwright.config.ts) — starts or reuses Next.js on **127.0.0.1:3000** |
+| **Result** | **PASS** — 3 tests (Chromium) |
+
+| Test | What it checks |
+|------|----------------|
+| Smoke | `/signup` loads “Company registration”; invalid email keeps **Verify** disabled (client-side). |
+| Mocked full flow | Intercepts `register-company-email-otp/*` and `register-company-request` so **no real backend OTP/email** is required; fills step 1–2 and asserts redirect to **`/signup-success`** (“Application Received!”). |
+
+**Note:** The end-to-end browser test uses **mocked HTTP responses** for auth APIs so it validates **UI wiring and navigation**, not a live JWT or inbox. Contract correctness remains covered by **backend Jest** above; real inbox + superadmin approval paths stay **manual**.
+
 ---
 
 ## Environment alignment (read before testing)
