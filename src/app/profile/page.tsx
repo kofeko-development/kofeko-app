@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
+import { useAuth, BackendUser, mapBackendUser } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Trash2, X } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, X, Pencil, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import type { WorkExperience, Education, Project } from '@/lib/types';
@@ -16,8 +16,8 @@ import { companyApi } from '@/lib/stage1-2-api';
 import dynamic from 'next/dynamic';
 import { buildE164Phone } from '@/lib/phone-e164';
 import { apiRequest } from '@/lib/api-client';
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
-import { firebaseAuth } from '@/lib/firebase-client';
+import Script from 'next/script';
+import { Country } from 'country-state-city';
 
 const PhoneInternationalField = dynamic(
   () => import('@/components/phone-international-field').then((m) => m.PhoneInternationalField),
@@ -49,13 +49,9 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
 
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [sendOtpLoading, setSendOtpLoading] = useState(false);
-  const [confirmOtpLoading, setConfirmOtpLoading] = useState(false);
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
 
   const isNewUser = user && !user.resumeUrl;
 
@@ -82,15 +78,32 @@ export default function ProfilePage() {
     if (!user) return;
     setName(user.name);
     setEmail(user.email);
-    if (user.phone) {
-      setPhoneNationalDigits(user.phone.replace(/^\+\d+\s?/, ''));
-      setVerifiedPhone(user.phone);
+    if (user.phone && user.phone.startsWith('+')) {
+      const allCountries = Country.getAllCountries();
+      // Sort by phone code length descending to match longest first (e.g. +1 242 before +1)
+      const sortedCountries = [...allCountries].sort((a, b) => b.phonecode.length - a.phonecode.length);
+      
+      const cleanPhone = user.phone.substring(1); // remove +
+      let matched = false;
+      for (const c of sortedCountries) {
+        if (cleanPhone.startsWith(c.phonecode)) {
+          setPhoneCountryIso(c.isoCode);
+          setPhoneNationalDigits(cleanPhone.substring(c.phonecode.length).replace(/\D/g, ''));
+          setVerifiedPhone(user.phone);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        setPhoneNationalDigits(user.phone.replace(/\D/g, ''));
+        setVerifiedPhone(user.phone);
+      }
     }
     setCoverLetter(user.coverLetter || '');
     setSkills(user.skills || []);
-    setWorkExperience(user.workExperience || [{ company: '', role: '', startDate: '', endDate: '' }]);
-    setEducation(user.education || [{ institution: '', degree: '', field: '', dates: '' }]);
-    setProjects(user.projects || [{ name: '', description: '', technologies: [] }]);
+    setWorkExperience(user.workExperience && user.workExperience.length > 0 ? user.workExperience : [{ company: '', role: '', startDate: '', endDate: '' }]);
+    setEducation(user.education && user.education.length > 0 ? user.education : [{ institution: '', degree: '', field: '', dates: '' }]);
+    setProjects(user.projects && user.projects.length > 0 ? user.projects : [{ name: '', description: '', technologies: [] }]);
     setHobbies(user.hobbies || []);
     if (user.role === 'recruiter') {
       setLinkedinUrl(user.linkedinProfileUrl || '');
@@ -141,62 +154,51 @@ export default function ProfilePage() {
   }, [user, canReadCompany, toast]);
 
   const currentFullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
-  const isPhoneChanged = currentFullPhone !== (user?.phone || '');
-  const isPhoneVerified = !isPhoneChanged || (phoneVerificationToken && verifiedPhone === currentFullPhone);
+  const isPhoneChanged = currentFullPhone.replace(/\D/g, '') !== (user?.phone || '').replace(/\D/g, '');
+  const isPhoneVerified = !isPhoneChanged || (verifiedPhone?.replace(/\D/g, '') === currentFullPhone.replace(/\D/g, ''));
 
-  const handleSendPhoneOtp = async () => {
+  const handleVerifyPhoneWithMsg91 = () => {
     if (!currentFullPhone) {
       toast({ title: 'Invalid phone', description: 'Enter a valid phone number.', variant: 'destructive' });
       return;
     }
-    setSendOtpLoading(true);
-    try {
-      if (!(window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', {
-          size: 'invisible',
-        });
-      }
-      const confirmation = await signInWithPhoneNumber(firebaseAuth, currentFullPhone, (window as any).recaptchaVerifier);
-      setConfirmationResult(confirmation);
-      setOtpSent(true);
-      setOtpCode('');
-      setVerifiedPhone(null);
-      setPhoneVerificationToken(null);
-      toast({ title: 'Code sent', description: 'Check your phone for a 6-digit verification code.' });
-    } catch (error) {
-      toast({ title: 'Could not send code', description: error instanceof Error ? error.message : 'Try again in a moment.', variant: 'destructive' });
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.clear();
-        (window as any).recaptchaVerifier = undefined;
-      }
-    } finally {
-      setSendOtpLoading(false);
-    }
-  };
 
-  const handleConfirmPhoneOtp = async () => {
-    const code = otpCode.trim();
-    if (!currentFullPhone || !/^\d{6}$/.test(code) || !confirmationResult) {
-      toast({ title: 'Invalid code', description: 'Enter the 6-digit code.', variant: 'destructive' });
+    if (typeof (window as any).initSendOTP !== 'function') {
+      toast({ title: 'Service unavailable', description: 'Verification service is still loading. Please try again in a second.', variant: 'destructive' });
       return;
     }
-    setConfirmOtpLoading(true);
+
+    const config = {
+      widgetId: "36656d677765373830393137",
+      tokenAuth: "516208TzgLR9xASXN6a04272aP1",
+      identifier: currentFullPhone,
+      success: (data: any) => {
+        handleMsg91Success(data);
+      },
+      failure: (error: any) => {
+        toast({ title: 'Verification failed', description: error?.message || 'Verification was unsuccessful.', variant: 'destructive' });
+      },
+    };
+    (window as any).initSendOTP(config);
+  };
+
+  const handleMsg91Success = async (data: any) => {
     try {
-      const result = await confirmationResult.confirm(code);
-      const idToken = await result.user.getIdToken();
+      const tokenToVerify = typeof data === 'string' ? data : data.message;
+      if (!tokenToVerify) {
+        throw new Error('Invalid verification response from MSG91');
+      }
 
       const { phoneVerificationToken: token } = await apiRequest<{ phoneVerificationToken: string }>(
-        '/auth/candidate-phone-otp/verify-firebase',
-        { method: 'POST', body: { idToken } },
+        '/auth/candidate-phone-otp/verify-msg91',
+        { method: 'POST', body: { accessToken: tokenToVerify } },
       );
       
       setPhoneVerificationToken(token);
       setVerifiedPhone(currentFullPhone);
-      toast({ title: 'Phone verified', description: 'You can now save your changes.' });
+      toast({ title: 'Phone verified', description: 'Your phone number has been verified successfully.' });
     } catch (error) {
-      toast({ title: 'Verification failed', description: error instanceof Error ? error.message : 'Check the code and try again.', variant: 'destructive' });
-    } finally {
-      setConfirmOtpLoading(false);
+       toast({ title: 'Backend verification failed', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
     }
   };
 
@@ -390,38 +392,68 @@ export default function ProfilePage() {
       return;
     }
     setIsSaving(true);
-    setTimeout(() => {
-      if (user) {
-        const fullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
-        const updatedUser = {
-          ...user,
-          name,
-          email,
-          phone: fullPhone,
-          coverLetter,
-          skills,
-          workExperience,
-          education,
-          projects,
-          hobbies,
-          linkedinProfileUrl: user.role === 'recruiter' ? linkedinUrl : user.linkedinProfileUrl,
-          resumeUrl: resumeFile ? resumeFile.name : user.resumeUrl,
-        };
-        updateCurrentUser(updatedUser);
-      }
+    
+    (async () => {
+      try {
+        if (user) {
+          const fullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
+          
+          if (user.role === 'candidate') {
+            // Save to backend
+            const updatedBackendUser = await apiRequest<BackendUser>('/portal/profile', {
+              method: 'PATCH',
+              auth: true,
+              body: {
+                firstName: name.split(' ')[0],
+                lastName: name.split(' ').slice(1).join(' ') || 'Candidate',
+                phone: fullPhone,
+                summary: coverLetter,
+                skills,
+                workExperience,
+                education,
+                projects,
+                hobbies,
+                linkedinUrl: user.linkedinProfileUrl, // Keeping existing if not changed
+              },
+            });
+            
+            updateCurrentUser(mapBackendUser(updatedBackendUser));
+          } else {
+            // Recruiter / Operator (keeping existing mock logic for now or update similarly if needed)
+            const updatedUser = {
+              ...user,
+              name,
+              email,
+              phone: fullPhone,
+              coverLetter,
+              skills,
+              workExperience,
+              education,
+              projects,
+              hobbies,
+              linkedinProfileUrl: user.role === 'recruiter' ? linkedinUrl : user.linkedinProfileUrl,
+              resumeUrl: resumeFile ? resumeFile.name : user.resumeUrl,
+            };
+            updateCurrentUser(updatedUser);
+          }
+        }
 
-      toast({
-        title: 'Profile Updated',
-        description: 'Your changes have been saved successfully.',
-      });
-      setIsSaving(false);
+        toast({
+          title: 'Profile Updated',
+          description: 'Your changes have been saved successfully.',
+        });
 
-      if (isNewUser && user?.role === 'candidate') {
-        router.push('/find-jobs');
-      } else {
-        router.push('/dashboard');
+        // Removed redirects as requested. User stays on the same page.
+      } catch (err) {
+        toast({
+          title: 'Update failed',
+          description: err instanceof Error ? err.message : 'Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsSaving(false);
       }
-    }, 1500);
+    })();
   };
 
   if (loading || !user) {
@@ -432,7 +464,7 @@ export default function ProfilePage() {
     );
   }
 
-  // Company users: show company profile only (no sidebar because this route is outside (main)).
+  // Staff / Recruiter Profile UI (Company details)
   if (user.role !== 'candidate') {
     return (
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
@@ -513,7 +545,7 @@ export default function ProfilePage() {
     );
   }
 
-  // Candidate: keep existing personal profile form.
+  // Candidate Profile UI (continues below)
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div>
@@ -536,49 +568,54 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input id="email" type="email" value={email} readOnly className="bg-muted cursor-not-allowed" />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Email cannot be changed.</p>
               </div>
             </div>
             <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Phone Number</Label>
+                {!!verifiedPhone && !isEditingPhone && (
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 px-2 text-xs gap-1.5"
+                    onClick={() => setIsEditingPhone(true)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </Button>
+                )}
+                {isEditingPhone && (
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 px-2 text-xs gap-1.5 text-emerald-600"
+                    onClick={() => setIsEditingPhone(false)}
+                  >
+                    <Check className="h-3 w-3" />
+                    Done
+                  </Button>
+                )}
+              </div>
               <PhoneInternationalField
                 phoneCountryIso={phoneCountryIso}
                 phoneNationalDigits={phoneNationalDigits}
-                setPhoneCountryIso={(v) => { setPhoneCountryIso(v); setOtpSent(false); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
-                setPhoneNationalDigits={(v) => { setPhoneNationalDigits(v); setOtpSent(false); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
+                setPhoneCountryIso={(v) => { setPhoneCountryIso(v); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
+                setPhoneNationalDigits={(v) => { setPhoneNationalDigits(v); setPhoneVerificationToken(null); setVerifiedPhone(null); }}
                 disabled={isSaving}
               />
               
-              <div id="recaptcha-container"></div>
-
               {isPhoneChanged && !isPhoneVerified && (
                 <div className="mt-2 flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
-                  {!otpSent ? (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm text-muted-foreground">You changed your phone number. Verify it to save.</p>
-                      <Button type="button" size="sm" onClick={handleSendPhoneOtp} disabled={sendOtpLoading}>
-                        {sendOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send Code'}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-                      <div className="flex-1 space-y-1">
-                        <Label htmlFor="phone-otp">Verification Code</Label>
-                        <Input
-                          id="phone-otp"
-                          inputMode="numeric"
-                          maxLength={6}
-                          placeholder="000000"
-                          value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          className="h-9 font-mono tracking-widest"
-                          disabled={confirmOtpLoading}
-                        />
-                      </div>
-                      <Button type="button" size="sm" className="h-9" onClick={handleConfirmPhoneOtp} disabled={confirmOtpLoading || otpCode.length !== 6}>
-                        {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm'}
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground">You changed your phone number. Verify it to save.</p>
+                    <Button type="button" size="sm" onClick={handleVerifyPhoneWithMsg91}>
+                      Verify Phone
+                    </Button>
+                  </div>
                 </div>
               )}
               {isPhoneChanged && isPhoneVerified && (
@@ -821,6 +858,8 @@ export default function ProfilePage() {
           </Button>
         </div>
       </form>
+      <Script src="https://verify.msg91.com/otp-provider.js" strategy="lazyOnload" />
+      <Script src="https://verify.phone91.com/otp-provider.js" strategy="lazyOnload" />
     </div>
   );
 }

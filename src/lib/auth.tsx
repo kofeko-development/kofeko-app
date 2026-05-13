@@ -59,7 +59,7 @@ type LoginCandidateSupabaseInput = {
   accessToken: string;
 };
 
-type BackendUser = {
+export type BackendUser = {
   id: string;
   email: string;
   firstName: string;
@@ -67,6 +67,15 @@ type BackendUser = {
   permissions?: string[];
   roles?: string[];
   status?: 'active' | 'invited' | 'suspended';
+  phoneNumber?: string;
+  resumeUrl?: string;
+  summary?: string;
+  education?: any[];
+  workExperience?: any[];
+  projects?: any[];
+  hobbies?: string[];
+  skills?: string[];
+  linkedinUrl?: string;
 };
 
 interface AuthContextType {
@@ -84,7 +93,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const mapBackendUser = (backendUser: BackendUser): User => {
+export const mapBackendUser = (backendUser: BackendUser): User => {
   const fullName = `${backendUser.firstName ?? ''} ${backendUser.lastName ?? ''}`.trim();
   const permissions = backendUser.permissions ?? [];
   const roles = backendUser.roles ?? [];
@@ -101,6 +110,15 @@ const mapBackendUser = (backendUser: BackendUser): User => {
     permissions,
     backendRoles: roles,
     status: backendUser.status === 'invited' ? 'pending' : backendUser.status,
+    phone: backendUser.phoneNumber,
+    resumeUrl: backendUser.resumeUrl,
+    coverLetter: backendUser.summary,
+    education: backendUser.education,
+    workExperience: backendUser.workExperience,
+    projects: backendUser.projects,
+    hobbies: backendUser.hobbies,
+    skills: backendUser.skills,
+    linkedinProfileUrl: backendUser.linkedinUrl,
   };
 };
 
