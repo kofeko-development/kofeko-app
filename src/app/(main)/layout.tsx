@@ -72,7 +72,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
 
     // Allow admins to view shared pages like /profile without being forced back to /admin.
-    if (hasPermission('rbac:manage') && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile')) {
+    if (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile')) {
       router.push('/admin/dashboard');
       return;
     }
@@ -89,7 +89,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
   }, [user, loading, router, pathname, hasPermission]);
   
-  if (loading || !user || (hasPermission('rbac:manage') && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile'))) {
+  if (loading || !user || (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile'))) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>

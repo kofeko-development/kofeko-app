@@ -98,6 +98,8 @@ export const jobsApi = {
     return apiRequest<PaginatedJobsResponse>(`/jobs${q ? `?${q}` : ''}`, { auth: true });
   },
 
+  get: (jobId: string) => apiRequest<CreatedJob>(`/jobs/${jobId}`, { auth: true }),
+
   create: (payload: {
     title: string;
     description: string;
@@ -219,4 +221,79 @@ export const candidatesApi = {
     const payload = await res.json() as { data: { url: string; mimeType: string; filename: string } };
     return payload.data;
   },
+};
+
+export type ApiPipeline = {
+  id: string;
+  jobId: string;
+  candidateId: string;
+  stage: 'applied' | 'screening' | 'technical_interview' | 'hr_interview' | 'offer' | 'hired' | 'rejected';
+  decisionNote?: string | null;
+  assignedTo?: string | null;
+  slaDeadline?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  candidate: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  job: {
+    title: string;
+  };
+  evaluation?: {
+    id: string;
+    score: number;
+    summary?: string;
+    whyCard?: string;
+    roleFitNotes?: string;
+    aiGenerated: boolean;
+    skillMatches?: any[];
+    rankingSummary?: string;
+  } | null;
+  evaluations?: any[]; // for backwards compatibility if needed
+};
+
+export type PaginatedPipelinesResponse = {
+  items: ApiPipeline[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export const pipelinesApi = {
+  list: (params: { jobId: string; page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    qs.set('jobId', params.jobId);
+    if (params.page != null) qs.set('page', String(params.page));
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return apiRequest<PaginatedPipelinesResponse>(`/pipelines?${q}`, { auth: true });
+  },
+
+  advance: (id: string, payload: { stage: string; note?: string }) =>
+    apiRequest<ApiPipeline>(`/pipelines/${id}/advance`, { method: 'POST', auth: true, body: payload }),
+
+  assign: (id: string, userId: string) =>
+    apiRequest<ApiPipeline>(`/pipelines/${id}/assign`, { method: 'POST', auth: true, body: { userId } }),
+
+  setSLA: (id: string, deadline: string) =>
+    apiRequest<ApiPipeline>(`/pipelines/${id}/sla`, { method: 'POST', auth: true, body: { deadline } }),
+};
+
+export const evaluationsApi = {
+  aiEvaluate: (payload: { jobId: string; candidateId: string; pipelineId?: string }) =>
+    apiRequest<any>('/evaluations/ai-evaluate', { method: 'POST', auth: true, body: payload }),
+
+  get: (id: string) => apiRequest<any>(`/evaluations/${id}`, { auth: true }),
+
+  update: (id: string, payload: { score?: number; whyCard?: string }) =>
+    apiRequest<any>(`/evaluations/${id}`, { method: 'PATCH', auth: true, body: payload }),
+
+  evaluateAll: (jobId: string) =>
+    apiRequest<any>(`/jobs/${jobId}/evaluate-all`, { method: 'POST', auth: true }),
+
+  getRankings: (jobId: string) =>
+    apiRequest<any[]>(`/jobs/${jobId}/rankings`, { auth: true }),
 };

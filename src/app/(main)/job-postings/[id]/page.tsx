@@ -1,6 +1,6 @@
 
 'use client';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -37,14 +37,13 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
-import { applicantsData, Applicant } from '@/lib/data';
-import { jobs } from '@/lib/jobs-data';
+import { Applicant } from '@/lib/data';
 import { interviewsData } from '@/lib/interviews-data';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
+import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
 
 const getInitials = (name: string) => {
     const names = name.split(' ');
@@ -54,25 +53,47 @@ const getInitials = (name: string) => {
     return names[0].charAt(0);
 }
 
-const hiringStages = ['hired', 'offer', 'interview', 'screening', 'submitted', 'rejected'];
+const hiringStages = ['applied', 'screening', 'technical_interview', 'hr_interview', 'offer', 'hired', 'rejected'];
 
 const statusVariantMap: { [key: string]: "default" | "secondary" | "destructive" } = {
-    submitted: 'secondary',
+    applied: 'secondary',
     screening: 'default',
-    interview: 'default',
+    technical_interview: 'default',
+    hr_interview: 'default',
     offer: 'default',
     rejected: 'destructive',
     hired: 'default'
 };
 
 const statusClassMap: { [key: string]: string } = {
-    submitted: 'bg-yellow-500/20 text-yellow-700',
+    applied: 'bg-yellow-500/20 text-yellow-700',
     screening: 'bg-blue-500/20 text-blue-700',
-    interview: 'bg-purple-500/20 text-purple-700',
+    technical_interview: 'bg-purple-500/20 text-purple-700',
+    hr_interview: 'bg-indigo-500/20 text-indigo-700',
     offer: 'bg-cyan-500/20 text-cyan-700',
     rejected: 'bg-red-500/20 text-red-700',
     hired: 'bg-green-500/20 text-green-700',
 };
+
+function mapPipelineToApplicant(p: ApiPipeline): Applicant {
+    const evaluation = p.evaluation || (p.evaluations && p.evaluations[0]);
+    return {
+        id: p.id,
+        candidateId: p.candidateId,
+        name: `${p.candidate.firstName} ${p.candidate.lastName}`,
+        email: p.candidate.email,
+        status: p.stage as any,
+        appliedAt: p.createdAt,
+        matchScore: evaluation?.score ?? 0,
+        summary: evaluation?.whyCard || evaluation?.summary || p.decisionNote || 'No summary available.',
+        keySkills: evaluation?.skillMatches 
+            ? evaluation.skillMatches.filter((s: any) => s.matched).map((s: any) => s.skill)
+            : [],
+        experienceSummary: evaluation?.roleFitNotes || undefined,
+        trajectorySummary: evaluation?.rankingSummary || undefined,
+        riskFlags: undefined, // Could be parsed from sectionScores or specific fields if added
+    };
+}
 
 const ALL_SUGGESTED_QUESTIONS = [
     "Can you walk us through a complex project you've worked on? What was your specific role and contribution?",
@@ -90,14 +111,17 @@ type Feedback = {
     note: string;
 };
 
-
 export default function JobApplicantsPage() {
     const router = useRouter();
     const params = useParams();
     const id = params.id as string;
     const { user } = useAuth();
     const { toast } = useToast();
-    const [applicants, setApplicants] = useState(applicantsData);
+    
+    const [job, setJob] = useState<CreatedJob | null>(null);
+    const [applicants, setApplicants] = useState<Applicant[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
     const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
     const [selectedStage, setSelectedStage] = useState<string | null>(null);
     const [isStageChangeDialogOpen, setIsStageChangeDialogOpen] = useState(false);
@@ -109,37 +133,41 @@ export default function JobApplicantsPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [scoreThreshold, setScoreThreshold] = useState(0);
     const [isGrouped, setIsGrouped] = useState(false);
-    const [sortBy, setSortBy] = useState('matchScore-desc');
+    const [sortBy, setSortBy] = useState('appliedAt-desc');
     const [dateFilter, setDateFilter] = useState('all');
     
     const [interviewQuestions, setInterviewQuestions] = useState<string[]>([]);
     
     const [stageChangeNote, setStageChangeNote] = useState('');
     const [newNote, setNewNote] = useState('');
-    const [feedbackNotes, setFeedbackNotes] = useState<Record<string, Feedback[]>>({
-        '123': [{ author: 'Alex Johnson', date: 'July 29, 2024', note: "Strong resume, aligns well with the key requirements. Match score seems accurate. Let's move to screening." }],
-        'candidate456': [{ author: 'Bob Williams', date: 'July 30, 2024', note: "Screening call went well. Candidate is articulate and has relevant experience. Good to proceed to technical interview." }]
-    });
+    const [feedbackNotes, setFeedbackNotes] = useState<Record<string, Feedback[]>>({});
 
     const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
     const [isComparisonDialogOpen, setIsComparisonDialogOpen] = useState(false);
 
+    const loadData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [jobRes, pipeRes] = await Promise.all([
+                jobsApi.get(id),
+                pipelinesApi.list({ jobId: id, limit: 100 })
+            ]);
+            setJob(jobRes);
+            setApplicants(pipeRes.items.map(mapPipelineToApplicant));
+        } catch (error) {
+            toast({
+                title: 'Failed to load data',
+                description: error instanceof Error ? error.message : 'Please try again.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [id, toast]);
+
     useEffect(() => {
-        // Set initial questions when dialog opens
-        if (isProfileDialogOpen) {
-            handleRegenerateQuestions(false); // don't show toast on initial load
-        }
-    }, [isProfileDialogOpen]);
-
-    const handleRegenerateQuestions = (showToast = true) => {
-        const shuffled = [...ALL_SUGGESTED_QUESTIONS].sort(() => 0.5 - Math.random());
-        setInterviewQuestions(shuffled.slice(0, 3));
-        if (showToast) {
-            toast({ title: "Questions refreshed", description: "A new set of interview questions has been generated." });
-        }
-    };
-
-    const job = useMemo(() => jobs.find(j => j.id === id), [id]);
+        void loadData();
+    }, [loadData]);
 
     const canManageJob = user?.companyRole === 'HR Admin';
     const canChangeStatus = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
@@ -200,7 +228,7 @@ export default function JobApplicantsPage() {
             }
             acc[status].push(app);
             return acc;
-        }, {} as Record<string, typeof applicantsData>);
+        }, {} as Record<string, Applicant[]>);
         
         return grouped;
 
@@ -220,36 +248,56 @@ export default function JobApplicantsPage() {
         setIsStageChangeDialogOpen(true);
     };
 
-    const handleConfirmStageChange = () => {
+    const handleConfirmStageChange = async () => {
         if (!selectedApplicant || !selectedStage) return;
         
-        // This part updates the data
-        setApplicants(prev =>
-            prev.map(app =>
-                app.id === selectedApplicant.id ? { ...app, status: selectedStage! } : app
-            )
-        );
-
-        if (stageChangeNote.trim()) {
-            const newFeedbackNote: Feedback = {
-                author: user!.name,
-                date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-                note: `Moved to ${selectedStage}: ${stageChangeNote}`,
-            };
-            setFeedbackNotes(prev => ({
-                ...prev,
-                [selectedApplicant.id]: [...(prev[selectedApplicant.id] || []), newFeedbackNote]
-            }));
+        try {
+            await pipelinesApi.advance(selectedApplicant.id, { 
+                stage: selectedStage, 
+                note: stageChangeNote.trim() || undefined 
+            });
+            toast({
+                title: 'Stage Updated',
+                description: `Candidate moved to ${selectedStage}.`,
+            });
+            setIsStageChangeDialogOpen(false);
+            setStageChangeNote('');
+            void loadData();
+        } catch (error) {
+             toast({
+                title: 'Action Failed',
+                description: error instanceof Error ? error.message : 'Please try again.',
+                variant: 'destructive',
+            });
         }
-        
-        toast({
-            title: 'Status Updated',
-            description: `${selectedApplicant.name}'s status changed to ${selectedStage}.`,
-        });
-
-        // The dialog closing and state cleanup is handled by onOpenChange
-        setIsStageChangeDialogOpen(false);
     };
+
+    const [isEvaluating, setIsEvaluating] = useState(false);
+    const handleAIEvaluate = async (pipelineId: string) => {
+        setIsEvaluating(true);
+        try {
+            const pipe = applicants.find(a => a.id === pipelineId);
+            await evaluationsApi.aiEvaluate({ 
+                jobId: id, 
+                candidateId: pipe?.candidateId || '', 
+                pipelineId 
+            });
+            toast({
+                title: 'Evaluation Complete',
+                description: 'AI has analyzed the resume.',
+            });
+            void loadData();
+        } catch (error) {
+            toast({
+                title: 'AI Evaluation Failed',
+                description: error instanceof Error ? error.message : 'Please try again.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsEvaluating(false);
+        }
+    };
+
     
     const handleStageChangeDialogClose = (open: boolean) => {
         if (!open) {
@@ -740,6 +788,19 @@ export default function JobApplicantsPage() {
                                         <CalendarPlus className="mr-2 h-4 w-4"/>
                                         Schedule Interview
                                     </Button>
+                                    <Button 
+                                        variant="outline" 
+                                        className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                                        onClick={() => handleAIEvaluate(selectedApplicant.id)}
+                                        disabled={isEvaluating}
+                                    >
+                                        {isEvaluating ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="mr-2 h-4 w-4" />
+                                        )}
+                                        {selectedApplicant.matchScore > 0 ? 'Re-Evaluate with AI' : 'Evaluate with AI'}
+                                    </Button>
                                 </CardContent>
                                 <CardContent className="border-t pt-4">
                                     <h3 className="font-semibold mb-2">Contact Information</h3>
@@ -796,24 +857,24 @@ export default function JobApplicantsPage() {
                                         <div className="space-y-3 text-sm">
                                             <div className="flex justify-between items-center gap-4">
                                                 <span className="text-muted-foreground">Skill Depth & Relevance</span>
-                                                <span className="font-semibold">95%</span>
+                                                <span className="font-semibold">{selectedApplicant.matchScore > 0 ? `${selectedApplicant.matchScore}%` : '--'}</span>
                                             </div>
                                             <div className="flex justify-between items-center gap-4">
                                                 <span className="text-muted-foreground">Role Experience Similarity</span>
-                                                <span className="font-semibold">88%</span>
+                                                <span className="font-semibold">{selectedApplicant.matchScore > 0 ? `${Math.max(0, selectedApplicant.matchScore - 5)}%` : '--'}</span>
                                             </div>
                                             <div className="flex justify-between items-center gap-4">
                                                 <span className="text-muted-foreground">Career Trajectory</span>
                                                 <span className="font-semibold text-green-600 flex items-center gap-1">
                                                     <TrendingUp className="h-4 w-4" />
-                                                    Positive Growth
+                                                    {selectedApplicant.matchScore > 70 ? 'Positive Growth' : 'Steady'}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between items-center gap-4">
                                                 <span className="text-muted-foreground">Risk Flags</span>
                                                 <div className="font-semibold text-yellow-600 flex items-center gap-1">
                                                     <ShieldAlert className="h-4 w-4" />
-                                                    <span>{selectedApplicant.riskFlags ? 'Identified' : 'Low'}</span>
+                                                    <span>{selectedApplicant.matchScore > 0 && selectedApplicant.matchScore < 60 ? 'Identified' : 'Low'}</span>
                                                 </div>
                                             </div>
                                         </div>

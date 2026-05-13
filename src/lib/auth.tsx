@@ -97,16 +97,23 @@ export const mapBackendUser = (backendUser: BackendUser): User => {
   const fullName = `${backendUser.firstName ?? ''} ${backendUser.lastName ?? ''}`.trim();
   const permissions = backendUser.permissions ?? [];
   const roles = backendUser.roles ?? [];
-  const isOperator = permissions.includes('rbac:manage');
+  const isOperator = permissions.includes('rbac:manage') && !roles.includes('company_admin');
   /** Staff vs candidate must follow backend role names — avoid inferring from permissions (e.g. interviewers may have candidate:read). */
   const isCandidate = !isOperator && roles.includes('candidate');
   const role: User['role'] = isOperator ? 'operator' : isCandidate ? 'candidate' : 'recruiter';
+
+  let companyRole: User['companyRole'] = undefined;
+  if (roles.includes('company_admin')) companyRole = 'HR Admin';
+  else if (roles.includes('hr_manager')) companyRole = 'Hiring Manager';
+  else if (roles.includes('recruiter')) companyRole = 'Recruiter';
+  else if (roles.includes('interviewer')) companyRole = 'Interviewer';
 
   return {
     uid: backendUser.id,
     email: backendUser.email,
     name: fullName || backendUser.email,
     role,
+    companyRole,
     permissions,
     backendRoles: roles,
     status: backendUser.status === 'invited' ? 'pending' : backendUser.status,
