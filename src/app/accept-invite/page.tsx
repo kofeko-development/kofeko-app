@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
+import { ApiError } from '@/lib/api-client';
 
 const strongPassword = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 
@@ -47,9 +48,36 @@ function AcceptInviteContent() {
       toast({ title: 'Invite accepted', description: 'Your account is active now. Please login.' });
       router.push('/login');
     } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.errorCode === 'INVITE_TOKEN_EXPIRED') {
+          toast({
+            title: 'Invite Link Expired',
+            description: 'This invite link has expired (72 hours). Ask your admin to send a new invitation.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (error.errorCode === 'INVITE_TOKEN_USED') {
+          toast({
+            title: 'Already Activated',
+            description: 'This invite link has already been used. Try logging in with your email.',
+            variant: 'destructive',
+          });
+          router.push('/login');
+          return;
+        }
+        if (error.errorCode === 'INVITE_TOKEN_INVALID') {
+          toast({
+            title: 'Invalid Invite Link',
+            description: 'This link is not valid. Ask your admin to resend the invitation.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       toast({
-        title: 'Unable to accept invite',
-        description: error instanceof Error ? error.message : 'Please try again.',
+        title: 'Could Not Activate Account',
+        description: error instanceof Error ? error.message : 'Please try again or contact support.',
         variant: 'destructive',
       });
     } finally {

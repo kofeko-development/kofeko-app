@@ -50,31 +50,83 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
-        setSlugRequired(true);
-        toast({
-          title: 'Multiple company accounts found',
-          description: 'Enter your company slug below and try again.',
-          variant: 'destructive',
-        });
-        return;
+      if (error instanceof ApiError) {
+        // 409 — multiple accounts: show tenant slug field
+        if (error.status === 409 || error.errorCode === 'CONFLICT') {
+          setSlugRequired(true);
+          toast({
+            title: 'Multiple Company Accounts',
+            description: 'Multiple accounts found for this email. Please enter your company slug to continue.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Pending approval — specific screen
+        if (error.errorCode === 'APPROVAL_PENDING') {
+          toast({
+            title: 'Registration Pending',
+            description: 'Your company registration is awaiting approval. You will receive an email when approved.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Rejected — specific message
+        if (error.errorCode === 'APPROVAL_REJECTED') {
+          toast({
+            title: 'Registration Not Approved',
+            description: 'Your company registration was not approved. Contact support@kofeko.ai.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Tenant suspended
+        if (error.errorCode === 'TENANT_SUSPENDED') {
+          toast({
+            title: 'Account Suspended',
+            description: 'This company account has been suspended. Contact support@kofeko.ai.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Individual user suspended
+        if (error.errorCode === 'USER_SUSPENDED') {
+          toast({
+            title: 'Account Suspended',
+            description: 'Your account has been suspended. Contact your company admin.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Invited but not accepted
+        if (error.errorCode === 'ACCOUNT_INVITED_ONLY') {
+          toast({
+            title: 'Accept Your Invite First',
+            description: 'Please click the invite link in your email to activate your account.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Wrong portal (candidate trying staff login)
+        if (error.errorCode === 'WRONG_PORTAL') {
+          toast({
+            title: 'Wrong Login Page',
+            description: 'This email is a candidate account. Use the candidate login instead.',
+            variant: 'destructive',
+          });
+          return;
+        }
       }
 
-      if (error instanceof ApiError && error.errorCode === 'REGISTRATION_PENDING') {
-        router.push('/signup-success');
-        return;
-      }
-      const slug = tenantSlug.trim();
-      const hint401 =
-        error instanceof ApiError &&
-          error.status === 401 &&
-          slug.length > 0
-          ? ' If this keeps failing, confirm your company slug with your admin.'
-          : '';
+      // Default fallback
       toast({
         title: 'Login Failed',
-        description:
-          (error instanceof Error ? error.message : 'Invalid email or password. Please try again.') + hint401,
+        description: error instanceof Error ? error.message : 'Invalid email or password. Please try again.',
         variant: 'destructive',
       });
     } finally {

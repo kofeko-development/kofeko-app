@@ -36,6 +36,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { apiRequest, ApiError } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import type { Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -81,7 +82,7 @@ export default function JobPostingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
-  const [view, setView] = useState<'open' | 'draft'>('open');
+  const [view, setView] = useState<'open' | 'draft' | 'closed'>('open');
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
 
   const [editingJob, setEditingJob] = useState<Job | null>(null);
@@ -145,6 +146,9 @@ export default function JobPostingsPage() {
   const displayedJobs = jobs.filter((j) => {
     if (view === 'open') {
       return j.status === 'open';
+    }
+    if (view === 'closed') {
+      return j.status === 'closed';
     }
     return j.status === 'draft';
   });
@@ -270,6 +274,14 @@ export default function JobPostingsPage() {
       setIsManualDialogOpen(false);
       setEditingJob(null);
     } catch (error) {
+      if (error instanceof ApiError && error.errorCode === 'JOB_IS_CLOSED') {
+        toast({
+          title: 'Job is Closed',
+          description: 'This job has been permanently closed and cannot be modified.',
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: 'Save failed',
         description: error instanceof Error ? error.message : 'Please try again.',
@@ -372,6 +384,16 @@ export default function JobPostingsPage() {
           )}
         >
           Drafts
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => setView('closed')}
+          className={cn(
+            'rounded-none rounded-t-md border-b-2',
+            view === 'closed' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground',
+          )}
+        >
+          Closed
         </Button>
       </div>
 

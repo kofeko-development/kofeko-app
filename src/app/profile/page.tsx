@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, PlusCircle, Trash2, X, Pencil, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
-import type { WorkExperience, Education, Project } from '@/lib/types';
+import type { WorkExperience, Education, Project, User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { companyApi } from '@/lib/stage1-2-api';
 import dynamic from 'next/dynamic';

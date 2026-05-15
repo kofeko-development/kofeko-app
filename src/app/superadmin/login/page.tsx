@@ -9,12 +9,12 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5000/api/v1';
-const SUPERADMIN_TOKEN_KEY = 'kofeko_superadmin_token';
+import { useAuth } from '@/lib/auth';
 
 export default function SuperAdminLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { loginSuperAdmin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,23 +25,15 @@ export default function SuperAdminLoginPage() {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setIsLoading(true);
+
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.message ?? 'Login failed');
-      }
-      localStorage.setItem(SUPERADMIN_TOKEN_KEY, payload.data.accessToken);
-      toast({ title: 'Login successful', description: 'Welcome superadmin.' });
+      await loginSuperAdmin({ email: email.trim(), password });
+      toast({ title: 'Login successful', description: 'Welcome, super admin.' });
       router.push('/superadmin/dashboard');
     } catch (error) {
       toast({
-        title: 'Login failed',
-        description: error instanceof Error ? error.message : 'Invalid credentials',
+        title: 'Login Failed',
+        description: error instanceof Error ? error.message : 'Invalid credentials.',
         variant: 'destructive',
       });
     } finally {

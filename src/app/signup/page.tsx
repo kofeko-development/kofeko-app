@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
-import { apiRequest } from "@/lib/api-client";
+import { apiRequest, ApiError } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -146,8 +146,18 @@ export default function SignupPage() {
         description: 'Check your inbox for a 6-digit verification code.',
       });
     } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.errorCode === 'OTP_RATE_LIMITED') {
+          toast({
+            title: 'Wait Before Resending',
+            description: error.message,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       toast({
-        title: 'Could not send code',
+        title: 'Could Not Send Code',
         description: error instanceof Error ? error.message : 'Try again in a moment.',
         variant: 'destructive',
       });
@@ -177,8 +187,34 @@ export default function SignupPage() {
       setVerifiedAtEmail(normalizeEmail(raw));
       toast({ title: 'Email verified', description: 'You can continue to company details.' });
     } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.errorCode === 'OTP_EXPIRED') {
+          toast({
+            title: 'Code Expired',
+            description: 'Your verification code has expired. Request a new one.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (error.errorCode === 'OTP_MAX_ATTEMPTS') {
+          toast({
+            title: 'Too Many Attempts',
+            description: 'Too many incorrect attempts. Please request a new code.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (error.errorCode === 'OTP_INVALID') {
+          toast({
+            title: 'Incorrect Code',
+            description: 'That code is incorrect. Check your email and try again.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       toast({
-        title: 'Verification failed',
+        title: 'Verification Failed',
         description: error instanceof Error ? error.message : 'Check the code and try again.',
         variant: 'destructive',
       });

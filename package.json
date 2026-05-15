@@ -57,7 +57,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
+    "@playwright/test": "^1.60.0",
+    "@radix-ui/react-menubar": "^1.1.16",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

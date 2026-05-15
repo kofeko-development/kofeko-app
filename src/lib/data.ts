@@ -33,7 +33,7 @@ export type Applicant = {
   candidateId: string;
   name: string;
   email: string;
-  status: 'submitted' | 'screening' | 'interview' | 'offer' | 'rejected' | 'hired';
+  status: 'applied' | 'screening' | 'technical_interview' | 'hr_interview' | 'offer' | 'rejected' | 'hired';
   appliedAt: string;
   matchScore: number;
   summary: string;
@@ -69,7 +69,7 @@ export const applicantsData: Applicant[] = [
         candidateId: 'cand-456',
         name: 'Jessica Williams', 
         email: 'candidate@kofeko.com', 
-        status: 'interview', 
+        status: 'technical_interview', 
         appliedAt: '2024-07-27', 
         matchScore: 85, 
         summary: 'Creative UX/UI Designer with a passion for user-centered design and experience in mobile apps.',
