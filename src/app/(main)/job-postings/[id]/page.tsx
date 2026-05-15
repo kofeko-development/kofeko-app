@@ -77,6 +77,9 @@ const statusClassMap: { [key: string]: string } = {
 
 function mapPipelineToApplicant(p: ApiPipeline): Applicant {
     const evaluation = p.evaluation || (p.evaluations && p.evaluations[0]);
+    const rawHi = evaluation?.hiringIntelligence;
+    const hi = typeof rawHi === 'string' ? JSON.parse(rawHi) : rawHi;
+
     return {
         id: p.id,
         candidateId: p.candidateId,
@@ -85,13 +88,21 @@ function mapPipelineToApplicant(p: ApiPipeline): Applicant {
         status: p.stage as any,
         appliedAt: p.createdAt,
         matchScore: evaluation?.score ?? 0,
-        summary: evaluation?.whyCard || evaluation?.summary || p.decisionNote || 'No summary available.',
-        keySkills: evaluation?.skillMatches 
-            ? evaluation.skillMatches.filter((s: any) => s.matched).map((s: any) => s.skill)
-            : [],
-        experienceSummary: evaluation?.roleFitNotes || undefined,
-        trajectorySummary: evaluation?.rankingSummary || undefined,
-        riskFlags: undefined, // Could be parsed from sectionScores or specific fields if added
+        summary: hi?.applicationSummary || evaluation?.whyCard || evaluation?.summary || p.decisionNote || 'No summary available.',
+        phone: p.candidate.phoneNumber || undefined,
+        linkedin: p.candidate.linkedinUrl || undefined,
+        resumeUrl: p.candidate.resumeUrl || undefined,
+        keySkills: (hi?.keySkills || (evaluation?.skillMatches as any[]) 
+            ? (evaluation?.skillMatches as any[])?.filter((s: any) => s.matched).map((s: any) => s.skill)
+            : p.candidate.skills) || [],
+        experienceSummary: hi?.experienceSummary?.narrative || evaluation?.roleFitNotes || undefined,
+        trajectorySummary: hi?.careerTrajectory?.explanation || evaluation?.rankingSummary || undefined,
+        riskFlags: hi?.riskFlags?.join(', ') || undefined,
+        interviewQuestions: hi?.suggestedInterviewQuestions || undefined,
+        relevanceScore: hi?.relevanceToRole?.matchScorePercent || undefined,
+        skillScore: hi?.skillsAnalysis?.matchScorePercent || undefined,
+        experienceScore: hi?.experienceSummary?.matchScorePercent || undefined,
+        trajectoryClassification: hi?.careerTrajectory?.classification || undefined,
     };
 }
 
@@ -168,6 +179,19 @@ export default function JobApplicantsPage() {
     useEffect(() => {
         void loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        if (selectedApplicant) {
+            const updated = applicants.find(a => a.id === selectedApplicant.id);
+            if (updated) {
+                // We compare IDs or deep compare if needed, but usually re-setting is fine if we want latest data
+                // Only update if something actually changed to avoid infinite loops if loadData is called frequently
+                if (updated.matchScore !== selectedApplicant.matchScore || updated.summary !== selectedApplicant.summary) {
+                    setSelectedApplicant(updated);
+                }
+            }
+        }
+    }, [applicants, selectedApplicant]);
 
     const canManageJob = user?.companyRole === 'HR Admin';
     const canChangeStatus = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
@@ -817,9 +841,21 @@ export default function JobApplicantsPage() {
                                     </div>
                                 </CardContent>
                                 <CardContent className="border-t pt-4 mt-auto space-y-2">
-                                    <Button variant="outline" className="w-full">
-                                        <FileText className="mr-2 h-4 w-4" /> Download Resume
-                                    </Button>
+                                    {selectedApplicant.resumeUrl ? (
+                                        <Button asChild variant="outline" className="w-full">
+                                            <a href={selectedApplicant.resumeUrl} target="_blank" rel="noopener noreferrer">
+                                                <FileText className="mr-2 h-4 w-4" /> Download Resume
+                                            </a>
+                                        </Button>
+                                    ) : (
+                                        <Button 
+                                            variant="outline" 
+                                            className="w-full"
+                                            onClick={() => toast({ title: "No resume attached", description: "Candidate did not provide a resume file.", variant: "destructive" })}
+                                        >
+                                            <FileText className="mr-2 h-4 w-4" /> No Resume
+                                        </Button>
+                                    )}
                                     {canChangeStatus && (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -857,17 +893,22 @@ export default function JobApplicantsPage() {
                                         <div className="space-y-3 text-sm">
                                             <div className="flex justify-between items-center gap-4">
                                                 <span className="text-muted-foreground">Skill Depth & Relevance</span>
-                                                <span className="font-semibold">{selectedApplicant.matchScore > 0 ? `${selectedApplicant.matchScore}%` : '--'}</span>
+                                                <span className="font-semibold">{selectedApplicant.skillScore !== undefined ? `${selectedApplicant.skillScore}%` : '--'}</span>
                                             </div>
                                             <div className="flex justify-between items-center gap-4">
                                                 <span className="text-muted-foreground">Role Experience Similarity</span>
-                                                <span className="font-semibold">{selectedApplicant.matchScore > 0 ? `${Math.max(0, selectedApplicant.matchScore - 5)}%` : '--'}</span>
+                                                <span className="font-semibold">{selectedApplicant.experienceScore !== undefined ? `${selectedApplicant.experienceScore}%` : '--'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center gap-4">
+                                                <span className="text-muted-foreground">Candidate Relevance</span>
+                                                <span className="font-semibold">{selectedApplicant.relevanceScore !== undefined ? `${selectedApplicant.relevanceScore}%` : '--'}</span>
                                             </div>
                                             <div className="flex justify-between items-center gap-4">
                                                 <span className="text-muted-foreground">Career Trajectory</span>
-                                                <span className="font-semibold text-green-600 flex items-center gap-1">
-                                                    <TrendingUp className="h-4 w-4" />
-                                                    {selectedApplicant.matchScore > 70 ? 'Positive Growth' : 'Steady'}
+                                                <span className="font-semibold capitalize">
+                                                    {selectedApplicant.trajectoryClassification 
+                                                        ? selectedApplicant.trajectoryClassification.replace(/_/g, ' ') 
+                                                        : '--'}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between items-center gap-4">
@@ -905,19 +946,19 @@ export default function JobApplicantsPage() {
                                         <div>
                                             <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><Briefcase className="h-4 w-4 text-purple-500" /> Experience Summary</h4>
                                             <p className="text-sm text-muted-foreground">
-                                                {selectedApplicant.experienceSummary || 'Highly experienced professional with a proven track record in the industry.'}
+                                                {selectedApplicant.experienceSummary || 'No experience summary available.'}
                                             </p>
                                         </div>
                                         <div>
                                             <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4 text-green-500" /> Career Trajectory</h4>
                                             <p className="text-sm text-muted-foreground">
-                                                {selectedApplicant.trajectorySummary || 'Shows a consistent upward trajectory with increasing responsibilities.'}
+                                                {selectedApplicant.trajectorySummary || 'No trajectory analysis available.'}
                                             </p>
                                         </div>
                                         <div>
                                             <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><ShieldAlert className="h-4 w-4 text-red-500" /> Risk Flags</h4>
                                             <p className="text-sm text-muted-foreground">
-                                                {selectedApplicant.riskFlags || 'No significant risks identified at this stage.'}
+                                                {selectedApplicant.riskFlags || 'No significant risks identified.'}
                                             </p>
                                         </div>
                                     </CardContent>
@@ -938,9 +979,12 @@ export default function JobApplicantsPage() {
                                     </CardHeader>
                                     <CardContent>
                                         <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 pl-2">
-                                            {interviewQuestions.map((q, i) => (
+                                            {(selectedApplicant.interviewQuestions || interviewQuestions).map((q, i) => (
                                                 <li key={i}>{q}</li>
                                             ))}
+                                            {(!selectedApplicant.interviewQuestions && interviewQuestions.length === 0) && (
+                                                <p className="text-center italic">No suggested questions available. Run AI evaluation first.</p>
+                                            )}
                                         </ul>
                                     </CardContent>
                                 </Card>

@@ -43,7 +43,13 @@ export type Applicant = {
   experienceSummary?: string;
   trajectorySummary?: string;
   riskFlags?: string;
+  resumeUrl?: string;
   keySkills?: string[];
+  interviewQuestions?: string[];
+  relevanceScore?: number;
+  skillScore?: number;
+  experienceScore?: number;
+  trajectoryClassification?: string;
 };
 
 export const applicantsData: Applicant[] = [

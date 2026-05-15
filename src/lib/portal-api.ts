@@ -12,6 +12,13 @@ export type PortalJobListItem = {
     id: string;
     slug: string;
     name: string;
+    company?: {
+      industry: string;
+      companySize: string;
+      companyType: string;
+      companyLogo: string;
+      shortDescription: string;
+    } | null;
   };
 };
 
@@ -78,6 +85,20 @@ export const portalApi = {
     }>(`/portal/my-applications${q ? `?${q}` : ''}`, {
       auth: true,
       authType: 'candidate',
+    });
+  },
+  uploadResume: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiRequest<{
+      resumeUrl: string;
+      resumeMimeType: string;
+      parsed: any;
+    }>('/portal/resume/parse', {
+      method: 'POST',
+      auth: true,
+      authType: 'candidate',
+      body: formData,
     });
   },
 };

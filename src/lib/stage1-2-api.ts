@@ -77,6 +77,9 @@ export type CreatedJob = {
   experienceMax?: number | null;
   createdAt?: string;
   updatedAt?: string;
+  _count?: {
+    applications: number;
+  };
 };
 
 export type PaginatedJobsResponse = {
@@ -243,21 +246,19 @@ export type ApiPipeline = {
     firstName: string;
     lastName: string;
     email: string;
+    phoneNumber?: string | null;
+    resumeUrl?: string | null;
+    resumeMimeType?: string | null;
+    linkedinUrl?: string | null;
+    portfolioUrl?: string | null;
+    location?: string | null;
+    skills?: string[];
+    yearsOfExperience?: number | null;
   };
   job: {
     title: string;
   };
-  evaluation?: {
-    id: string;
-    score: number;
-    summary?: string;
-    whyCard?: string;
-    roleFitNotes?: string;
-    aiGenerated: boolean;
-    skillMatches?: any[];
-    rankingSummary?: string;
-  } | null;
-  evaluations?: any[]; // for backwards compatibility if needed
+  evaluations: any[];
 };
 
 export type PaginatedPipelinesResponse = {

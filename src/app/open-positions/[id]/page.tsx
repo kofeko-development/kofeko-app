@@ -17,92 +17,174 @@ import AppFooter from '@/components/app-footer';
 import MainLayout from '@/app/(main)/layout';
 import { portalApi, type PortalJobDetail } from '@/lib/portal-api';
 
-function PageContent({ 
-  job, 
-  user,
-  handleSubmit,
-  name,
-  setName,
-  email,
-  setEmail,
-  coverLetter,
-  setCoverLetter,
-  setResume,
-  isLoading
-} : any) {
-  const cleanDescription = sanitizeHtml(job.fullDescription || job.description, {
-      allowedTags: [ 'h2', 'h3', 'p', 'ul', 'li', 'strong', 'em', 'b', 'i' ],
-      allowedAttributes: {
-        '*': [ 'class' ]
-      }
-  });
+function PageContent({
+    job,
+    user,
+    handleSubmit,
+    name,
+    setName,
+    email,
+    setEmail,
+    coverLetter,
+    setCoverLetter,
+    setResume,
+    isLoading
+}: any) {
+    const formatDescription = (text: string) => {
+        if (!text) return '';
+        // If it looks like plain text (no tags), convert newlines to <p> tags
+        if (!/<[a-z][\s\S]*>/i.test(text)) {
+            return text.split('\n').filter(line => line.trim() !== '').map(line => `<p>${line.trim()}</p>`).join('');
+        }
+        return text;
+    };
 
-  return (
-    <>
-        <main className="flex-1 py-12" style={!user ? {marginTop: '80px'} : {}}>
-            <div className="container grid md:grid-cols-3 gap-12">
-                <div className="md:col-span-2">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-primary/10 p-3 rounded-lg">
-                            <Briefcase className="size-8 text-primary" />
+    const cleanDescription = sanitizeHtml(formatDescription(job.requirements || job.description), {
+        allowedTags: ['h2', 'h3', 'p', 'ul', 'li', 'strong', 'em', 'b', 'i', 'br'],
+        allowedAttributes: {
+            '*': ['class']
+        }
+    });
+
+    const company = job.tenant?.company;
+
+    return (
+        <>
+            <main className="flex-1 py-12" style={!user ? { marginTop: '80px' } : {}}>
+                <div className="container grid lg:grid-cols-3 gap-12">
+                    <div className="lg:col-span-2 space-y-8">
+                        <div className="flex flex-col md:flex-row md:items-center gap-6">
+                            <div className="bg-primary/10 p-4 rounded-xl shrink-0 w-fit">
+                                {company?.companyLogo ? (
+                                    <img src={company.companyLogo} alt={job.tenant.name} className="size-12 object-contain" />
+                                ) : (
+                                    <Briefcase className="size-12 text-primary" />
+                                )}
+                            </div>
+                            <div>
+                                <h1 className="text-4xl font-bold font-headline tracking-tight">{job.title}</h1>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-muted-foreground">
+                                    <span className="font-semibold text-foreground">{job.tenant.name}</span>
+                                    <span className="flex items-center gap-1.5"><MapPin className="size-4" /> {job.location || 'Remote'}</span>
+                                    {job.employmentType && <span className="flex items-center gap-1.5"><Briefcase className="size-4" /> {job.employmentType}</span>}
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
-                            <p className="text-muted-foreground flex items-center gap-4 mt-1">
-                                <span>{job.company}</span>
-                                <span className="flex items-center gap-1"><MapPin className="size-4" /> {job.location}</span>
-                            </p>
+
+                        <div className="flex flex-wrap gap-4 border-y py-6">
+                            <div className="flex-1 min-w-[140px] space-y-1">
+                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Company Size</p>
+                                <p className="font-medium">{company?.companySize || '—'}</p>
+                            </div>
+                            <div className="flex-1 min-w-[140px] space-y-1">
+                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Industry</p>
+                                <p className="font-medium">{company?.industry || '—'}</p>
+                            </div>
+                            <div className="flex-1 min-w-[140px] space-y-1">
+                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Location</p>
+                                <p className="font-medium">{job.location || 'Remote'}</p>
+                            </div>
+                            <div className="flex-1 min-w-[140px] space-y-1">
+                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Job Mode</p>
+                                <p className="font-medium">{job.department || 'On-site'}</p>
+                            </div>
                         </div>
+
+                        <div className="prose prose-stone dark:prose-invert max-w-none">
+                            <h2 className="text-2xl font-bold">About the Role</h2>
+                            <div dangerouslySetInnerHTML={{ __html: cleanDescription }} className="mt-4 leading-relaxed" />
+                        </div>
+
+                        {company?.shortDescription && (
+                            <div className="bg-muted/30 rounded-xl p-6 border">
+                                <h3 className="font-bold mb-2">About {job.tenant.name}</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">{company.shortDescription}</p>
+                            </div>
+                        )}
                     </div>
-                    <div className="prose prose-stone dark:prose-invert max-w-none mt-8" dangerouslySetInnerHTML={{ __html: cleanDescription }} />
-                </div>
 
-                <div className="md:col-span-1">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Apply for this position</CardTitle>
-                            <CardDescription>{user ? "Your information is pre-filled." : "Fill out the form below to submit your application."}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Full Name</Label>
-                                    <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading || !!user} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="email">Email Address</Label>
-                                    <Input id="email" type="email" placeholder="john.doe@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading || !!user} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="resume">Resume/CV</Label>
-                                    <Input id="resume" type="file" className="file:text-primary file:font-semibold" onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)} required disabled={isLoading} />
-                                     {user?.resumeUrl && (
-                                        <p className="text-xs text-muted-foreground">Current resume: {user.resumeUrl}</p>
-                                    )}
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="cover-letter">Cover Letter (Optional)</Label>
-                                    <Textarea id="cover-letter" placeholder="Tell us why you're a great fit for this role..." value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} disabled={isLoading} />
-                                </div>
-                                <Button type="submit" className="w-full" disabled={isLoading}>
-                                    {isLoading ? (
+                    <div className="lg:col-span-1">
+                        <Card className="sticky top-24 shadow-lg border-2 border-primary/5">
+                            <CardHeader className="bg-muted/10">
+                                <CardTitle>Apply for this position</CardTitle>
+                                <CardDescription>
+                                    {user ? "Your information is pre-filled from your profile." : "Fill out the form below to submit your application."}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    {!user ? (
                                         <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Submitting...
+                                            <div className="space-y-2">
+                                                <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Name</Label>
+                                                <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading} className="h-11" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email Address</Label>
+                                                <Input id="email" type="email" placeholder="john.doe@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="h-11" />
+                                            </div>
                                         </>
                                     ) : (
-                                        'Submit Application'
+                                        <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 flex items-center gap-3">
+                                            <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                                                {name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold truncate">{name}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{email}</p>
+                                            </div>
+                                        </div>
                                     )}
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <Label htmlFor="resume" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume/CV</Label>
+                                            {user?.resumeUrl && (
+                                                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase">Attached</span>
+                                            )}
+                                        </div>
+                                        <Input
+                                            id="resume"
+                                            type="file"
+                                            className="file:text-primary file:font-semibold h-11 pt-2"
+                                            onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)}
+                                            required={!user?.resumeUrl}
+                                            disabled={isLoading}
+                                        />
+                                        {user?.resumeUrl && (
+                                            <div className="flex items-center gap-2 mt-2 p-2 bg-muted/50 rounded-lg border border-dashed">
+                                                <div className="bg-primary/10 p-1.5 rounded">
+                                                    <Briefcase className="size-4 text-primary" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[11px] font-medium truncate">{user.resumeUrl.split('/').pop()}</p>
+                                                    <p className="text-[10px] text-muted-foreground">From your profile</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cover-letter" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cover Letter (Optional)</Label>
+                                        <Textarea id="cover-letter" placeholder="Tell us why you're a great fit for this role..." value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} disabled={isLoading} className="min-h-[120px] resize-none" />
+                                    </div>
+                                    <Button type="submit" className="w-full h-12 text-base font-semibold shadow-md" disabled={isLoading}>
+                                        {isLoading ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                                Submitting...
+                                            </>
+                                        ) : (
+                                            'Submit Application'
+                                        )}
+                                    </Button>
+                                </form>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
-            </div>
-        </main>
-         {!user && <AppFooter />}
-    </>
-  );
+            </main>
+            {!user && <AppFooter />}
+        </>
+    );
 }
 
 
@@ -118,7 +200,7 @@ export default function JobApplicationPage() {
     const [resume, setResume] = useState<File | null>(null);
     const [coverLetter, setCoverLetter] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    
+
     useEffect(() => {
         if (user) {
             setName(user.name);
@@ -148,30 +230,78 @@ export default function JobApplicationPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        toast({
-            title: 'Apply coming soon',
-            description: 'Job applications will be enabled once the portal apply API is wired into this UI.',
-        });
+
+        if (!user) {
+            toast({
+                title: "Login Required",
+                description: "Please login as a candidate to apply for this position.",
+                variant: "destructive",
+            });
+            router.push('/login');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            let finalResumeUrl = user.resumeUrl;
+            let finalResumeMimeType = user.resumeMimeType;
+
+            // If a new file is selected, upload it first
+            if (resume) {
+                const uploadRes = await portalApi.uploadResume(resume);
+                finalResumeUrl = uploadRes.resumeUrl;
+                finalResumeMimeType = uploadRes.resumeMimeType;
+            }
+
+            if (!finalResumeUrl) {
+                throw new Error("Please upload a resume to complete your application.");
+            }
+
+            await portalApi.apply(job.tenant.slug, job.id, {
+                resumeUrl: finalResumeUrl,
+                resumeMimeType: finalResumeMimeType,
+                coverLetter: coverLetter || undefined,
+            });
+
+            toast({
+                title: "Application Submitted!",
+                description: `You have successfully applied for ${job.title}.`,
+            });
+
+            // Small delay before redirecting to show the success toast
+            setTimeout(() => {
+                router.push('/my-applications');
+            }, 1500);
+
+        } catch (error) {
+            toast({
+                title: "Application Failed",
+                description: error instanceof Error ? error.message : "Something went wrong while submitting your application.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
-    
+
     if (jobLoading) {
-         return (
-             <div className="flex h-screen w-screen items-center justify-center">
-                 <div className="text-center text-muted-foreground">Loading job...</div>
-             </div>
-         );
+        return (
+            <div className="flex h-screen w-screen items-center justify-center">
+                <div className="text-center text-muted-foreground">Loading job...</div>
+            </div>
+        );
     }
 
     if (!job) {
-         return (
-             <div className="flex h-screen w-screen items-center justify-center">
-                 <div className="text-center">
+        return (
+            <div className="flex h-screen w-screen items-center justify-center">
+                <div className="text-center">
                     <h1 className="text-2xl font-bold">Job Not Found</h1>
                     <p className="text-muted-foreground">The job posting you are looking for could not be found.</p>
                     <Button onClick={() => router.push('/')} className="mt-4">Go Home</Button>
-                 </div>
-             </div>
-         );
+                </div>
+            </div>
+        );
     }
 
     const pageProps = {
@@ -187,7 +317,7 @@ export default function JobApplicationPage() {
         setResume,
         isLoading: isLoading || jobLoading,
     };
-    
+
 
     if (user) {
         return (

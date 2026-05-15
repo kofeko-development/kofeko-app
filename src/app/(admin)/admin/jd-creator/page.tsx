@@ -1,27 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, Copy, Save, Plus, Trash2, Clock } from 'lucide-react';
+import { Loader2, Sparkles, Copy, Save, Plus, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import sanitizeHtml from 'sanitize-html';
 import { aiApi, jobsApi } from '@/lib/stage1-2-api';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 function htmlToPlainText(html: string): string {
   return html
@@ -50,8 +40,6 @@ export default function AdminJdCreatorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [pendingDraft, setPendingDraft] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -68,24 +56,6 @@ export default function AdminJdCreatorPage() {
   };
 
   const loadDraft = (job: any) => {
-    const isDirty = jobTitle.trim() !== '' || requirements.trim() !== '';
-    
-    // If we are already editing this ID, just scroll up
-    if (editingId === job.id) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    if (isDirty && !editingId) {
-      setPendingDraft(job);
-      setShowConfirmDialog(true);
-      return;
-    }
-
-    executeLoadDraft(job);
-  };
-
-  const executeLoadDraft = (job: any) => {
     setEditingId(job.id);
     setJobTitle(job.title);
     setRequirements(job.description);
@@ -96,8 +66,6 @@ export default function AdminJdCreatorPage() {
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast({ title: 'Draft loaded', description: `Editing: ${job.title}` });
-    setShowConfirmDialog(false);
-    setPendingDraft(null);
   };
 
   const addSkillRow = () => {
@@ -455,7 +423,7 @@ export default function AdminJdCreatorPage() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Saved Drafts
+              Recent Drafts
             </CardTitle>
             <CardDescription>Click to continue editing</CardDescription>
           </CardHeader>
@@ -494,34 +462,6 @@ export default function AdminJdCreatorPage() {
           </CardContent>
         </Card>
       </div>
-
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved work in the current form. Loading this draft will overwrite your current progress. Do you want to continue?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => pendingDraft && executeLoadDraft(pendingDraft)}
-            >
-              Discard & Load Draft
-            </AlertDialogAction>
-            <AlertDialogAction 
-              onClick={async () => {
-                await handleFinalSave('draft');
-                if (pendingDraft) executeLoadDraft(pendingDraft);
-              }}
-            >
-              Save Current & Load
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

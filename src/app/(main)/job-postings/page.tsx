@@ -6,8 +6,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Bot, Pencil, ChevronDown, Send, Trash2, Edit, Loader2, Plus } from 'lucide-react';
+import { ArrowUpRight, Bot, Pencil, ChevronDown, Send, Trash2, Edit, Loader2, Plus, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,11 +37,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CreatedJob, SkillWeight } from '@/lib/stage1-2-api';
-import { jobsApi } from '@/lib/stage1-2-api';
+import { jobsApi, aiApi } from '@/lib/stage1-2-api';
 
 function mapApiJobToRow(j: CreatedJob): Job {
   const backend = j.status as Job['backendStatus'];
@@ -51,9 +59,9 @@ function mapApiJobToRow(j: CreatedJob): Job {
   const skillWeights =
     Array.isArray(weights) && weights.length > 0
       ? weights.map((w) => ({
-          skill: String(w.skill ?? '').trim(),
-          weight: Math.min(10, Math.max(0, Math.round(Number(w.weight)))),
-        }))
+        skill: String(w.skill ?? '').trim(),
+        weight: Math.min(10, Math.max(0, Math.round(Number(w.weight)))),
+      }))
       : undefined;
 
   return {
@@ -68,7 +76,7 @@ function mapApiJobToRow(j: CreatedJob): Job {
     status: uiStatus,
     backendStatus: backend ?? undefined,
     recruiterId: '',
-    applicantCount: 0,
+    applicantCount: j._count?.applications || 0,
     skillWeights: skillWeights?.filter((s) => s.skill.length > 0).map(s => ({
       ...s,
       yearsOfExperience: s.yearsOfExperience ?? 0
@@ -86,6 +94,7 @@ export default function JobPostingsPage() {
   const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
   const [view, setView] = useState<'open' | 'draft'>('open');
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [formState, setFormState] = useState<{
@@ -129,10 +138,10 @@ export default function JobPostingsPage() {
         skillWeights:
           editingJob.skillWeights && editingJob.skillWeights.length > 0
             ? editingJob.skillWeights.map((s) => ({
-                skill: s.skill,
-                weight: Math.min(10, Math.max(0, Math.round(s.weight))),
-                yearsOfExperience: s.yearsOfExperience ?? 3,
-              }))
+              skill: s.skill,
+              weight: Math.min(10, Math.max(0, Math.round(s.weight))),
+              yearsOfExperience: s.yearsOfExperience ?? 3,
+            }))
             : [],
       });
     } else {
@@ -211,7 +220,13 @@ export default function JobPostingsPage() {
         employmentType: formState.employmentType || undefined,
       });
 
-      setFormState((prev) => ({\n        ...prev,\n        description: result.plainText,\n        skillWeights: result.suggestedSkills.length > 0 \n          ? result.suggestedSkills \n          : prev.skillWeights,\n      }));
+      setFormState((prev) => ({
+        ...prev,
+        description: result.plainText,
+        skillWeights: result.suggestedSkills.length > 0
+          ? result.suggestedSkills
+          : prev.skillWeights,
+      }));
 
       toast({
         title: 'JD Generated!',
@@ -632,10 +647,10 @@ export default function JobPostingsPage() {
                     Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
                   </p>
                 </div>
-                <Button 
-                  type="button" 
-                  variant="link" 
-                  size="sm" 
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
                   onClick={addSkillRow}
                   className="h-auto p-0 text-primary font-semibold"
                 >
@@ -682,10 +697,10 @@ export default function JobPostingsPage() {
                         }
                       />
                     </div>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removeSkillRow(index)}
                       className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                     >

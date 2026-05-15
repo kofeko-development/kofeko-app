@@ -275,10 +275,12 @@ export default function JdBuilderPage() {
       toast({
         title: 'Generation failed',
         description: error instanceof Error ? error.message : 'AI could not generate the JD.',
-      } finally {
-        setIsGenerating(false);
-      }
-    };
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
     return (
       <div className="grid lg:grid-cols-3 gap-6">
