@@ -7,17 +7,26 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Trash2, X, Pencil, Check } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import type { WorkExperience, Education, Project, User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { companyApi } from '@/lib/stage1-2-api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { COMPANY_SIZE_OPTIONS } from '@/lib/company-size';
 import dynamic from 'next/dynamic';
 import { buildE164Phone } from '@/lib/phone-e164';
 import { apiRequest } from '@/lib/api-client';
 import Script from 'next/script';
 import { Country } from 'country-state-city';
+
+const COMPANY_TYPE_OPTIONS = [
+  { value: 'startup', label: 'Startup' },
+  { value: 'enterprise', label: 'Enterprise' },
+  { value: 'agency', label: 'Agency' },
+  { value: 'non_profit', label: 'Non-profit' },
+];
 
 const PhoneInternationalField = dynamic(
   () => import('@/components/phone-international-field').then((m) => m.PhoneInternationalField),
@@ -52,6 +61,7 @@ export default function ProfilePage() {
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
 
   const isNewUser = user && !user.resumeUrl;
 
@@ -121,7 +131,7 @@ export default function ProfilePage() {
       .get()
       .then((res) => {
         if (cancelled) return;
-        setCompanyProfile({
+        const data = {
           companyName: res.company.companyName ?? '',
           industry: res.company.industry ?? '',
           companySize: res.company.companySize,
@@ -134,7 +144,9 @@ export default function ProfilePage() {
           shortDescription: res.company.shortDescription ?? '',
           linkedinUrl: res.company.linkedinUrl ?? undefined,
           twitterUrl: res.company.twitterUrl ?? undefined,
-        });
+        };
+        setCompanyProfile(data);
+        setInitialCompanyProfile(data);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -152,6 +164,13 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [user, canReadCompany, toast]);
+
+  const [initialCompanyProfile, setInitialCompanyProfile] = useState<null | typeof companyProfile>(null);
+
+  const hasCompanyChanges = useMemo(() => {
+    if (!companyProfile || !initialCompanyProfile) return false;
+    return JSON.stringify(companyProfile) !== JSON.stringify(initialCompanyProfile);
+  }, [companyProfile, initialCompanyProfile]);
 
   const currentFullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
   const isPhoneChanged = currentFullPhone.replace(/\D/g, '') !== (user?.phone || '').replace(/\D/g, '');
@@ -482,6 +501,32 @@ export default function ProfilePage() {
     })();
   };
 
+  const handleSaveCompanyChanges = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyProfile || !canEditCompany) return;
+    setIsSaving(true);
+    try {
+      await companyApi.update(companyProfile as any);
+      setInitialCompanyProfile(companyProfile);
+      toast({
+        title: 'Company Profile Updated',
+        description: 'Your company details have been saved successfully.',
+      });
+    } catch (err) {
+      toast({
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Unable to update company profile.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateCompanyField = (field: string, value: any) => {
+    setCompanyProfile((prev) => (prev ? { ...prev, [field]: value } : null));
+  };
+
   if (loading || !user) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -496,7 +541,7 @@ export default function ProfilePage() {
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
         <div>
           <h1 className="text-3xl font-bold font-headline">Company Profile</h1>
-          <p className="text-muted-foreground">{canEditCompany ? 'View and update your company details.' : 'View your company details.'}</p>
+          <p className="text-muted-foreground">View and update your company details.</p>
         </div>
 
         <Card>
@@ -504,9 +549,9 @@ export default function ProfilePage() {
             <CardTitle>Company details</CardTitle>
             <CardDescription>The information entered during company signup.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             {companyLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading company profile…
               </div>
             ) : !canReadCompany ? (
@@ -514,56 +559,398 @@ export default function ProfilePage() {
             ) : !companyProfile ? (
               <p className="text-sm text-muted-foreground">No company profile found for this tenant.</p>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Company name</Label>
-                  <Input value={companyProfile.companyName} readOnly />
+              <form onSubmit={handleSaveCompanyChanges} className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Company name</Label>
+                    <div className="relative group">
+                      <Input
+                        value={companyProfile.companyName}
+                        onChange={(e) => updateCompanyField('companyName', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'companyName'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'companyName'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'companyName'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'companyName' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('companyName')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Industry</Label>
+                    <div className="relative group">
+                      <Input
+                        value={companyProfile.industry}
+                        onChange={(e) => updateCompanyField('industry', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'industry'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'industry'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'industry'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'industry' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('industry')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Company size</Label>
+                    <div className="relative group">
+                      {editingField === 'companySize' ? (
+                        <Select
+                          value={companyProfile.companySize}
+                          onValueChange={(v) => {
+                            updateCompanyField('companySize', v);
+                            setEditingField(null);
+                          }}
+                          open={true}
+                          onOpenChange={(open) => !open && setEditingField(null)}
+                        >
+                          <SelectTrigger className="pr-10 bg-background border-primary shadow-sm transition-all rounded-lg h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COMPANY_SIZE_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div
+                          className="pr-10 border-transparent bg-muted/20 hover:bg-muted/40 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
+                          onClick={() => canEditCompany && setEditingField('companySize')}
+                        >
+                          {COMPANY_SIZE_OPTIONS.find(opt => opt.value === companyProfile.companySize)?.label || companyProfile.companySize}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Company type</Label>
+                    <div className="relative group">
+                      {editingField === 'companyType' ? (
+                        <Select
+                          value={companyProfile.companyType}
+                          onValueChange={(v) => {
+                            updateCompanyField('companyType', v);
+                            setEditingField(null);
+                          }}
+                          open={true}
+                          onOpenChange={(open) => !open && setEditingField(null)}
+                        >
+                          <SelectTrigger className="pr-10 bg-background border-primary shadow-sm transition-all rounded-lg h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COMPANY_TYPE_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div
+                          className="pr-10 border-transparent bg-muted/20 hover:bg-muted/40 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
+                          onClick={() => canEditCompany && setEditingField('companyType')}
+                        >
+                          {COMPANY_TYPE_OPTIONS.find(opt => opt.value === companyProfile.companyType)?.label || companyProfile.companyType}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Founded year</Label>
+                    <div className="relative group">
+                      <Input
+                        type="number"
+                        value={String(companyProfile.foundedYear)}
+                        onChange={(e) => updateCompanyField('foundedYear', Number(e.target.value))}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'foundedYear'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'foundedYear'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'foundedYear'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'foundedYear' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('foundedYear')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone number</Label>
+                    <div className="relative group">
+                      <Input
+                        value={companyProfile.phoneNumber ?? ''}
+                        onChange={(e) => updateCompanyField('phoneNumber', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'phoneNumber'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'phoneNumber'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'phoneNumber'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'phoneNumber' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('phoneNumber')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Website</Label>
+                    <div className="relative group">
+                      <Input
+                        value={companyProfile.companyWebsite}
+                        onChange={(e) => updateCompanyField('companyWebsite', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'companyWebsite'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'companyWebsite'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'companyWebsite'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'companyWebsite' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('companyWebsite')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Official address</Label>
+                    <div className="relative group">
+                      <Input
+                        value={companyProfile.officialCompanyAddress}
+                        onChange={(e) => updateCompanyField('officialCompanyAddress', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'officialCompanyAddress'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'officialCompanyAddress'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'officialCompanyAddress'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'officialCompanyAddress' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('officialCompanyAddress')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Company logo</Label>
+                    <div className="flex gap-4 items-start">
+                      <div className="relative group flex-1">
+                        <div className={`flex items-center gap-3 pr-20 border transition-all rounded-lg h-11 px-3 ${editingField === 'companyLogo'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 border-transparent hover:bg-muted/40'
+                          }`}>
+                          <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
+                          {companyProfile.companyLogo ? (
+                            <span className="text-sm text-muted-foreground truncate flex-1">{companyProfile.companyLogo}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground italic flex-1">No logo uploaded</span>
+                          )}
+
+                          {canEditCompany && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                              <input
+                                type="file"
+                                id="company-logo-upload"
+                                className="hidden"
+                                accept="image/*,.svg"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setEditingField('companyLogo');
+                                    try {
+                                      const res = await companyApi.uploadLogo(file);
+                                      updateCompanyField('companyLogo', res.url);
+                                    } catch (err) {
+                                      toast({
+                                        title: 'Upload failed',
+                                        description: err instanceof Error ? err.message : 'Unable to upload logo.',
+                                        variant: 'destructive',
+                                      });
+                                    } finally {
+                                      setEditingField(null);
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => document.getElementById('company-logo-upload')?.click()}
+                                className="p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                                title="Upload new logo"
+                              >
+                                <Pencil className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                              {companyProfile.companyLogo && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateCompanyField('companyLogo', '')}
+                                  className="p-1.5 hover:bg-destructive/10 rounded-md transition-all opacity-0 group-hover:opacity-100 text-destructive"
+                                  title="Remove logo"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {companyProfile.companyLogo && (
+                        <div className="h-11 w-11 shrink-0 rounded-lg border bg-white p-1.5 overflow-hidden shadow-sm">
+                          <img src={companyProfile.companyLogo} alt="Logo Preview" className="h-full w-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Short description</Label>
+                    <div className="relative group">
+                      <Textarea
+                        value={companyProfile.shortDescription}
+                        onChange={(e) => updateCompanyField('shortDescription', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'shortDescription'}
+                        className={`pr-10 border-transparent transition-all rounded-lg min-h-[120px] ${editingField === 'shortDescription'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'shortDescription'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'shortDescription' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('shortDescription')}
+                          className="absolute right-3 top-4 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>LinkedIn</Label>
+                    <div className="relative group">
+                      <Input
+                        value={companyProfile.linkedinUrl ?? ''}
+                        onChange={(e) => updateCompanyField('linkedinUrl', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'linkedinUrl'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'linkedinUrl'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'linkedinUrl'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'linkedinUrl' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('linkedinUrl')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Twitter</Label>
+                    <div className="relative group">
+                      <Input
+                        value={companyProfile.twitterUrl ?? ''}
+                        onChange={(e) => updateCompanyField('twitterUrl', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus={editingField === 'twitterUrl'}
+                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'twitterUrl'
+                          ? 'bg-background border-primary shadow-sm'
+                          : 'bg-muted/20 hover:bg-muted/40'
+                          }`}
+                        readOnly={editingField !== 'twitterUrl'}
+                        disabled={!canEditCompany}
+                      />
+                      {editingField !== 'twitterUrl' && (
+                        <button
+                          type="button"
+                          onClick={() => canEditCompany && setEditingField('twitterUrl')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Industry</Label>
-                  <Input value={companyProfile.industry} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>Company size</Label>
-                  <Input value={companyProfile.companySize} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>Company type</Label>
-                  <Input value={companyProfile.companyType} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>Founded year</Label>
-                  <Input value={String(companyProfile.foundedYear)} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone number</Label>
-                  <Input value={companyProfile.phoneNumber ?? ''} readOnly />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Website</Label>
-                  <Input value={companyProfile.companyWebsite} readOnly />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Official address</Label>
-                  <Input value={companyProfile.officialCompanyAddress} readOnly />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Company logo URL</Label>
-                  <Input value={companyProfile.companyLogo} readOnly />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Short description</Label>
-                  <Textarea value={companyProfile.shortDescription} readOnly className="min-h-[120px]" />
-                </div>
-                <div className="space-y-2">
-                  <Label>LinkedIn</Label>
-                  <Input value={companyProfile.linkedinUrl ?? ''} readOnly />
-                </div>
-                <div className="space-y-2">
-                  <Label>Twitter</Label>
-                  <Input value={companyProfile.twitterUrl ?? ''} readOnly />
-                </div>
-              </div>
+
+                {/* Floating Save Changes Button */}
+                {canEditCompany && hasCompanyChanges && (
+                  <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="rounded-full shadow-2xl px-4 py-2 h-auto text-xs font-semibold bg-primary hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border-2 border-white dark:border-slate-900"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Save Changes
+                    </Button>
+                  </div>
+                )}
+              </form>
             )}
           </CardContent>
         </Card>
@@ -668,7 +1055,7 @@ export default function ProfilePage() {
                   id="resume"
                   type="file"
                   onChange={(e) => handleResumeUpload(e.target.files ? e.target.files[0] : null)}
-                  className="file:font-semibold file:text-primary"
+                  className="h-auto file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                   required={Boolean(isNewUser)}
                   disabled={isParsing}
                 />

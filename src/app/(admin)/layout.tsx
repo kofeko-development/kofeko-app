@@ -28,7 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { cn } from '@/lib/utils';
 
 
-const adminRoutes = ['/admin/dashboard', '/admin/users', '/admin/recruiters', '/admin/candidates'];
+const adminRoutes = ['/admin/dashboard', '/admin/users', '/admin/recruiters', '/admin/candidates', '/admin/jd-creator'];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, hasPermission, logout, loading } = useAuth();

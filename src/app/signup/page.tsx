@@ -17,11 +17,12 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest, ApiError } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { COMPANY_SIZE_OPTIONS, type CompanySizeValue } from "@/lib/company-size";
 import { buildE164Phone } from "@/lib/phone-e164";
 import { cn } from "@/lib/utils";
+import { companyApi } from "@/lib/stage1-2-api";
 
 const LocationAddressFields = dynamic(
   () => import("@/components/location-address-fields").then((m) => m.LocationAddressFields),
@@ -526,187 +527,220 @@ export default function SignupPage() {
 
           {step === 2 ? (
             <>
-          <div className="flex items-center gap-3">
-            <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)} disabled={isLoading}>
-              Back
-            </Button>
-          </div>
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)} disabled={isLoading}>
+                  Back
+                </Button>
+              </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="company-name">Company Name</Label>
-              <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="industry">Industry</Label>
-              <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} />
-            </div>
-          </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="company-name">Company Name</Label>
+                  <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="industry">Industry</Label>
+                  <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} />
+                </div>
+              </div>
 
-          <LocationAddressFields
-            country={country}
-            state={state}
-            city={city}
-            zipCode={zipCode}
-            setCountry={setCountry}
-            setState={setState}
-            setCity={setCity}
-            setZipCode={setZipCode}
-            disabled={isLoading}
-          />
-
-          <div className="grid gap-2">
-            <Label htmlFor="full-address">Company Address (Full Address)</Label>
-            <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} />
-          </div>
-
-          <div className="grid gap-x-4 gap-y-3 md:grid-cols-2 md:items-start">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="company-size" className="mb-0">
-                Company size (employees)
-              </Label>
-              <select
-                id="company-size"
-                value={companySize}
-                onChange={(e) => setCompanySize(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                required
-                disabled={isLoading}
-              >
-                <option value="">Select range</option>
-                {COMPANY_SIZE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="company-type" className="mb-0">
-                Company Type
-              </Label>
-              <select
-                id="company-type"
-                value={companyType}
-                onChange={(e) => setCompanyType(e.target.value as 'startup' | 'enterprise' | 'agency' | 'non_profit')}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                required
-                disabled={isLoading}
-              >
-                <option value="startup">Startup</option>
-                <option value="enterprise">Enterprise</option>
-                <option value="agency">Agency</option>
-                <option value="non_profit">Non-profit</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="founded-year" className="mb-0">
-                Founded Year
-              </Label>
-              <Input
-                id="founded-year"
-                type="number"
-                value={foundedYear}
-                onChange={(e) => setFoundedYear(e.target.value)}
-                required
+              <LocationAddressFields
+                country={country}
+                state={state}
+                city={city}
+                zipCode={zipCode}
+                setCountry={setCountry}
+                setState={setState}
+                setCity={setCity}
+                setZipCode={setZipCode}
                 disabled={isLoading}
               />
-            </div>
-            <PhoneInternationalField
-              className="min-w-0"
-              phoneCountryIso={phoneCountryIso}
-              phoneNationalDigits={phoneNationalDigits}
-              setPhoneCountryIso={setPhoneCountryIso}
-              setPhoneNationalDigits={setPhoneNationalDigits}
-              addressCountryName={country}
-              disabled={isLoading}
-            />
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="company-website">Company Website</Label>
-              <Input
-                id="company-website"
-                type="url"
-                value={companyWebsite}
-                onChange={e => setCompanyWebsite(e.target.value)}
-                onBlur={() => setCompanyWebsite((prev) => normalizeUrlInput(prev))}
-                placeholder="https://example.com"
-                required
-                disabled={isLoading}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="company-logo">Company Logo URL</Label>
-              <Input
-                id="company-logo"
-                type="url"
-                value={companyLogo}
-                onChange={e => setCompanyLogo(e.target.value)}
-                onBlur={() => setCompanyLogo((prev) => normalizeUrlInput(prev))}
-                placeholder="https://example.com/logo.png"
-                required
-                disabled={isLoading}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="linkedin-url">LinkedIn URL (Optional)</Label>
-              <Input
-                id="linkedin-url"
-                type="url"
-                value={linkedinUrl}
-                onChange={e => setLinkedinUrl(e.target.value)}
-                onBlur={() => setLinkedinUrl((prev) => normalizeUrlInput(prev))}
-                placeholder="https://linkedin.com/company/..."
-                disabled={isLoading}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="twitter-url">Twitter/X URL (Optional)</Label>
-              <Input
-                id="twitter-url"
-                type="url"
-                value={twitterUrl}
-                onChange={e => setTwitterUrl(e.target.value)}
-                onBlur={() => setTwitterUrl((prev) => normalizeUrlInput(prev))}
-                placeholder="https://x.com/..."
-                disabled={isLoading}
-              />
-            </div>
-          </div>
+              <div className="grid gap-2">
+                <Label htmlFor="full-address">Company Address (Full Address)</Label>
+                <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} />
+              </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="short-description">Short Company Description</Label>
-            <Textarea
-              id="short-description"
-              value={shortDescription}
-              onChange={e => setShortDescription(e.target.value)}
-              minLength={20}
-              required
-              disabled={isLoading}
-            />
-            <p className="text-xs text-muted-foreground">
-              Minimum 20 characters ({shortDescription.trim().length}/20)
-            </p>
-          </div>
+              <div className="grid gap-x-4 gap-y-3 md:grid-cols-2 md:items-start">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="company-size" className="mb-0">
+                    Company size (employees)
+                  </Label>
+                  <select
+                    id="company-size"
+                    value={companySize}
+                    onChange={(e) => setCompanySize(e.target.value)}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                    disabled={isLoading}
+                  >
+                    <option value="">Select range</option>
+                    {COMPANY_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="company-type" className="mb-0">
+                    Company Type
+                  </Label>
+                  <select
+                    id="company-type"
+                    value={companyType}
+                    onChange={(e) => setCompanyType(e.target.value as 'startup' | 'enterprise' | 'agency' | 'non_profit')}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                    disabled={isLoading}
+                  >
+                    <option value="startup">Startup</option>
+                    <option value="enterprise">Enterprise</option>
+                    <option value="agency">Agency</option>
+                    <option value="non_profit">Non-profit</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="founded-year" className="mb-0">
+                    Founded Year
+                  </Label>
+                  <Input
+                    id="founded-year"
+                    type="number"
+                    value={foundedYear}
+                    onChange={(e) => setFoundedYear(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                <PhoneInternationalField
+                  className="min-w-0"
+                  phoneCountryIso={phoneCountryIso}
+                  phoneNationalDigits={phoneNationalDigits}
+                  setPhoneCountryIso={setPhoneCountryIso}
+                  setPhoneNationalDigits={setPhoneNationalDigits}
+                  addressCountryName={country}
+                  disabled={isLoading}
+                />
+              </div>
 
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={termsAccepted}
-              onChange={(e) => setTermsAccepted(e.target.checked)}
-              disabled={isLoading}
-              required
-              className="mt-1"
-            />
-            <span>I agree to the terms and conditions.</span>
-          </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="company-website">Company Website</Label>
+                  <Input
+                    id="company-website"
+                    type="url"
+                    value={companyWebsite}
+                    onChange={e => setCompanyWebsite(e.target.value)}
+                    onBlur={() => setCompanyWebsite((prev) => normalizeUrlInput(prev))}
+                    placeholder="https://example.com"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="company-logo">Company Logo (Image or SVG)</Label>
+                  <div className="flex items-center gap-4">
+                    {companyLogo ? (
+                      <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
+                        <img src={companyLogo} alt="Logo preview" className="h-full w-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setCompanyLogo('')}
+                          className="absolute right-0 top-0 rounded-bl-md bg-destructive p-1 text-white hover:bg-destructive/90"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="h-16 w-16 rounded-md border border-dashed flex items-center justify-center text-muted-foreground bg-muted/30">
+                        <Upload className="h-6 w-6 opacity-20" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <Input
+                        id="company-logo"
+                        type="file"
+                        accept="image/*,.svg"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const res = await companyApi.uploadPublicLogo(file);
+                              setCompanyLogo(res.url);
+                            } catch (err) {
+                              toast({
+                                title: 'Upload failed',
+                                description: err instanceof Error ? err.message : 'Unable to upload logo.',
+                                variant: 'destructive',
+                              });
+                            }
+                          }
+                        }}
+                        disabled={isLoading}
+                        className="cursor-pointer h-auto file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">JPG, PNG or SVG. Max 5MB.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="linkedin-url">LinkedIn URL (Optional)</Label>
+                  <Input
+                    id="linkedin-url"
+                    type="url"
+                    value={linkedinUrl}
+                    onChange={e => setLinkedinUrl(e.target.value)}
+                    onBlur={() => setLinkedinUrl((prev) => normalizeUrlInput(prev))}
+                    placeholder="https://linkedin.com/company/..."
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="twitter-url">Twitter/X URL (Optional)</Label>
+                  <Input
+                    id="twitter-url"
+                    type="url"
+                    value={twitterUrl}
+                    onChange={e => setTwitterUrl(e.target.value)}
+                    onBlur={() => setTwitterUrl((prev) => normalizeUrlInput(prev))}
+                    placeholder="https://x.com/..."
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-            {isLoading ? "Submitting..." : "Submit Company Registration"}
-          </Button>
+              <div className="grid gap-2">
+                <Label htmlFor="short-description">Short Company Description</Label>
+                <Textarea
+                  id="short-description"
+                  value={shortDescription}
+                  onChange={e => setShortDescription(e.target.value)}
+                  minLength={20}
+                  required
+                  disabled={isLoading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum 20 characters ({shortDescription.trim().length}/20)
+                </p>
+              </div>
+
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  disabled={isLoading}
+                  required
+                  className="mt-1"
+                />
+                <span>I agree to the terms and conditions.</span>
+              </label>
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isLoading ? "Submitting..." : "Submit Company Registration"}
+              </Button>
             </>
           ) : null}
         </form>

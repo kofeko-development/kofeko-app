@@ -3,11 +3,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+
+const generateTenantSlug = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let slug = '';
+  for (let i = 0; i < 8; i++) {
+    slug += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return slug;
+};
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5000/api/v1';
 const SUPERADMIN_TOKEN_KEY = 'kofeko_superadmin_token';
@@ -15,12 +26,21 @@ const SUPERADMIN_TOKEN_KEY = 'kofeko_superadmin_token';
 type CompanyRequest = {
   id: string;
   companyName: string;
-  companyType: string;
-  companySize: string;
+  companyAddress: Record<string, string> | string | null;
   industry: string;
+  companySize: string;
+  companyType: string;
+  foundedYear: number;
+  companyWebsite: string;
+  officialCompanyAddress: string;
+  phoneNumber: string;
+  companyLogo: string;
+  shortDescription: string;
+  linkedinUrl: string | null;
+  twitterUrl: string | null;
+  termsAccepted: boolean;
   contactName: string;
   contactEmail: string;
-  phoneNumber: string;
   adminEmail: string;
   /** Admin chose email/password at signup; superadmin assigns tenant slug. */
   usesSignupCredentials: boolean;
@@ -31,6 +51,7 @@ type CompanyRequest = {
 export default function SuperAdminDashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { logout } = useAuth();
   const [requests, setRequests] = useState<CompanyRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -169,10 +190,7 @@ export default function SuperAdminDashboardPage() {
         </div>
         <Button
           variant="outline"
-          onClick={() => {
-            localStorage.removeItem(SUPERADMIN_TOKEN_KEY);
-            router.push('/superadmin/login');
-          }}
+          onClick={logout}
         >
           Logout
         </Button>
@@ -203,13 +221,14 @@ export default function SuperAdminDashboardPage() {
                 <p><span className="font-medium">Status:</span> {request.status}</p>
                 <Button
                   className="w-full mt-2"
-                  variant={selectedId === request.id ? 'secondary' : 'default'}
+                  variant="default"
                   onClick={() => {
                     setSelectedId(request.id);
                     setAdminEmail(request.adminEmail || request.contactEmail || '');
+                    setTenantSlug(generateTenantSlug());
                   }}
                 >
-                  {selectedId === request.id ? 'Selected' : 'Review Request'}
+                  Review Request
                 </Button>
               </CardContent>
             </Card>
@@ -217,58 +236,101 @@ export default function SuperAdminDashboardPage() {
         )}
       </div>
 
-      {selectedRequest ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Approve or Reject: {selectedRequest.companyName}</CardTitle>
-            <CardDescription>
-              {selectedRequest.usesSignupCredentials
-                ? 'Assign a tenant slug. The admin will sign in with the email and password they set when registering.'
-                : 'Set tenant slug plus company admin email and password (legacy request without signup credentials).'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2 md:col-span-2">
-                <Label htmlFor="tenantSlug">Tenant Slug</Label>
-                <Input id="tenantSlug" value={tenantSlug} onChange={(e) => setTenantSlug(e.target.value)} placeholder="your-company-slug" />
-              </div>
-              {selectedRequest.usesSignupCredentials ? (
-                <div className="md:col-span-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                  Admin email (from registration):{' '}
-                  <span className="font-medium text-foreground">{selectedRequest.adminEmail || '—'}</span>
+      <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review Request: {selectedRequest?.companyName}</DialogTitle>
+            <DialogDescription>
+              Review the details submitted by the company and assign a tenant slug to approve.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRequest && (
+            <div className="grid gap-6 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-muted/30 p-4 rounded-md border">
+                <div className="sm:col-span-2 flex items-center gap-4 border-b pb-4 mb-2">
+                  {selectedRequest.companyLogo && (
+                    <img src={selectedRequest.companyLogo} alt="Logo" className="w-16 h-16 object-contain rounded-md bg-white border" />
+                  )}
+                  <div>
+                    <h3 className="text-lg font-semibold">{selectedRequest.companyName}</h3>
+                    <p className="text-muted-foreground text-sm">{selectedRequest.companyWebsite}</p>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <div className="grid gap-2">
-                    <Label htmlFor="adminEmail">Company Admin Email</Label>
-                    <Input id="adminEmail" type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="adminPassword">Company Admin Password</Label>
-                    <Input id="adminPassword" type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
-                  </div>
-                </>
-              )}
-            </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="reviewNotes">Review Notes (required for reject, optional for approve)</Label>
-              <Input id="reviewNotes" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} />
-            </div>
+                <div><span className="font-medium text-muted-foreground">Type:</span> <br/> {selectedRequest.companyType}</div>
+                <div><span className="font-medium text-muted-foreground">Industry:</span> <br/> {selectedRequest.industry}</div>
+                <div><span className="font-medium text-muted-foreground">Size:</span> <br/> {selectedRequest.companySize}</div>
+                <div><span className="font-medium text-muted-foreground">Founded Year:</span> <br/> {selectedRequest.foundedYear}</div>
+                
+                <div className="sm:col-span-2"><span className="font-medium text-muted-foreground">Short Description:</span> <br/> {selectedRequest.shortDescription}</div>
+                
+                <div className="sm:col-span-2"><span className="font-medium text-muted-foreground">Official Address:</span> <br/> {selectedRequest.officialCompanyAddress}</div>
+                <div className="sm:col-span-2">
+                  <span className="font-medium text-muted-foreground">Structured Address:</span> <br/> 
+                  {typeof selectedRequest.companyAddress === 'object' && selectedRequest.companyAddress !== null ? (
+                    Object.entries(selectedRequest.companyAddress).map(([k, v]) => v ? `${k}: ${v}` : null).filter(Boolean).join(', ')
+                  ) : String(selectedRequest.companyAddress || '—')}
+                </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button onClick={onApprove} disabled={approveDisabled}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Approve & Create Credentials
-              </Button>
-              <Button variant="destructive" onClick={onReject} disabled={isSubmitting || !reviewNotes}>
-                Reject Request
-              </Button>
+                <div><span className="font-medium text-muted-foreground">Contact Name:</span> <br/> {selectedRequest.contactName}</div>
+                <div><span className="font-medium text-muted-foreground">Contact Email:</span> <br/> {selectedRequest.contactEmail}</div>
+                <div><span className="font-medium text-muted-foreground">Phone Number:</span> <br/> {selectedRequest.phoneNumber || '—'}</div>
+                
+                <div className="sm:col-span-2 flex gap-4">
+                   {selectedRequest.linkedinUrl && <a href={selectedRequest.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">LinkedIn</a>}
+                   {selectedRequest.twitterUrl && <a href={selectedRequest.twitterUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Twitter</a>}
+                </div>
+                
+                <div className="sm:col-span-2">
+                   <span className="font-medium text-muted-foreground">Terms Accepted:</span> {selectedRequest.termsAccepted ? 'Yes' : 'No'}
+                </div>
+              </div>
+
+              <div className="grid gap-4 border-t pt-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label htmlFor="tenantSlug">Tenant Slug</Label>
+                    <Input id="tenantSlug" value={tenantSlug} onChange={(e) => setTenantSlug(e.target.value)} placeholder="8 character uppercase alphanumeric" />
+                  </div>
+                  {selectedRequest.usesSignupCredentials ? (
+                    <div className="md:col-span-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                      Admin email (from registration):{' '}
+                      <span className="font-medium text-foreground">{selectedRequest.adminEmail || '—'}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-2">
+                        <Label htmlFor="adminEmail">Company Admin Email</Label>
+                        <Input id="adminEmail" type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="adminPassword">Company Admin Password</Label>
+                        <Input id="adminPassword" type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="reviewNotes">Review Notes (required for reject, optional for approve)</Label>
+                  <Input id="reviewNotes" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Button onClick={onApprove} disabled={approveDisabled} className="flex-1">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Approve & Create Credentials
+                  </Button>
+                  <Button variant="destructive" onClick={onReject} disabled={isSubmitting || !reviewNotes} className="flex-1">
+                    Reject Request
+                  </Button>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

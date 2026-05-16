@@ -394,7 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearTokens(authType);
     setUser(null);
     setSuperAdmin(null);
-    window.location.href = authType === 'candidate' ? '/candidate-auth' : '/login';
+    window.location.href = authType === 'candidate' ? '/candidate-auth' : authType === 'super_admin' ? '/superadmin/login' : '/login';
   };
 
   const value = {

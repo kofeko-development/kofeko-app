@@ -47,6 +47,38 @@ export const companyApi = {
     apiRequest<CompanyProfileResponse>('/company', { method: 'POST', auth: true, body: payload }),
   update: (payload: Partial<CompanyProfilePayload>) =>
     apiRequest<CompanyProfileResponse>('/company', { method: 'PATCH', auth: true, body: payload }),
+  uploadLogo: async (file: File): Promise<{ url: string; mimeType: string; filename: string }> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kofeko_access_token') : null;
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+    const formData = new FormData();
+    formData.append('logo', file);
+    const res = await fetch(`${API_BASE}/company/upload-logo`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error((err as { message: string }).message || 'Upload failed');
+    }
+    const payload = (await res.json()) as { data: { url: string; mimeType: string; filename: string } };
+    return payload.data;
+  },
+  uploadPublicLogo: async (file: File): Promise<{ url: string; mimeType: string; filename: string }> => {
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+    const formData = new FormData();
+    formData.append('logo', file);
+    const res = await fetch(`${API_BASE}/auth/upload-logo`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error((err as { message: string }).message || 'Upload failed');
+    }
+    const payload = (await res.json()) as { data: { url: string; mimeType: string; filename: string } };
+    return payload.data;
+  },
 };
 
 export const aiApi = {

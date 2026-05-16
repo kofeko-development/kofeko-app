@@ -51,8 +51,9 @@ type RouteRule = {
 };
 
 const routePermissions: RouteRule[] = [
+    // Shared routes
+    { route: '/dashboard', permissions: [] },
     // Staff-only routes
-    { route: '/dashboard', permissions: [], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/job-postings', permissions: ['job:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/jd-builder', permissions: ['job:create'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/assessments', permissions: ['evaluation:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
@@ -150,6 +151,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const recruiterNav = allRecruiterNav.filter((item) => item.permissions.some((permission) => hasPermission(permission)));
 
     const candidateNavLinks = [
+        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/find-jobs', label: 'Find Jobs', icon: Search },
         { href: '/my-applications', label: 'Jobs Applied To', icon: FileText },
         { href: '/inbox', label: 'Inbox', icon: Inbox }
