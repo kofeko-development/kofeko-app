@@ -25,7 +25,6 @@ import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 
@@ -44,43 +43,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    if (!hasPermission('rbac:manage')) {
+    if (user.role === 'candidate') {
+      router.push('/find-jobs');
       return;
     }
 
-  }, [user, loading, router, pathname, logout, hasPermission]);
-  
+    if (!hasPermission('rbac:manage')) {
+      router.push('/dashboard');
+      return;
+    }
+
+    const isAdminRoute =
+      adminRoutes.some((r) => pathname.startsWith(r)) ||
+      pathname.startsWith('/company-profile') ||
+      pathname.startsWith('/profile');
+
+    if (!isAdminRoute) {
+      router.push('/admin/dashboard');
+    }
+  }, [user, loading, router, pathname, hasPermission]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
+        <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent" />
       </div>
     );
   }
 
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-sm text-muted-foreground">Redirecting to login…</div>
-      </div>
-    );
-  }
-
-  if (!hasPermission('rbac:manage')) {
-    return (
-      <div className="flex h-screen items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold">Access denied</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Your account doesn&apos;t have access to the admin panel.
-          </p>
-          <div className="mt-4 flex justify-center gap-2">
-            <Button onClick={() => router.push('/dashboard')}>Go to dashboard</Button>
-            <Button variant="outline" onClick={() => void logout()}>Log out</Button>
-          </div>
-        </div>
-      </div>
-    );
+  if (!user || !hasPermission('rbac:manage') || user.role === 'candidate') {
+    return null;
   }
 
   const navItems = [
@@ -96,7 +88,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`;
     }
     return names[0].charAt(0);
-  }
+  };
 
   const AdminHeader = () => (
      <header className="flex h-16 items-center justify-between border-b bg-card px-6 shrink-0">
@@ -136,7 +128,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </DropdownMenu>
         </div>
     </header>
-  )
+  );
 
     return (
         <SidebarProvider>
