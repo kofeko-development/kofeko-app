@@ -40,26 +40,33 @@ import AppFooter from '@/components/app-footer';
 
 
 import { getAuthType } from '@/lib/api-client';
+import type { UserRole } from '@/lib/types';
 
-const routePermissions: {
+type RouteRule = {
   route: string;
   permissions: string[];
-  candidateOnly?: boolean;
-}[] = [
-  { route: '/dashboard', permissions: ['job:read', 'candidate:read'] },
-  { route: '/job-postings', permissions: ['job:read'] },
-  { route: '/jd-builder', permissions: ['job:create'] },
-  { route: '/assessments', permissions: ['evaluation:read'] },
-  { route: '/interviews', permissions: ['pipeline:read'] },
-  { route: '/applicants', permissions: ['candidate:read'] },
-  { route: '/team', permissions: ['user:read'] },
-  { route: '/company-profile', permissions: ['company:read'] },
-  { route: '/subscription', permissions: ['company:update'] },
-  // Candidate-only routes
-  { route: '/find-jobs', permissions: [], candidateOnly: true },
-  { route: '/my-applications', permissions: [], candidateOnly: true },
+  allowedRoles?: UserRole[];
+  blockedRoles?: UserRole[];
+  redirectTo?: string;
+};
+
+const routePermissions: RouteRule[] = [
+  // Staff-only routes
+  { route: '/dashboard', permissions: [], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/job-postings', permissions: ['job:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/jd-builder', permissions: ['job:create'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/assessments', permissions: ['evaluation:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/interviews', permissions: ['pipeline:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/applicants', permissions: ['candidate:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/team', permissions: ['user:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/company-profile', permissions: ['company:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+  { route: '/subscription', permissions: ['company:update'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
   { route: '/inbox', permissions: ['communication:read'] },
-  { route: '/open-positions', permissions: [] },
+  // Candidate-only routes
+  { route: '/find-jobs', permissions: [], allowedRoles: ['candidate'], redirectTo: '/dashboard' },
+  { route: '/my-applications', permissions: [], allowedRoles: ['candidate'], redirectTo: '/dashboard' },
+  { route: '/open-positions', permissions: [], allowedRoles: ['candidate'], redirectTo: '/dashboard' },
+  // Shared routes
   { route: '/profile', permissions: [] },
   { route: '/about', permissions: [] },
 ];
@@ -86,42 +93,50 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
 
     // Operator/admin → redirect to admin layout
-    if (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile')) {
+    if (
+      hasPermission('rbac:manage') &&
+      !pathname.startsWith('/profile') &&
+      !pathname.startsWith('/company-profile')
+    ) {
       router.push('/admin/dashboard');
       return;
     }
 
     const matched = routePermissions.find(({ route }) => pathname.startsWith(route));
-    
-    if (matched?.candidateOnly && user.role !== 'candidate') {
-      // Staff trying to access candidate-only routes
-      router.push('/dashboard');
-      return;
-    }
-
-    if (!matched?.candidateOnly && user.role === 'candidate' && matched) {
-      // Candidate trying to access staff-only routes
-      router.push('/find-jobs');
-      return;
-    }
 
     if (!matched) {
       router.push(user.role === 'candidate' ? '/find-jobs' : '/dashboard');
       return;
     }
 
-    const allowed = matched.permissions.length === 0 || matched.permissions.some((permission) => hasPermission(permission));
-    if (!allowed) {
-        router.push(user.role === 'candidate' ? '/find-jobs' : '/dashboard');
+    if (matched.blockedRoles?.includes(user.role)) {
+      router.push(matched.redirectTo ?? (user.role === 'candidate' ? '/find-jobs' : '/dashboard'));
+      return;
+    }
+
+    if (matched.allowedRoles && !matched.allowedRoles.includes(user.role)) {
+      router.push(matched.redirectTo ?? '/dashboard');
+      return;
+    }
+
+    if (
+      matched.permissions.length > 0 &&
+      !matched.permissions.some((permission) => hasPermission(permission))
+    ) {
+      router.push(matched.redirectTo ?? (user.role === 'candidate' ? '/find-jobs' : '/dashboard'));
     }
   }, [user, loading, router, pathname, hasPermission]);
   
-  if (loading || !user || (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile'))) {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   const allRecruiterNav = [
@@ -135,7 +150,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const recruiterNav = allRecruiterNav.filter((item) => item.permissions.some((permission) => hasPermission(permission)));
 
   const candidateNavLinks = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/find-jobs', label: 'Find Jobs', icon: Search },
     { href: '/my-applications', label: 'Jobs Applied To', icon: FileText },
     { href: '/inbox', label: 'Inbox', icon: Inbox }
@@ -223,7 +237,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <header className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-white/95 shadow-md backdrop-blur-sm">
             <div className="container">
                 <div className="flex h-20 items-center">
-                    <Link href={'/dashboard'}>
+                    <Link href="/find-jobs">
                          <Logo width={120} height={40} />
                     </Link>
 

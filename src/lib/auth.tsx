@@ -121,8 +121,15 @@ export const mapBackendUser = (backendUser: BackendUser): User => {
   const permissions = backendUser.permissions ?? [];
   const roles = backendUser.roles ?? [];
   const isOperator = permissions.includes('rbac:manage') && !roles.includes('company_admin');
-  /** Staff vs candidate must follow backend role names — avoid inferring from permissions (e.g. interviewers may have candidate:read). */
-  const isCandidate = !isOperator && roles.includes('candidate');
+  const isCandidateByRole = roles.includes('candidate');
+  const isCandidateByPermission =
+    !isOperator &&
+    !roles.length &&
+    permissions.includes('job:read') &&
+    !permissions.includes('pipeline:create') &&
+    !permissions.includes('candidate:create') &&
+    !permissions.includes('user:read');
+  const isCandidate = !isOperator && (isCandidateByRole || isCandidateByPermission);
   const role: User['role'] = isOperator ? 'operator' : isCandidate ? 'candidate' : 'recruiter';
 
   let companyRole: User['companyRole'] = undefined;
@@ -208,7 +215,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             auth: true,
             authType: 'candidate',
           });
-          const mapped = mapBackendUser(me);
+          const mapped = mapBackendUser({
+            ...me,
+            roles: me.roles?.length ? me.roles : ['candidate'],
+          });
           setUser(mapped);
           sessionStorage.setItem('kofeko_user_cache', JSON.stringify(mapped));
           setLoading(false);
@@ -228,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         // Only clear session on 401/403 (legitimately invalid token)
         // Do NOT clear on network errors — user may just be offline
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404)) {
           clearTokens();
           setUser(null);
           setSuperAdmin(null);
