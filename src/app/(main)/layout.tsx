@@ -39,22 +39,29 @@ import { Badge } from '@/components/ui/badge';
 import AppFooter from '@/components/app-footer';
 
 
-const routePermissions: { route: string; permissions: string[] }[] = [
-    { route: '/dashboard', permissions: ['job:read', 'candidate:read'] },
-    { route: '/job-postings', permissions: ['job:read'] },
-    { route: '/jd-builder', permissions: ['job:create'] },
-    { route: '/assessments', permissions: ['evaluation:read'] },
-    { route: '/interviews', permissions: ['pipeline:read'] },
-    { route: '/applicants', permissions: ['candidate:read'] },
-    { route: '/team', permissions: ['user:read'] },
-    { route: '/company-profile', permissions: ['company:read'] },
-    { route: '/subscription', permissions: ['company:update'] },
-    { route: '/find-jobs', permissions: ['job:read'] },
-    { route: '/my-applications', permissions: ['pipeline:read'] },
-    { route: '/inbox', permissions: ['communication:read'] },
-    { route: '/open-positions', permissions: ['job:read'] },
-    { route: '/profile', permissions: [] },
-    { route: '/about', permissions: [] },
+import { getAuthType } from '@/lib/api-client';
+
+const routePermissions: {
+  route: string;
+  permissions: string[];
+  candidateOnly?: boolean;
+}[] = [
+  { route: '/dashboard', permissions: ['job:read', 'candidate:read'] },
+  { route: '/job-postings', permissions: ['job:read'] },
+  { route: '/jd-builder', permissions: ['job:create'] },
+  { route: '/assessments', permissions: ['evaluation:read'] },
+  { route: '/interviews', permissions: ['pipeline:read'] },
+  { route: '/applicants', permissions: ['candidate:read'] },
+  { route: '/team', permissions: ['user:read'] },
+  { route: '/company-profile', permissions: ['company:read'] },
+  { route: '/subscription', permissions: ['company:update'] },
+  // Candidate-only routes
+  { route: '/find-jobs', permissions: [], candidateOnly: true },
+  { route: '/my-applications', permissions: [], candidateOnly: true },
+  { route: '/inbox', permissions: ['communication:read'] },
+  { route: '/open-positions', permissions: [] },
+  { route: '/profile', permissions: [] },
+  { route: '/about', permissions: [] },
 ];
 
 
@@ -66,43 +73,56 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         if (loading) return;
 
-        if (!user) {
-            router.push('/login');
-            return;
-        }
-
-        // Allow admins to view shared pages like /profile without being forced back to /admin.
-        if (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile')) {
-            router.push('/admin/dashboard');
-            return;
-        }
-
-        const matched = routePermissions.find(({ route }) => pathname.startsWith(route));
-        if (!matched) {
-            router.push('/dashboard');
-            return;
-        }
-
-        const isCandidatePage = ['/find-jobs', '/my-applications', '/inbox', '/dashboard', '/open-positions'].some(p => pathname.startsWith(p));
-        const isCandidate = user.role === 'candidate';
-
-        const allowed =
-            (isCandidate && isCandidatePage) ||
-            matched.permissions.length === 0 ||
-            matched.permissions.some((permission) => hasPermission(permission));
-
-        if (!allowed) {
-            router.push('/dashboard');
-        }
-    }, [user, loading, router, pathname, hasPermission]);
-
-    if (loading || !user || (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile'))) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
-            </div>
-        );
+    if (!user) {
+      // Not logged in at all
+      router.push('/login');
+      return;
     }
+
+    // Super admin trying staff area
+    if (getAuthType() === 'super_admin') {
+      router.push('/superadmin/dashboard');
+      return;
+    }
+
+    // Operator/admin → redirect to admin layout
+    if (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile')) {
+      router.push('/admin/dashboard');
+      return;
+    }
+
+    const matched = routePermissions.find(({ route }) => pathname.startsWith(route));
+    
+    if (matched?.candidateOnly && user.role !== 'candidate') {
+      // Staff trying to access candidate-only routes
+      router.push('/dashboard');
+      return;
+    }
+
+    if (!matched?.candidateOnly && user.role === 'candidate' && matched) {
+      // Candidate trying to access staff-only routes
+      router.push('/find-jobs');
+      return;
+    }
+
+    if (!matched) {
+      router.push(user.role === 'candidate' ? '/find-jobs' : '/dashboard');
+      return;
+    }
+
+    const allowed = matched.permissions.length === 0 || matched.permissions.some((permission) => hasPermission(permission));
+    if (!allowed) {
+        router.push(user.role === 'candidate' ? '/find-jobs' : '/dashboard');
+    }
+  }, [user, loading, router, pathname, hasPermission]);
+  
+  if (loading || !user || (user.role === 'operator' && !pathname.startsWith('/profile') && !pathname.startsWith('/company-profile'))) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
+      </div>
+    );
+  }
 
     const allRecruiterNav = [
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['job:read', 'candidate:read'] },

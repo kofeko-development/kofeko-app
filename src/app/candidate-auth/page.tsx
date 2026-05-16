@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { ApiError } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
@@ -175,9 +176,43 @@ function CandidateAuthContent() {
       }
       router.push('/find-jobs');
     } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.errorCode === 'ACCOUNT_NO_PASSWORD') {
+          toast({
+            title: 'Account Not Activated',
+            description: 'Your account was created by the recruiting team. Check your email for an invite link to set your password.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (error.errorCode === 'ACCOUNT_INVITED_ONLY') {
+          toast({
+            title: 'Invite Not Accepted',
+            description: 'Please accept your invitation first. Check your email.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (error.errorCode === 'USER_SUSPENDED') {
+          toast({
+            title: 'Account Suspended',
+            description: 'Your candidate account has been suspended.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (error.errorCode === 'CONFLICT') {
+          toast({
+            title: 'Email Already Registered',
+            description: 'An account with this email already exists. Please sign in instead.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       toast({
-        title: mode === 'signup' ? 'Candidate signup failed' : 'Candidate login failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
+        title: mode === 'signup' ? 'Sign Up Failed' : 'Login Failed',
+        description: error instanceof Error ? error.message : 'Please check your details and try again.',
         variant: 'destructive',
       });
     } finally {

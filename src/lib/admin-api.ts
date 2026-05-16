@@ -105,3 +105,14 @@ export async function removeStaffUser(userId: string) {
     auth: true,
   });
 }
+
+// Proxies to candidatesApi
+import { candidatesApi, CreateCandidatePayload } from './stage1-2-api';
+
+export async function createCandidate(payload: CreateCandidatePayload) {
+  return candidatesApi.create(payload);
+}
+
+export async function uploadResume(file: File) {
+  return candidatesApi.uploadResume(file);
+}

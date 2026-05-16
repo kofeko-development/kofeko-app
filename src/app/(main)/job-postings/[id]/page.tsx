@@ -149,6 +149,14 @@ export default function JobApplicantsPage() {
     
     const [interviewQuestions, setInterviewQuestions] = useState<string[]>([]);
     
+    const handleRegenerateQuestions = useCallback(() => {
+        const shuffled = [...ALL_SUGGESTED_QUESTIONS].sort(() => 0.5 - Math.random());
+        setInterviewQuestions(shuffled.slice(0, 3));
+    }, []);
+
+    useEffect(() => {
+        handleRegenerateQuestions();
+    }, [handleRegenerateQuestions]);
     const [stageChangeNote, setStageChangeNote] = useState('');
     const [newNote, setNewNote] = useState('');
     const [feedbackNotes, setFeedbackNotes] = useState<Record<string, Feedback[]>>({});
@@ -333,7 +341,7 @@ export default function JobApplicantsPage() {
                 
                 // If the profile dialog is open, update its state, otherwise clear the selection
                 if (isProfileDialogOpen && selectedApplicant && justChangedStage) {
-                     setSelectedApplicant(prev => prev ? { ...prev, status: justChangedStage } : null);
+                     setSelectedApplicant(prev => prev ? { ...prev, status: justChangedStage as Applicant['status'] } : null);
                 } else {
                     setSelectedApplicant(null);
                 }

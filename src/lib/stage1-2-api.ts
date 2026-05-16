@@ -103,8 +103,6 @@ export const jobsApi = {
     return apiRequest<PaginatedJobsResponse>(`/jobs${q ? `?${q}` : ''}`, { auth: true });
   },
 
-  get: (jobId: string) => apiRequest<CreatedJob>(`/jobs/${jobId}`, { auth: true }),
-
   create: (payload: {
     title: string;
     description: string;

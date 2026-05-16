@@ -1,15 +1,97 @@
-export const ACCESS_TOKEN_KEY = 'kofeko_access_token';
-export const REFRESH_TOKEN_KEY = 'kofeko_refresh_token';
+// src/lib/api-client.ts
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+// ── Storage keys — one set per user type ─────────────────────────────────────
+export const AUTH_TYPE_KEY        = 'kofeko_auth_type';          // 'staff' | 'candidate' | 'super_admin'
+export const STAFF_TOKEN_KEY      = 'kofeko_staff_token';
+export const STAFF_REFRESH_KEY    = 'kofeko_staff_refresh';
+export const CANDIDATE_TOKEN_KEY  = 'kofeko_candidate_token';
+export const CANDIDATE_REFRESH_KEY= 'kofeko_candidate_refresh';
+export const SUPERADMIN_TOKEN_KEY = 'kofeko_superadmin_token';
+export const SUPERADMIN_REFRESH_KEY='kofeko_superadmin_refresh';
 
-type ApiEnvelope<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-  errorCode?: string;
+// Legacy keys — kept for migration (remove after one release cycle)
+export const LEGACY_ACCESS_KEY  = 'kofeko_access_token';
+export const LEGACY_REFRESH_KEY = 'kofeko_refresh_token';
+
+export type AuthType = 'staff' | 'candidate' | 'super_admin' | null;
+
+// ── Read helpers ──────────────────────────────────────────────────────────────
+const ls = (key: string): string | null =>
+  typeof window === 'undefined' ? null : localStorage.getItem(key);
+
+export const getAuthType = (): AuthType => ls(AUTH_TYPE_KEY) as AuthType;
+
+export const getAccessToken = (type?: AuthType): string | null => {
+  const t = type ?? getAuthType();
+  if (t === 'candidate') return ls(CANDIDATE_TOKEN_KEY);
+  if (t === 'super_admin') return ls(SUPERADMIN_TOKEN_KEY);
+  return ls(STAFF_TOKEN_KEY) ?? ls(LEGACY_ACCESS_KEY); // fallback for migration
 };
 
+export const getRefreshToken = (type?: AuthType): string | null => {
+  const t = type ?? getAuthType();
+  if (t === 'candidate') return ls(CANDIDATE_REFRESH_KEY);
+  if (t === 'super_admin') return ls(SUPERADMIN_REFRESH_KEY);
+  return ls(STAFF_REFRESH_KEY) ?? ls(LEGACY_REFRESH_KEY); // fallback for migration
+};
+
+// ── Write helpers ─────────────────────────────────────────────────────────────
+export const setTokens = (
+  type: 'staff' | 'candidate' | 'super_admin',
+  accessToken: string,
+  refreshToken: string
+) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(AUTH_TYPE_KEY, type);
+  if (type === 'candidate') {
+    localStorage.setItem(CANDIDATE_TOKEN_KEY, accessToken);
+    localStorage.setItem(CANDIDATE_REFRESH_KEY, refreshToken);
+  } else if (type === 'super_admin') {
+    localStorage.setItem(SUPERADMIN_TOKEN_KEY, accessToken);
+    localStorage.setItem(SUPERADMIN_REFRESH_KEY, refreshToken);
+  } else {
+    localStorage.setItem(STAFF_TOKEN_KEY, accessToken);
+    localStorage.setItem(STAFF_REFRESH_KEY, refreshToken);
+    // Clean up legacy keys
+    localStorage.removeItem(LEGACY_ACCESS_KEY);
+    localStorage.removeItem(LEGACY_REFRESH_KEY);
+  }
+};
+
+export const setAccessToken = (type: AuthType, token: string) => {
+  if (typeof window === 'undefined') return;
+  if (type === 'candidate') localStorage.setItem(CANDIDATE_TOKEN_KEY, token);
+  else if (type === 'super_admin') localStorage.setItem(SUPERADMIN_TOKEN_KEY, token);
+  else localStorage.setItem(STAFF_TOKEN_KEY, token);
+};
+
+// ── Clear helpers ─────────────────────────────────────────────────────────────
+export const clearTokens = (type?: AuthType) => {
+  if (typeof window === 'undefined') return;
+  const t = type ?? getAuthType();
+  if (t === 'candidate') {
+    localStorage.removeItem(CANDIDATE_TOKEN_KEY);
+    localStorage.removeItem(CANDIDATE_REFRESH_KEY);
+  } else if (t === 'super_admin') {
+    localStorage.removeItem(SUPERADMIN_TOKEN_KEY);
+    localStorage.removeItem(SUPERADMIN_REFRESH_KEY);
+  } else {
+    localStorage.removeItem(STAFF_TOKEN_KEY);
+    localStorage.removeItem(STAFF_REFRESH_KEY);
+    localStorage.removeItem(LEGACY_ACCESS_KEY);
+    localStorage.removeItem(LEGACY_REFRESH_KEY);
+  }
+  localStorage.removeItem(AUTH_TYPE_KEY);
+};
+
+// Alias for backward compatibility — clears current active session
+export const clearAuthStorage = () => clearTokens();
+
+// ── API base URL ──────────────────────────────────────────────────────────────
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5000/api/v1';
+
+// ── Error class ───────────────────────────────────────────────────────────────
 export class ApiError extends Error {
   status: number;
   errorCode?: string;
@@ -21,46 +103,41 @@ export class ApiError extends Error {
   }
 }
 
-type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
-  body?: unknown;
-  auth?: boolean;
-  retryOnUnauthorized?: boolean;
-};
+// ── Envelope type ─────────────────────────────────────────────────────────────
+type ApiEnvelope<T> = { success: boolean; message?: string; data: T };
 
-const getAccessToken = () => (typeof window === 'undefined' ? null : localStorage.getItem(ACCESS_TOKEN_KEY));
-const getRefreshToken = () => (typeof window === 'undefined' ? null : localStorage.getItem(REFRESH_TOKEN_KEY));
-
-const setAccessToken = (token: string) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  }
-};
-
-export const clearAuthStorage = () => {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-  }
-};
-
-export async function refreshAccessToken(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
+// ── Token refresh ─────────────────────────────────────────────────────────────
+async function refreshAccessToken(type: AuthType): Promise<boolean> {
+  const refreshToken = getRefreshToken(type);
   if (!refreshToken) return false;
 
-  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
+  // Staff and candidates both use /auth/refresh
+  // Super admin uses /superadmin/auth/refresh
+  const refreshPath =
+    type === 'super_admin'
+      ? `${API_BASE_URL}/superadmin/auth/refresh`
+      : `${API_BASE_URL}/auth/refresh`;
 
-  if (!response.ok) return false;
+  try {
+    const response = await fetch(refreshPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
 
-  const payload = (await response.json()) as ApiEnvelope<{ accessToken: string }>;
-  setAccessToken(payload.data.accessToken);
-  return true;
+    if (!response.ok) return false;
+
+    const payload = (await response.json()) as ApiEnvelope<{ accessToken: string }>;
+    if (!payload.data?.accessToken) return false;
+
+    setAccessToken(type, payload.data.accessToken);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
+// ── Error parser ──────────────────────────────────────────────────────────────
 async function parseError(response: Response): Promise<ApiError> {
   try {
     const payload = (await response.json()) as Partial<ApiEnvelope<unknown>> & { errorCode?: string };
@@ -70,8 +147,19 @@ async function parseError(response: Response): Promise<ApiError> {
   }
 }
 
+// ── Request options ───────────────────────────────────────────────────────────
+type RequestOptions = {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  body?: unknown;
+  auth?: boolean;
+  authType?: AuthType;           // which token to use — defaults to current active type
+  retryOnUnauthorized?: boolean;
+};
+
+// ── Main request function ─────────────────────────────────────────────────────
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = false, retryOnUnauthorized = true } = options;
+  const tokenType = options.authType ?? getAuthType();
   const headers: Record<string, string> = {};
 
   if (body !== undefined) {
@@ -79,7 +167,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (auth) {
-    const token = getAccessToken();
+    const token = getAccessToken(tokenType);
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -91,11 +179,19 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (response.status === 401 && auth && retryOnUnauthorized) {
-    const refreshed = await refreshAccessToken();
+  // Auto-refresh on 401
+  if (response.status === 401 && auth && retryOnUnauthorized && tokenType) {
+    const refreshed = await refreshAccessToken(tokenType);
     if (refreshed) {
       return apiRequest<T>(path, { ...options, retryOnUnauthorized: false });
     }
+    // Refresh also failed — clear tokens and signal logout needed
+    clearTokens(tokenType);
+    // Dispatch storage event so AuthContext can react
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: AUTH_TYPE_KEY,
+      newValue: null,
+    }));
   }
 
   if (!response.ok) {
