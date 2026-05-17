@@ -11,7 +11,6 @@ import { stageOneApi } from '@/lib/stage1-2-api';
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast();
-  const [tenantSlug, setTenantSlug] = useState(process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? '');
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -19,7 +18,7 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     try {
       setIsSubmitting(true);
-      await stageOneApi.forgotPassword({ tenantSlug, email });
+      await stageOneApi.forgotPassword({ email });
       toast({
         title: 'Reset email sent',
         description: 'If your account exists, you will receive a password reset email shortly.',
@@ -40,17 +39,20 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Forgot Password</CardTitle>
-          <CardDescription>Enter your tenant slug and email to receive a reset link.</CardDescription>
+          <CardDescription>Enter your email to receive a reset link.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" onSubmit={onSubmit}>
             <div className="grid gap-2">
-              <Label htmlFor="tenantSlug">Tenant Slug</Label>
-              <Input id="tenantSlug" value={tenantSlug} onChange={(e) => setTenantSlug(e.target.value)} required />
-            </div>
-            <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input 
+                id="email" 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                required 
+                placeholder="you@company.com"
+              />
             </div>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Sending...' : 'Send Reset Link'}</Button>
           </form>

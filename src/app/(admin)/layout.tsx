@@ -18,6 +18,9 @@ import {
   Building,
   Briefcase,
   FilePlus2,
+  Sparkles,
+  Inbox,
+  Mic,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo from '@/components/logo';
@@ -28,7 +31,21 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { cn } from '@/lib/utils';
 
 
-const adminRoutes = ['/admin/dashboard', '/admin/users', '/admin/recruiters', '/admin/candidates', '/admin/jd-creator', '/admin/job-postings'];
+const adminRoutes = [
+  '/admin/dashboard', 
+  '/admin/users', 
+  '/admin/recruiters', 
+  '/admin/candidates', 
+  '/admin/jd-creator', 
+  '/admin/job-postings',
+  '/interviews',
+  '/assessments',
+  '/inbox',
+  '/company-profile',
+  '/profile',
+  '/subscription',
+  '/team'
+];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, hasPermission, logout, loading } = useAuth();
@@ -53,10 +70,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    const isAdminRoute =
-      adminRoutes.some((r) => pathname.startsWith(r)) ||
-      pathname.startsWith('/company-profile') ||
-      pathname.startsWith('/profile');
+    const isAdminRoute = adminRoutes.some((r) => pathname.startsWith(r));
 
     if (!isAdminRoute) {
       router.push('/admin/dashboard');
@@ -79,6 +93,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
     { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
+    { href: '/interviews', label: 'Interviews', icon: Mic },
+    { href: '/assessments', label: 'Assessments', icon: Sparkles },
+    { href: '/inbox', label: 'Inbox', icon: Inbox },
     { href: '/admin/recruiters', label: 'Recruiters', icon: Users },
     { href: '/admin/candidates', label: 'Candidates', icon: Users },
   ];

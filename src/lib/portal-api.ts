@@ -87,18 +87,68 @@ export const portalApi = {
       authType: 'candidate',
     });
   },
+
+  getMyApplicationById: async (pipelineId: string) => {
+    return apiRequest<{
+      pipelineId: string;
+      job: { id: string; title: string; department?: string };
+      stage: string;
+      appliedAt: string;
+      updatedAt: string;
+    }>(`/portal/my-applications/${pipelineId}`, {
+      auth: true,
+      authType: 'candidate',
+    });
+  },
   uploadResume: async (file: File) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('resume', file);
     return apiRequest<{
       resumeUrl: string;
       resumeMimeType: string;
-      parsed: any;
-    }>('/portal/resume/parse', {
+      parsed?: any;
+    }>('/portal/upload-resume', {
       method: 'POST',
       auth: true,
       authType: 'candidate',
       body: formData,
+    });
+  },
+
+  getMessages: async () => {
+    return apiRequest<Array<{
+      id: string;
+      subject: string;
+      body: string;
+      status: string;
+      createdAt: string;
+    }>>('/portal/messages', {
+      auth: true,
+      authType: 'candidate',
+    });
+  },
+
+  markMessageRead: async (id: string) => {
+    return apiRequest<{ success: boolean }>(`/portal/messages/${id}/read`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'candidate',
+    });
+  },
+
+  archiveMessage: async (id: string) => {
+    return apiRequest<{ success: boolean }>(`/portal/messages/${id}/archive`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'candidate',
+    });
+  },
+
+  unarchiveMessage: async (id: string) => {
+    return apiRequest<{ success: boolean }>(`/portal/messages/${id}/unarchive`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'candidate',
     });
   },
 };

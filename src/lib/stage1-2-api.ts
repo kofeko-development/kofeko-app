@@ -35,7 +35,7 @@ export const stageOneApi = {
   }) => apiRequest('/users/invite', { method: 'POST', auth: true, body: payload }),
   acceptInvite: (payload: { token: string; password: string }) =>
     apiRequest('/auth/accept-invite', { method: 'POST', body: payload }),
-  forgotPassword: (payload: { tenantSlug: string; email: string }) =>
+  forgotPassword: (payload: { tenantSlug?: string; email: string }) =>
     apiRequest('/auth/forgot-password', { method: 'POST', body: payload }),
   resetPassword: (payload: { token: string; password: string }) =>
     apiRequest('/auth/reset-password', { method: 'POST', body: payload }),
@@ -320,6 +320,14 @@ export const pipelinesApi = {
 };
 
 export const evaluationsApi = {
+  list: (params?: { page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page != null) qs.set('page', String(params.page));
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return apiRequest<{ items: any[]; total: number }>(`/evaluations${q ? `?${q}` : ''}`, { auth: true });
+  },
+
   aiEvaluate: (payload: { jobId: string; candidateId: string; pipelineId?: string }) =>
     apiRequest<any>('/evaluations/ai-evaluate', { method: 'POST', auth: true, body: payload }),
 
@@ -333,4 +341,16 @@ export const evaluationsApi = {
 
   getRankings: (jobId: string) =>
     apiRequest<any[]>(`/jobs/${jobId}/rankings`, { auth: true }),
+};
+
+export const communicationApi = {
+  getNotifications: async () =>
+    apiRequest<{ items: any[]; total: number }>('/communication/notifications?page=1&limit=50', {
+      auth: true,
+    }),
+  markNotificationRead: async (id: string) =>
+    apiRequest<{ success: boolean }>(`/communication/notifications/${id}/read`, {
+      method: 'PATCH',
+      auth: true,
+    }),
 };

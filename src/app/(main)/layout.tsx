@@ -93,12 +93,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             return;
         }
 
-        // Operator/admin → redirect to admin layout
-        if (
-            hasPermission('rbac:manage') &&
-            !pathname.startsWith('/profile') &&
-            !pathname.startsWith('/company-profile')
-        ) {
+        // Operator/admin → redirect to admin layout, but spare shared pipeline pages
+        const isSharedPage = 
+            pathname.startsWith('/profile') ||
+            pathname.startsWith('/company-profile') ||
+            pathname.startsWith('/interviews') ||
+            pathname.startsWith('/assessments') ||
+            pathname.startsWith('/inbox') ||
+            pathname.startsWith('/subscription') ||
+            pathname.startsWith('/team');
+
+        if (hasPermission('rbac:manage') && !isSharedPage) {
             router.push('/admin/dashboard');
             return;
         }
@@ -121,10 +126,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         }
 
         if (
+            user.role !== 'candidate' &&
             matched.permissions.length > 0 &&
             !matched.permissions.some((permission) => hasPermission(permission))
         ) {
-            router.push(matched.redirectTo ?? (user.role === 'candidate' ? '/find-jobs' : '/dashboard'));
+            router.push(matched.redirectTo ?? '/dashboard');
         }
     }, [user, loading, router, pathname, hasPermission]);
 
@@ -150,6 +156,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
     const recruiterNav = allRecruiterNav.filter((item) => item.permissions.some((permission) => hasPermission(permission)));
 
+    const adminNav = [
+        { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
+        { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
+        { href: '/interviews', label: 'Interviews', icon: Mic },
+        { href: '/assessments', label: 'Assessments', icon: Sparkles },
+        { href: '/inbox', label: 'Inbox', icon: Inbox },
+        { href: '/admin/recruiters', label: 'Recruiters', icon: Users },
+        { href: '/admin/candidates', label: 'Candidates', icon: Users },
+    ];
+
     const candidateNavLinks = [
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/find-jobs', label: 'Find Jobs', icon: Search },
@@ -172,6 +189,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <Logo width={120} height={40} />
             </div>
             <div className="flex items-center gap-4">
+                {hasPermission('rbac:manage') && (
+                    <Button variant="outline" size="sm" onClick={() => router.push('/admin/dashboard')}>
+                        Admin Panel
+                    </Button>
+                )}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
@@ -343,7 +365,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 <SidebarRail />
                                 <SidebarContent>
                                     <SidebarMenu>
-                                        {recruiterNav.map((item) => (
+                                        {(hasPermission('rbac:manage') ? adminNav : recruiterNav).map((item) => (
                                             <SidebarMenuItem key={item.href}>
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
@@ -351,7 +373,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                                             href={item.href}
                                                             className={cn(
                                                                 'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
-                                                                pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard') && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                                                                pathname.startsWith(item.href) && 
+                                                                (item.href !== '/dashboard' || pathname === '/dashboard') && 
+                                                                (item.href !== '/admin/dashboard' || pathname === '/admin/dashboard') && 
+                                                                'bg-sidebar-accent text-sidebar-accent-foreground',
                                                                 "group-data-[state=collapsed]:justify-center"
                                                             )}
                                                         >

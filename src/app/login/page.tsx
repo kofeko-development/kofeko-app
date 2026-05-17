@@ -61,9 +61,9 @@ export default function LoginPage() {
         if (error.errorCode === 'APPROVAL_PENDING') {
           toast({
             title: 'Registration Pending',
-            description: 'Your company registration is awaiting approval. You will receive an email when approved.',
-            variant: 'destructive',
+            description: 'Redirecting to your application tracking status page...',
           });
+          router.push('/signup-success?status=pending');
           return;
         }
 
@@ -71,9 +71,10 @@ export default function LoginPage() {
         if (error.errorCode === 'APPROVAL_REJECTED') {
           toast({
             title: 'Registration Not Approved',
-            description: 'Your company registration was not approved. Contact support@kofeko.ai.',
+            description: 'Redirecting to your application tracking status page...',
             variant: 'destructive',
           });
+          router.push('/signup-success?status=rejected');
           return;
         }
 

@@ -56,6 +56,7 @@ export default function MyApplicationsPage() {
                     <TableHeader>
                     <TableRow>
                         <TableHead className="pl-6">Job Title</TableHead>
+                        <TableHead>Company</TableHead>
                         <TableHead>Department</TableHead>
                         <TableHead>Date Applied</TableHead>
                         <TableHead>Status</TableHead>
@@ -65,20 +66,21 @@ export default function MyApplicationsPage() {
                     <TableBody>
                       {isLoading ? (
                           <TableRow>
-                              <TableCell colSpan={5} className="h-24 text-center">
+                              <TableCell colSpan={6} className="h-24 text-center">
                                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                               </TableCell>
                           </TableRow>
                       ) : applications.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                            No applications yet. Go to <Link className="underline" href="/portal/jobs">Find Jobs</Link> to apply.
+                            <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                            No applications yet. Go to <Link className="underline" href="/find-jobs">Find Jobs</Link> to apply.
                             </TableCell>
                         </TableRow>
                       ) : (
                           applications.map((app) => (
                               <TableRow key={app.pipelineId}>
                                   <TableCell className="font-medium pl-6">{app.job.title}</TableCell>
+                                  <TableCell className="font-medium text-muted-foreground">{app.job.companyName || app.job.company || app.job.tenant?.name || 'Company'}</TableCell>
                                   <TableCell className="capitalize">{app.job.department || 'General'}</TableCell>
                                   <TableCell>{new Date(app.appliedAt).toLocaleDateString()}</TableCell>
                                   <TableCell>
@@ -88,7 +90,7 @@ export default function MyApplicationsPage() {
                                   </TableCell>
                                   <TableCell className="text-right pr-6">
                                       <Button asChild variant="outline" size="sm">
-                                          <Link href={`/portal/my-applications/${app.pipelineId}`}>
+                                          <Link href={`/my-applications/${app.pipelineId}`}>
                                               View Details
                                               <ArrowUpRight className="ml-2 h-4 w-4" />
                                           </Link>

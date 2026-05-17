@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { COMPANY_SIZE_OPTIONS } from '@/lib/company-size';
 import dynamic from 'next/dynamic';
 import { buildE164Phone } from '@/lib/phone-e164';
-import { apiRequest } from '@/lib/api-client';
+import { apiRequest, getAccessToken } from '@/lib/api-client';
 import Script from 'next/script';
 import { Country } from 'country-state-city';
 
@@ -338,7 +338,7 @@ export default function ProfilePage() {
       const formData = new FormData();
       formData.append('resume', file);
 
-      const token = localStorage.getItem('kofeko_access_token');
+      const token = getAccessToken('candidate');
       const res = await fetch(
         (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1') + '/portal/parse-resume',
         {
@@ -453,7 +453,7 @@ export default function ProfilePage() {
                 education,
                 projects,
                 hobbies,
-                linkedinUrl: user.linkedinProfileUrl, // Keeping existing if not changed
+                linkedinUrl: user.linkedinProfileUrl || undefined, // Keeping existing if not changed
               },
             });
 

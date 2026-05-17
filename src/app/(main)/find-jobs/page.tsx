@@ -19,16 +19,23 @@ export default function FindJobsPage() {
     const [locationFilter, setLocationFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
     const [jobs, setJobs] = useState<PortalJobListItem[]>([]);
+    const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
         let cancelled = false;
         setIsLoading(true);
-        portalApi
-            .listAllJobs({ limit: 100 })
-            .then((res) => {
-                if (!cancelled) setJobs(res.items ?? []);
+        Promise.all([
+            portalApi.listAllJobs({ limit: 100 }),
+            portalApi.getMyApplications({ limit: 100 }).catch(() => ({ items: [] }))
+        ])
+            .then(([jobsRes, appsRes]) => {
+                if (!cancelled) {
+                    setJobs(jobsRes.items ?? []);
+                    const appliedIds = new Set((appsRes.items ?? []).map((item) => item.job.id));
+                    setAppliedJobIds(appliedIds);
+                }
             })
             .catch((err) => {
                 if (!cancelled) {
@@ -144,11 +151,17 @@ export default function FindJobsPage() {
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.description}</p>
                             </div>
-                            <Button asChild className="shrink-0">
-                                <Link href={`/open-positions/${job.id}`}>
-                                View & Apply <ArrowUpRight className="ml-2 size-4" />
-                                </Link>
-                            </Button>
+                            {appliedJobIds.has(job.id) ? (
+                                <Button disabled className="shrink-0 bg-muted-foreground/30 text-muted-foreground hover:bg-muted-foreground/30 border-transparent cursor-not-allowed">
+                                    Already Applied
+                                </Button>
+                            ) : (
+                                <Button asChild className="shrink-0">
+                                    <Link href={`/open-positions/${job.id}`}>
+                                    View & Apply <ArrowUpRight className="ml-2 size-4" />
+                                    </Link>
+                                </Button>
+                            )}
                         </CardContent>
                     </Card>
                 )) : (
