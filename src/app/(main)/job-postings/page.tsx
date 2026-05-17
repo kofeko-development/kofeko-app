@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -55,6 +62,7 @@ function mapApiJobToRow(j: CreatedJob): Job {
       ? weights.map((w) => ({
         skill: String(w.skill ?? '').trim(),
         weight: Math.min(10, Math.max(0, Math.round(Number(w.weight)))),
+        yearsOfExperience: w.yearsOfExperience != null ? Number(w.yearsOfExperience) : undefined,
       }))
       : undefined;
 
@@ -71,15 +79,18 @@ function mapApiJobToRow(j: CreatedJob): Job {
     backendStatus: backend ?? undefined,
     recruiterId: '',
     applicantCount: j._count?.applications || 0,
-    skillWeights: skillWeights?.filter((s) => s.skill.length > 0).map(s => ({
-      ...s,
-      yearsOfExperience: s.yearsOfExperience ?? 0
-    })),
+    skillWeights: skillWeights?.filter((s) => s.skill.length > 0),
+    employmentType: j.employmentType ?? '',
   };
 }
 
 export default function JobPostingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith('/admin');
+  const routePrefix = isAdmin ? '/admin' : '';
+  const editId = searchParams.get('edit');
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -162,7 +173,7 @@ export default function JobPostingsPage() {
     return j.status === 'draft';
   });
 
-  const handleOpenDialog = (job: Job | null) => {
+  const handleOpenDialog = useCallback((job: Job | null) => {
     if (!job) {
       setEditingJob(null);
       setIsManualDialogOpen(true);
@@ -186,7 +197,17 @@ export default function JobPostingsPage() {
         setLoadingJobDetail(false);
       }
     })();
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (editId && jobs.length > 0) {
+      const targetJob = jobs.find((j) => j.id === editId);
+      if (targetJob) {
+        window.history.replaceState(null, '', '/job-postings');
+        handleOpenDialog(targetJob);
+      }
+    }
+  }, [editId, jobs, handleOpenDialog]);
 
   const handleCloseDialog = (open?: boolean) => {
     if (open === true) return;
@@ -411,7 +432,7 @@ export default function JobPostingsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-              <DropdownMenuItem onSelect={() => router.push('/jd-builder')}>
+              <DropdownMenuItem onSelect={() => router.push(isAdmin ? '/admin/jd-creator' : '/jd-builder')}>
                 <Bot className="mr-2 h-4 w-4" /> Use AI Assistant
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => handleOpenDialog(null)}>
@@ -492,7 +513,7 @@ export default function JobPostingsPage() {
                       <TableCell className="text-right">
                         {job.status === 'open' ? (
                           <Button asChild variant="outline" size="sm">
-                            <Link href={`/job-postings/${job.id}`}>
+                            <Link href={`${routePrefix}/job-postings/${job.id}`}>
                               View Applicants
                               <ArrowUpRight className="ml-2 h-4 w-4" />
                             </Link>

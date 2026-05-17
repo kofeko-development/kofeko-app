@@ -28,7 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { cn } from '@/lib/utils';
 
 
-const adminRoutes = ['/admin/dashboard', '/admin/users', '/admin/recruiters', '/admin/candidates', '/admin/jd-creator'];
+const adminRoutes = ['/admin/dashboard', '/admin/users', '/admin/recruiters', '/admin/candidates', '/admin/jd-creator', '/admin/job-postings'];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, hasPermission, logout, loading } = useAuth();
@@ -78,7 +78,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
-    { href: '/admin/recruiters', label: 'Recruiters', icon: Briefcase },
+    { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
+    { href: '/admin/recruiters', label: 'Recruiters', icon: Users },
     { href: '/admin/candidates', label: 'Candidates', icon: Users },
   ];
 
@@ -91,79 +92,79 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   const AdminHeader = () => (
-     <header className="flex h-16 items-center justify-between border-b bg-card px-6 shrink-0">
-        <div className='flex items-center gap-4'>
-            <SidebarTrigger />
-            <Logo variant="express" />
-        </div>
-        <div className="flex items-center gap-4">
-            <span className="text-sm font-semibold text-muted-foreground border-r pr-4">Admin Panel</span>
-            <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
-                <Avatar className="h-10 w-10">
-                    <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                </Avatar>
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user.name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                    {user.email}
-                    </p>
-                </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/profile')}>
-                <Building className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={logout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
+    <header className="flex h-16 items-center justify-between border-b bg-card px-6 shrink-0">
+      <div className='flex items-center gap-4'>
+        <SidebarTrigger />
+        <Logo variant="express" />
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-semibold text-muted-foreground border-r pr-4">Admin Panel</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{user.name}</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {user.email}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push('/profile')}>
+              <Building className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={logout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 
-    return (
-        <SidebarProvider>
-        <div className="flex h-screen flex-col bg-muted/40">
-            <AdminHeader />
-            <div className="flex flex-1 overflow-hidden">
-            <Sidebar collapsible="icon">
-                <SidebarRail />
-                <SidebarContent>
-                    <SidebarMenu>
-                    {navItems.map((item) => (
-                        <SidebarMenuItem key={item.href}>
-                             <Link
-                                href={item.href}
-                                className={cn(
-                                    'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
-                                    pathname.startsWith(item.href) && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                                    "group-data-[state=collapsed]:justify-center"
-                                )}
-                            >
-                                    <item.icon className="shrink-0" />
-                                    <span className="group-data-[state=collapsed]:hidden">
-                                    {item.label}
-                                    </span>
-                            </Link>
-                        </SidebarMenuItem>
-                    ))}
-                    </SidebarMenu>
-                </SidebarContent>
-            </Sidebar>
-            <main className="flex-1 p-6 overflow-auto">
-                {children}
-            </main>
-            </div>
+  return (
+    <SidebarProvider>
+      <div className="flex h-screen flex-col bg-muted/40">
+        <AdminHeader />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar collapsible="icon">
+            <SidebarRail />
+            <SidebarContent>
+              <SidebarMenu>
+                {navItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
+                        pathname.startsWith(item.href) && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                        "group-data-[state=collapsed]:justify-center"
+                      )}
+                    >
+                      <item.icon className="shrink-0" />
+                      <span className="group-data-[state=collapsed]:hidden">
+                        {item.label}
+                      </span>
+                    </Link>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarContent>
+          </Sidebar>
+          <main className="flex-1 p-6 overflow-auto">
+            {children}
+          </main>
         </div>
-        </SidebarProvider>
-    );
+      </div>
+    </SidebarProvider>
+  );
 }

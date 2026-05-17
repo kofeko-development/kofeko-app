@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ArrowUpRight, Briefcase, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,6 +32,9 @@ export function CompanyPostedJobsDashboard({
   jdCreateHref = '/jd-builder',
 }: CompanyPostedJobsDashboardProps) {
   const { toast } = useToast();
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith('/admin');
+  const routePrefix = isAdmin ? '/admin' : '';
   const [jobs, setJobs] = useState<CreatedJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -90,7 +94,7 @@ export function CompanyPostedJobsDashboard({
             </CardDescription>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href="/job-postings">
+            <Link href={`${routePrefix}/job-postings`}>
               Manage jobs
               <ArrowUpRight className="ml-2 h-4 w-4" />
             </Link>
@@ -125,7 +129,7 @@ export function CompanyPostedJobsDashboard({
                       JD Creator
                     </Link>{' '}
                     or{' '}
-                    <Link className="underline font-medium text-foreground" href="/job-postings">
+                    <Link className="underline font-medium text-foreground" href={`${routePrefix}/job-postings`}>
                       Job Postings
                     </Link>{' '}
                     to publish a role.
@@ -142,7 +146,7 @@ export function CompanyPostedJobsDashboard({
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="outline" size="sm">
-                        <Link href={`/job-postings/${job.id}`}>
+                        <Link href={`${routePrefix}/job-postings/${job.id}`}>
                           View
                           <ArrowUpRight className="ml-2 h-4 w-4" />
                         </Link>

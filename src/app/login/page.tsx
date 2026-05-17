@@ -49,7 +49,6 @@ export default function LoginPage() {
       if (error instanceof ApiError) {
         // 409 — multiple accounts: show tenant slug field
         if (error.status === 409 || error.errorCode === 'CONFLICT') {
-          setSlugRequired(true);
           toast({
             title: 'Multiple Company Accounts',
             description: 'Multiple accounts found for this email. Please enter your company slug to continue.',

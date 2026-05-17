@@ -63,6 +63,7 @@ export interface Job {
   skillWeights?: JobSkillWeight[];
   experienceMin?: number;
   experienceMax?: number;
+  employmentType?: string;
 }
 
 export type InterviewStatus = 'scheduled' | 'completed' | 'cancelled';

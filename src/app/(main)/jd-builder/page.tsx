@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import sanitizeHtml from 'sanitize-html';
 import { z } from 'zod';
-import { aiApi, jobsApi } from '@/lib/stage1-2-api';
+import { aiApi, jobsApi, type SkillWeight } from '@/lib/stage1-2-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -135,7 +135,7 @@ export default function JdBuilderPage() {
 
   const loadDraft = (job: any) => {
     const isDirty = jobTitle.trim() !== '' || requirements.trim() !== '';
-    
+
     if (editingId === job.id) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -282,248 +282,248 @@ export default function JdBuilderPage() {
     }
   };
 
-    return (
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold font-headline">JD Builder</h1>
-              <p className="text-muted-foreground">{editingId ? 'Editing existing draft' : 'Enter the role details and let Atlas craft the perfect job description.'}</p>
-            </div>
-            {editingId && (
-              <Button variant="outline" size="sm" onClick={() => { setEditingId(null); setJobTitle(''); setRequirements(''); setSkillWeights([]); }}>
-                Create New Instead
-              </Button>
-            )}
+  return (
+    <div className="grid lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold font-headline">JD Builder</h1>
+            <p className="text-muted-foreground">{editingId ? 'Editing existing draft' : 'Enter the role details and let Atlas craft the perfect job description.'}</p>
           </div>
+          {editingId && (
+            <Button variant="outline" size="sm" onClick={() => { setEditingId(null); setJobTitle(''); setRequirements(''); setSkillWeights([]); }}>
+              Create New Instead
+            </Button>
+          )}
+        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Create New Job Description</CardTitle>
-              <CardDescription>Enter the role details and let Atlas craft the perfect job description.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-6">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="job-title">Job Title</Label>
-                    <Input
-                      id="job-title"
-                      placeholder="e.g., Senior Frontend Developer"
-                      value={jobTitle}
-                      onChange={(e) => setJobTitle(e.target.value)}
-                      disabled={isLoading}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="job-type">Job Type</Label>
-                    <Select value={jobType} onValueChange={setJobType}>
-                      <SelectTrigger id="job-type">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Remote">Remote</SelectItem>
-                        <SelectItem value="On-site">On-site</SelectItem>
-                        <SelectItem value="Hybrid">Hybrid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="employment-type">Employment Type</Label>
-                    <Select value={employmentType} onValueChange={setEmploymentType}>
-                      <SelectTrigger id="employment-type">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Full-time">Full-time</SelectItem>
-                        <SelectItem value="Part-time">Part-time</SelectItem>
-                        <SelectItem value="Contract">Contract</SelectItem>
-                        <SelectItem value="Internship">Internship</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <Separator className="my-2" />
-
+        <Card>
+          <CardHeader>
+            <CardTitle>Create New Job Description</CardTitle>
+            <CardDescription>Enter the role details and let Atlas craft the perfect job description.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-6">
+              <div className="grid gap-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="requirements">Key Requirements & Skills</Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-0 text-[11px] text-primary hover:text-primary/80"
-                      onClick={handleGenerateWithAI}
-                      disabled={isGenerating || isLoading}
-                    >
-                      {isGenerating ? (
-                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      ) : (
-                        <Sparkles className="mr-1 h-3 w-3" />
-                      )}
-                      {requirements.length > 0 ? 'Enhance with AI' : 'Generate with AI'}
-                    </Button>
-                  </div>
-                  <Textarea
-                    id="requirements"
-                    placeholder="e.g., 5+ years of React experience, proficient in TypeScript, strong understanding of UI/UX principles..."
-                    value={requirements}
-                    onChange={(e) => setRequirements(e.target.value)}
-                    className="min-h-[150px]"
-                    disabled={isLoading || isGenerating}
+                  <Label htmlFor="job-title">Job Title</Label>
+                  <Input
+                    id="job-title"
+                    placeholder="e.g., Senior Frontend Developer"
+                    value={jobTitle}
+                    onChange={(e) => setJobTitle(e.target.value)}
+                    disabled={isLoading}
                     required
                   />
                 </div>
-
-                <Separator className="my-2" />
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <h3 className="text-sm font-semibold">Skill priorities</h3>
-                      <p className="text-[11px] text-muted-foreground">
-                        Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      onClick={addSkillRow}
-                      className="h-auto p-0 text-primary font-semibold"
-                    >
-                      Add skill
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {skillWeights.map((row, index) => (
-                      <div key={index} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                        <Input
-                          className="flex-1 h-10"
-                          placeholder="e.g. React"
-                          value={row.skill}
-                          onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
-                        />
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground font-medium">Weight</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={10}
-                            className="w-14 h-10 text-center"
-                            value={row.weight}
-                            onChange={(e) =>
-                              updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground font-medium">Years</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            className="w-14 h-10 text-center"
-                            value={row.yearsOfExperience || ''}
-                            onChange={(e) =>
-                              updateSkillRow(index, { yearsOfExperience: Number.parseInt(e.target.value, 10) || 0 })
-                            }
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeSkillRow(index)}
-                          className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    {skillWeights.length === 0 && (
-                      <p className="text-center py-2 text-xs text-muted-foreground border border-dashed rounded-md">
-                        No skill priorities added. Add skills to help AI matching.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 h-11"
-                    disabled={isSaving || isGenerating}
-                    onClick={() => void handleFinalSave('draft')}
-                  >
-                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save as Draft
-                  </Button>
-                  <Button
-                    type="button"
-                    className="flex-1 h-11"
-                    disabled={isSaving || isGenerating}
-                    onClick={() => void handleFinalSave('open')}
-                  >
-                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                    Post Job
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Saved Drafts
-              </CardTitle>
-              <CardDescription>Click to continue editing</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y">
-                {drafts.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-muted-foreground">
-                    No drafts found
-                  </div>
-                ) : (
-                  drafts.map((job) => (
-                    <button
-                      key={job.id}
-                      onClick={() => loadDraft(job)}
-                      className="w-full text-left p-4 hover:bg-muted/50 transition-colors group"
-                    >
-                      <div className="font-medium text-sm group-hover:text-primary line-clamp-1">{job.title}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {new Date(job.updatedAt).toLocaleDateString()}
-                      </div>
-                    </button>
-                  ))
-                )}
               </div>
-            </CardContent>
-          </Card>
 
-          <Card className="bg-primary/5 border-primary/10">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Quick Tip</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">
-                Use the AI button next to "Key Requirements" to perfect your JD before posting. AI will also suggest the best skill weights for you.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="job-type">Job Type</Label>
+                  <Select value={jobType} onValueChange={setJobType}>
+                    <SelectTrigger id="job-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Remote">Remote</SelectItem>
+                      <SelectItem value="On-site">On-site</SelectItem>
+                      <SelectItem value="Hybrid">Hybrid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employment-type">Employment Type</Label>
+                  <Select value={employmentType} onValueChange={setEmploymentType}>
+                    <SelectTrigger id="employment-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Full-time">Full-time</SelectItem>
+                      <SelectItem value="Part-time">Part-time</SelectItem>
+                      <SelectItem value="Contract">Contract</SelectItem>
+                      <SelectItem value="Internship">Internship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Separator className="my-2" />
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="requirements">Key Requirements & Skills</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 text-[11px] text-primary hover:text-primary/80"
+                    onClick={handleGenerateWithAI}
+                    disabled={isGenerating || isLoading}
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-1 h-3 w-3" />
+                    )}
+                    {requirements.length > 0 ? 'Enhance with AI' : 'Generate with AI'}
+                  </Button>
+                </div>
+                <Textarea
+                  id="requirements"
+                  placeholder="e.g., 5+ years of React experience, proficient in TypeScript, strong understanding of UI/UX principles..."
+                  value={requirements}
+                  onChange={(e) => setRequirements(e.target.value)}
+                  className="min-h-[150px]"
+                  disabled={isLoading || isGenerating}
+                  required
+                />
+              </div>
+
+              <Separator className="my-2" />
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-semibold">Skill priorities</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    onClick={addSkillRow}
+                    className="h-auto p-0 text-primary font-semibold"
+                  >
+                    Add skill
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {skillWeights.map((row, index) => (
+                    <div key={index} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <Input
+                        className="flex-1 h-10"
+                        placeholder="e.g. React"
+                        value={row.skill}
+                        onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-medium">Weight</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10}
+                          className="w-14 h-10 text-center"
+                          value={row.weight}
+                          onChange={(e) =>
+                            updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-medium">Years</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          className="w-14 h-10 text-center"
+                          value={row.yearsOfExperience || ''}
+                          onChange={(e) =>
+                            updateSkillRow(index, { yearsOfExperience: Number.parseInt(e.target.value, 10) || 0 })
+                          }
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeSkillRow(index)}
+                        className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {skillWeights.length === 0 && (
+                    <p className="text-center py-2 text-xs text-muted-foreground border border-dashed rounded-md">
+                      No skill priorities added. Add skills to help AI matching.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 h-11"
+                  disabled={isSaving || isGenerating}
+                  onClick={() => void handleFinalSave('draft')}
+                >
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Save as Draft
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 h-11"
+                  disabled={isSaving || isGenerating}
+                  onClick={() => void handleFinalSave('open')}
+                >
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  Post Job
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Saved Drafts
+            </CardTitle>
+            <CardDescription>Click to continue editing</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {drafts.length === 0 ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  No drafts found
+                </div>
+              ) : (
+                drafts.map((job) => (
+                  <button
+                    key={job.id}
+                    onClick={() => loadDraft(job)}
+                    className="w-full text-left p-4 hover:bg-muted/50 transition-colors group"
+                  >
+                    <div className="font-medium text-sm group-hover:text-primary line-clamp-1">{job.title}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {new Date(job.updatedAt).toLocaleDateString()}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-primary/5 border-primary/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Quick Tip</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Use the AI button next to "Key Requirements" to perfect your JD before posting. AI will also suggest the best skill weights for you.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -534,13 +534,13 @@ export default function JdBuilderPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Editing</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => pendingDraft && executeLoadDraft(pendingDraft)}
             >
               Discard & Load Draft
             </AlertDialogAction>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={async () => {
                 await handleFinalSave('draft');
                 if (pendingDraft) executeLoadDraft(pendingDraft);

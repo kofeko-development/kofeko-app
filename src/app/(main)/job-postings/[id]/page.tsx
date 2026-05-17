@@ -2,7 +2,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, usePathname } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -12,22 +12,22 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,7 +48,7 @@ import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '
 const getInitials = (name: string) => {
     const names = name.split(' ');
     if (names.length > 1) {
-      return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`;
+        return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`;
     }
     return names[0].charAt(0);
 }
@@ -76,7 +76,7 @@ const statusClassMap: { [key: string]: string } = {
 };
 
 function mapPipelineToApplicant(p: ApiPipeline): Applicant {
-    const evaluation = p.evaluation || (p.evaluations && p.evaluations[0]);
+    const evaluation = (p as any).evaluation || (p.evaluations && p.evaluations[0]);
     const rawHi = evaluation?.hiringIntelligence;
     const hi = typeof rawHi === 'string' ? JSON.parse(rawHi) : rawHi;
 
@@ -92,7 +92,7 @@ function mapPipelineToApplicant(p: ApiPipeline): Applicant {
         phone: p.candidate.phoneNumber || undefined,
         linkedin: p.candidate.linkedinUrl || undefined,
         resumeUrl: p.candidate.resumeUrl || undefined,
-        keySkills: (hi?.keySkills || (evaluation?.skillMatches as any[]) 
+        keySkills: (hi?.keySkills || (evaluation?.skillMatches as any[])
             ? (evaluation?.skillMatches as any[])?.filter((s: any) => s.matched).map((s: any) => s.skill)
             : p.candidate.skills) || [],
         experienceSummary: hi?.experienceSummary?.narrative || evaluation?.roleFitNotes || undefined,
@@ -125,10 +125,13 @@ type Feedback = {
 export default function JobApplicantsPage() {
     const router = useRouter();
     const params = useParams();
+    const pathname = usePathname();
+    const isAdmin = pathname.startsWith('/admin');
+    const routePrefix = isAdmin ? '/admin' : '';
     const id = params.id as string;
     const { user } = useAuth();
     const { toast } = useToast();
-    
+
     const [job, setJob] = useState<CreatedJob | null>(null);
     const [applicants, setApplicants] = useState<Applicant[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -146,9 +149,9 @@ export default function JobApplicantsPage() {
     const [isGrouped, setIsGrouped] = useState(false);
     const [sortBy, setSortBy] = useState('appliedAt-desc');
     const [dateFilter, setDateFilter] = useState('all');
-    
+
     const [interviewQuestions, setInterviewQuestions] = useState<string[]>([]);
-    
+
     const handleRegenerateQuestions = useCallback(() => {
         const shuffled = [...ALL_SUGGESTED_QUESTIONS].sort(() => 0.5 - Math.random());
         setInterviewQuestions(shuffled.slice(0, 3));
@@ -201,7 +204,7 @@ export default function JobApplicantsPage() {
         }
     }, [applicants, selectedApplicant]);
 
-    const canManageJob = user?.companyRole === 'HR Admin';
+    const canManageJob = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
     const canChangeStatus = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
 
     const filteredApplicants = useMemo(() => {
@@ -211,14 +214,14 @@ export default function JobApplicantsPage() {
                 app.name.toLowerCase().includes(searchLower) ||
                 app.email.toLowerCase().includes(searchLower) ||
                 app.summary.toLowerCase().includes(searchLower);
-            
+
             const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
             const matchesScore = app.matchScore >= scoreThreshold;
 
             const appDate = new Date(app.appliedAt);
             const today = new Date();
             const last7Days = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-            
+
             let matchesDate = true;
             if (dateFilter === 'today') {
                 matchesDate = appDate.toDateString() === today.toDateString();
@@ -252,7 +255,7 @@ export default function JobApplicantsPage() {
 
     const groupedApplicants = useMemo(() => {
         if (!isGrouped) return null;
-        
+
         const grouped = filteredApplicants.reduce((acc, app) => {
             const { status } = app;
             if (!acc[status]) {
@@ -261,7 +264,7 @@ export default function JobApplicantsPage() {
             acc[status].push(app);
             return acc;
         }, {} as Record<string, Applicant[]>);
-        
+
         return grouped;
 
     }, [filteredApplicants, isGrouped]);
@@ -282,11 +285,11 @@ export default function JobApplicantsPage() {
 
     const handleConfirmStageChange = async () => {
         if (!selectedApplicant || !selectedStage) return;
-        
+
         try {
-            await pipelinesApi.advance(selectedApplicant.id, { 
-                stage: selectedStage, 
-                note: stageChangeNote.trim() || undefined 
+            await pipelinesApi.advance(selectedApplicant.id, {
+                stage: selectedStage,
+                note: stageChangeNote.trim() || undefined
             });
             toast({
                 title: 'Stage Updated',
@@ -296,7 +299,7 @@ export default function JobApplicantsPage() {
             setStageChangeNote('');
             void loadData();
         } catch (error) {
-             toast({
+            toast({
                 title: 'Action Failed',
                 description: error instanceof Error ? error.message : 'Please try again.',
                 variant: 'destructive',
@@ -309,10 +312,10 @@ export default function JobApplicantsPage() {
         setIsEvaluating(true);
         try {
             const pipe = applicants.find(a => a.id === pipelineId);
-            await evaluationsApi.aiEvaluate({ 
-                jobId: id, 
-                candidateId: pipe?.candidateId || '', 
-                pipelineId 
+            await evaluationsApi.aiEvaluate({
+                jobId: id,
+                candidateId: pipe?.candidateId || '',
+                pipelineId
             });
             toast({
                 title: 'Evaluation Complete',
@@ -330,7 +333,7 @@ export default function JobApplicantsPage() {
         }
     };
 
-    
+
     const handleStageChangeDialogClose = (open: boolean) => {
         if (!open) {
             // This timeout ensures the dialog's closing animation completes
@@ -338,10 +341,10 @@ export default function JobApplicantsPage() {
             setTimeout(() => {
                 const justChangedStage = selectedStage;
                 setStageChangeNote('');
-                
+
                 // If the profile dialog is open, update its state, otherwise clear the selection
                 if (isProfileDialogOpen && selectedApplicant && justChangedStage) {
-                     setSelectedApplicant(prev => prev ? { ...prev, status: justChangedStage as Applicant['status'] } : null);
+                    setSelectedApplicant(prev => prev ? { ...prev, status: justChangedStage as Applicant['status'] } : null);
                 } else {
                     setSelectedApplicant(null);
                 }
@@ -357,7 +360,7 @@ export default function JobApplicantsPage() {
         setSelectedApplicant(applicant);
         setIsProfileDialogOpen(true);
     }
-    
+
     const handleAddNote = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newNote.trim() || !selectedApplicant) return;
@@ -389,7 +392,7 @@ export default function JobApplicantsPage() {
             description: 'The job link has been copied to your clipboard.',
         });
     };
-    
+
     const handlePostToLinkedIn = async () => {
         if (!user?.linkedinProfileUrl) {
             toast({
@@ -411,12 +414,12 @@ export default function JobApplicantsPage() {
     };
 
     const toggleCollapsible = (stage: string) => {
-        setOpenCollapsibles(prev => 
+        setOpenCollapsibles(prev =>
             prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage]
         );
     }
 
-     const handleSelectForComparison = (applicantId: string, isSelected: boolean) => {
+    const handleSelectForComparison = (applicantId: string, isSelected: boolean) => {
         if (isSelected) {
             setSelectedForComparison(prev => [...prev, applicantId]);
         } else {
@@ -451,6 +454,17 @@ export default function JobApplicantsPage() {
     }, [selectedApplicant]);
 
 
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                    <p className="text-muted-foreground mt-2">Loading job details...</p>
+                </div>
+            </div>
+        );
+    }
+
     if (!job) {
         return (
             <div className="flex items-center justify-center h-full">
@@ -458,7 +472,7 @@ export default function JobApplicantsPage() {
                     <h2 className="text-2xl font-bold">Job not found</h2>
                     <p className="text-muted-foreground">The job posting you are looking for does not exist.</p>
                     <Button asChild className="mt-4">
-                        <Link href="/job-postings">Go to Job Postings</Link>
+                        <Link href={`${routePrefix}/job-postings`}>Go to Job Postings</Link>
                     </Button>
                 </div>
             </div>
@@ -490,17 +504,17 @@ export default function JobApplicantsPage() {
                 <TableCell>
                     <div className="flex items-center gap-2">
                         <span className="font-bold text-lg">{applicant.matchScore}%</span>
-                        <Progress 
-                            value={applicant.matchScore} 
-                            className="h-2 w-[100px] bg-slate-200" 
-                            indicatorClassName={getScoreColor(applicant.matchScore)} 
+                        <Progress
+                            value={applicant.matchScore}
+                            className="h-2 w-[100px] bg-slate-200"
+                            indicatorClassName={getScoreColor(applicant.matchScore)}
                         />
                     </div>
                 </TableCell>
-                 {!isGrouped && (
+                {!isGrouped && (
                     <TableCell>
-                        <Badge 
-                            variant={statusVariantMap[applicant.status] || 'secondary'} 
+                        <Badge
+                            variant={statusVariantMap[applicant.status] || 'secondary'}
                             className={`${statusClassMap[applicant.status]} capitalize hover:${statusClassMap[applicant.status]}`}
                         >
                             {applicant.status}
@@ -508,8 +522,8 @@ export default function JobApplicantsPage() {
                     </TableCell>
                 )}
                 <TableCell className='text-right'>
-                <div className='flex gap-2 justify-end'>
-                         <Button variant="outline" size="sm" onClick={() => openProfileDialog(applicant)}>
+                    <div className='flex gap-2 justify-end'>
+                        <Button variant="outline" size="sm" onClick={() => openProfileDialog(applicant)}>
                             <Eye className="mr-2 h-4 w-4" /> View Profile
                         </Button>
                         {canChangeStatus && (
@@ -529,7 +543,7 @@ export default function JobApplicantsPage() {
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         )}
-                </div>
+                    </div>
                 </TableCell>
             </TableRow>
             <TableRow className="group-hover:bg-transparent">
@@ -554,49 +568,49 @@ export default function JobApplicantsPage() {
                     </Button>
                     {canManageJob && (
                         <>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline">
-                                    Actions
-                                    <ChevronDown className="ml-2 h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                    <Link href={`/job-postings/${job.id}/edit`}>
-                                    <FileEdit className="mr-2 h-4 w-4" />
-                                    Edit Job
-                                    </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive focus:text-destructive">
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Close Job
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button>
-                                    <Share2 className="mr-2 h-4 w-4" />
-                                    Share
-                                    <ChevronDown className="ml-2 h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleShareJob}>
-                                    <Share2 className="mr-2 h-4 w-4" />
-                                    Copy Public Link
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handlePostToLinkedIn} disabled={isPostingToLinkedIn}>
-                                    {isPostingToLinkedIn ? (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <Linkedin className="mr-2 h-4 w-4" />
-                                    )}
-                                    {isPostingToLinkedIn ? 'Posting...' : 'Post to LinkedIn'}
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline">
+                                        Actions
+                                        <ChevronDown className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem asChild>
+                                        <Link href={`${routePrefix}/job-postings?edit=${job.id}`}>
+                                            <FileEdit className="mr-2 h-4 w-4" />
+                                            Edit Job
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Close Job
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button>
+                                        <Share2 className="mr-2 h-4 w-4" />
+                                        Share
+                                        <ChevronDown className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={handleShareJob}>
+                                        <Share2 className="mr-2 h-4 w-4" />
+                                        Copy Public Link
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handlePostToLinkedIn} disabled={isPostingToLinkedIn}>
+                                        {isPostingToLinkedIn ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Linkedin className="mr-2 h-4 w-4" />
+                                        )}
+                                        {isPostingToLinkedIn ? 'Posting...' : 'Post to LinkedIn'}
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </>
                     )}
                 </div>
@@ -608,16 +622,16 @@ export default function JobApplicantsPage() {
                         <Label htmlFor="search">Keyword Search</Label>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input 
+                            <Input
                                 id="search"
-                                placeholder="Filter by name, email, skill..." 
+                                placeholder="Filter by name, email, skill..."
                                 className="pl-10"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
-                     <div className="space-y-2">
+                    <div className="space-y-2">
                         <Label htmlFor="status">Status</Label>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
                             <SelectTrigger id='status'>
@@ -631,7 +645,7 @@ export default function JobApplicantsPage() {
                             </SelectContent>
                         </Select>
                     </div>
-                     <div className="space-y-2">
+                    <div className="space-y-2">
                         <Label htmlFor="date">Date Applied</Label>
                         <Select value={dateFilter} onValueChange={setDateFilter}>
                             <SelectTrigger id='date'>
@@ -672,7 +686,7 @@ export default function JobApplicantsPage() {
                             </SelectContent>
                         </Select>
                     </div>
-                     <div className="space-y-2">
+                    <div className="space-y-2">
                         <Label className="text-transparent select-none h-[18px] block">.</Label>
                         <div className="flex items-center h-10 space-x-2">
                             <Switch id="group-by-status" checked={isGrouped} onCheckedChange={setIsGrouped} />
@@ -699,49 +713,49 @@ export default function JobApplicantsPage() {
                     const isOpen = openCollapsibles.includes(stage);
 
                     return (
-                         <Collapsible key={stage} open={isOpen} onOpenChange={() => toggleCollapsible(stage)} asChild>
-                             <div className="border rounded-lg">
+                        <Collapsible key={stage} open={isOpen} onOpenChange={() => toggleCollapsible(stage)} asChild>
+                            <div className="border rounded-lg">
                                 <CollapsibleTrigger asChild>
                                     <div className="w-full p-4 flex items-center justify-between bg-card hover:bg-muted/50 rounded-t-lg cursor-pointer">
-                                         <div className='flex items-center gap-3'>
-                                             <Badge
-                                                 variant={statusVariantMap[stage] || 'secondary'}
-                                                 className={`${statusClassMap[stage]} capitalize text-base hover:${statusClassMap[stage]}`}
-                                             >
-                                                 {stage}
-                                             </Badge>
-                                             <span className='font-semibold'>{stageApplicants.length} Applicants</span>
-                                         </div>
-                                         <Button asChild variant="ghost" size="sm" className="p-1 h-auto">
+                                        <div className='flex items-center gap-3'>
+                                            <Badge
+                                                variant={statusVariantMap[stage] || 'secondary'}
+                                                className={`${statusClassMap[stage]} capitalize text-base hover:${statusClassMap[stage]}`}
+                                            >
+                                                {stage}
+                                            </Badge>
+                                            <span className='font-semibold'>{stageApplicants.length} Applicants</span>
+                                        </div>
+                                        <Button asChild variant="ghost" size="sm" className="p-1 h-auto">
                                             <div>
                                                 {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                                 <span className="sr-only">Toggle</span>
                                             </div>
-                                         </Button>
-                                     </div>
-                                 </CollapsibleTrigger>
-                                 <CollapsibleContent>
-                                     <Table className="min-w-[800px]">
-                                         <TableHeader>
-                                             <TableRow>
-                                                 <TableHead className="pl-4 w-12"></TableHead>
-                                                 <TableHead className='w-[60%] min-w-[300px]'>Candidate</TableHead>
-                                                 <TableHead>Match Score</TableHead>
-                                                 <TableHead className='text-right'>Actions</TableHead>
-                                             </TableRow>
-                                         </TableHeader>
-                                         {stageApplicants.map(renderApplicantRow)}
-                                     </Table>
-                                 </CollapsibleContent>
-                             </div>
-                         </Collapsible>
+                                        </Button>
+                                    </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                    <Table className="min-w-[800px]">
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="pl-4 w-12"></TableHead>
+                                                <TableHead className='w-[60%] min-w-[300px]'>Candidate</TableHead>
+                                                <TableHead>Match Score</TableHead>
+                                                <TableHead className='text-right'>Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        {stageApplicants.map(renderApplicantRow)}
+                                    </Table>
+                                </CollapsibleContent>
+                            </div>
+                        </Collapsible>
                     )
                 })}
 
                 {!isGrouped && (
-                     <Card>
+                    <Card>
                         <CardContent className="p-0 border-t">
-                             <Table className="min-w-[800px]">
+                            <Table className="min-w-[800px]">
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="pl-4 w-12">
@@ -761,7 +775,7 @@ export default function JobApplicantsPage() {
                                 </TableHeader>
                                 {filteredApplicants.map(renderApplicantRow)}
                             </Table>
-                             {filteredApplicants.length === 0 && (
+                            {filteredApplicants.length === 0 && (
                                 <TableBody>
                                     <TableRow>
                                         <TableCell colSpan={5} className="h-24 text-center">
@@ -771,9 +785,9 @@ export default function JobApplicantsPage() {
                                 </TableBody>
                             )}
                         </CardContent>
-                     </Card>
+                    </Card>
                 )}
-             </div>
+            </div>
 
 
             <AlertDialog open={isStageChangeDialogOpen} onOpenChange={handleStageChangeDialogClose}>
@@ -786,9 +800,9 @@ export default function JobApplicantsPage() {
                     </AlertDialogHeader>
                     <div className="py-4">
                         <Label htmlFor="stage-change-note" className="font-semibold">Add a note (optional)</Label>
-                        <Textarea 
-                            id="stage-change-note" 
-                            placeholder={`Reason for moving to ${selectedStage}...`} 
+                        <Textarea
+                            id="stage-change-note"
+                            placeholder={`Reason for moving to ${selectedStage}...`}
                             className="mt-2 min-h-[100px]"
                             value={stageChangeNote}
                             onChange={(e) => setStageChangeNote(e.target.value)}
@@ -800,298 +814,298 @@ export default function JobApplicantsPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-            
+
             <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                     {selectedApplicant && (
-                         <>
-                        <DialogHeader>
-                            <DialogTitle className="font-headline text-2xl">{selectedApplicant.name}</DialogTitle>
-                            <DialogDescription>Applying for {job.title}</DialogDescription>
-                        </DialogHeader>
-                        <div className="grid lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
-                            <div className="lg:col-span-1 space-y-6 flex flex-col">
-                                <Card className="flex flex-col">
-                                <CardContent className="pt-6 flex flex-col items-center text-center">
-                                    <Avatar className="h-24 w-24 mb-4">
-                                    <AvatarFallback className="font-medium">{getInitials(selectedApplicant.name)}</AvatarFallback>
-                                    </Avatar>
-                                    <Button className="mt-4 w-full">
-                                        <CalendarPlus className="mr-2 h-4 w-4"/>
-                                        Schedule Interview
-                                    </Button>
-                                    <Button 
-                                        variant="outline" 
-                                        className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50"
-                                        onClick={() => handleAIEvaluate(selectedApplicant.id)}
-                                        disabled={isEvaluating}
-                                    >
-                                        {isEvaluating ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Sparkles className="mr-2 h-4 w-4" />
-                                        )}
-                                        {selectedApplicant.matchScore > 0 ? 'Re-Evaluate with AI' : 'Evaluate with AI'}
-                                    </Button>
-                                </CardContent>
-                                <CardContent className="border-t pt-4">
-                                    <h3 className="font-semibold mb-2">Contact Information</h3>
-                                    <div className="space-y-2 text-sm text-muted-foreground">
-                                    <a href={`mailto:${selectedApplicant.email}`} className="flex items-center gap-2 hover:text-primary">
-                                        <Mail className="h-4 w-4" /> <span>{selectedApplicant.email}</span>
-                                    </a>
-                                    <div className="flex items-center gap-2">
-                                        <Phone className="h-4 w-4" /> <span>{selectedApplicant.phone || 'N/A'}</span>
-                                    </div>
-                                    <a href={selectedApplicant.linkedin ? `https://${selectedApplicant.linkedin}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary">
-                                        <Linkedin className="h-4 w-4" /> <span>{selectedApplicant.linkedin || 'N/A'}</span>
-                                    </a>
-                                    </div>
-                                </CardContent>
-                                <CardContent className="border-t pt-4 mt-auto space-y-2">
-                                    {selectedApplicant.resumeUrl ? (
-                                        <Button asChild variant="outline" className="w-full">
-                                            <a href={selectedApplicant.resumeUrl} target="_blank" rel="noopener noreferrer">
-                                                <FileText className="mr-2 h-4 w-4" /> Download Resume
-                                            </a>
-                                        </Button>
-                                    ) : (
-                                        <Button 
-                                            variant="outline" 
-                                            className="w-full"
-                                            onClick={() => toast({ title: "No resume attached", description: "Candidate did not provide a resume file.", variant: "destructive" })}
-                                        >
-                                            <FileText className="mr-2 h-4 w-4" /> No Resume
-                                        </Button>
-                                    )}
-                                    {canChangeStatus && (
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button className="w-full">
-                                                    Change Stage
-                                                    <ChevronDown className="ml-2 h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent>
-                                                {hiringStages.filter(s => s !== selectedApplicant.status).map(s => (
-                                                    <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(selectedApplicant, s)} className='capitalize'>
-                                                        {s}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    )}
-                                </CardContent>
-                                </Card>
-                            </div>
-                            <ScrollArea className="lg:col-span-2">
-                                <div className="space-y-6 pr-6">
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className='flex items-center justify-between'>
-                                            <span>AI Match Score</span>
-                                            <span className="font-bold text-primary text-2xl">{selectedApplicant.matchScore}%</span>
-                                        </CardTitle>
-                                        <CardDescription>Based on resume and job description.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <Progress value={selectedApplicant.matchScore} className="h-3" indicatorClassName={getScoreColor(selectedApplicant.matchScore)} />
-                                        <Separator className="my-4" />
-                                        <h4 className="text-sm font-semibold mb-3">Score Breakdown</h4>
-                                        <div className="space-y-3 text-sm">
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-muted-foreground">Skill Depth & Relevance</span>
-                                                <span className="font-semibold">{selectedApplicant.skillScore !== undefined ? `${selectedApplicant.skillScore}%` : '--'}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-muted-foreground">Role Experience Similarity</span>
-                                                <span className="font-semibold">{selectedApplicant.experienceScore !== undefined ? `${selectedApplicant.experienceScore}%` : '--'}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-muted-foreground">Candidate Relevance</span>
-                                                <span className="font-semibold">{selectedApplicant.relevanceScore !== undefined ? `${selectedApplicant.relevanceScore}%` : '--'}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-muted-foreground">Career Trajectory</span>
-                                                <span className="font-semibold capitalize">
-                                                    {selectedApplicant.trajectoryClassification 
-                                                        ? selectedApplicant.trajectoryClassification.replace(/_/g, ' ') 
-                                                        : '--'}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-muted-foreground">Risk Flags</span>
-                                                <div className="font-semibold text-yellow-600 flex items-center gap-1">
-                                                    <ShieldAlert className="h-4 w-4" />
-                                                    <span>{selectedApplicant.matchScore > 0 && selectedApplicant.matchScore < 60 ? 'Identified' : 'Low'}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>Application Summary</CardTitle>
-                                        <CardDescription>A TLDR of the candidate's profile, generated by AI.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div>
-                                            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><FileText className="h-4 w-4 text-blue-500" /> Candidate Summary</h4>
-                                            <p className="text-sm text-muted-foreground">
-                                                {selectedApplicant.summary}
-                                            </p>
-                                        </div>
-                                        {selectedApplicant.keySkills && (
-                                            <div>
-                                                <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-yellow-500" /> Key Skills</h4>
-                                                <div className="flex flex-wrap gap-2 pl-4">
-                                                    {selectedApplicant.keySkills.map((skill, i) => (
-                                                        <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div>
-                                            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><Briefcase className="h-4 w-4 text-purple-500" /> Experience Summary</h4>
-                                            <p className="text-sm text-muted-foreground">
-                                                {selectedApplicant.experienceSummary || 'No experience summary available.'}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4 text-green-500" /> Career Trajectory</h4>
-                                            <p className="text-sm text-muted-foreground">
-                                                {selectedApplicant.trajectorySummary || 'No trajectory analysis available.'}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><ShieldAlert className="h-4 w-4 text-red-500" /> Risk Flags</h4>
-                                            <p className="text-sm text-muted-foreground">
-                                                {selectedApplicant.riskFlags || 'No significant risks identified.'}
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardHeader>
-                                        <div className="flex items-center justify-between">
-                                            <CardTitle className="flex items-center gap-2">
-                                                <MessageSquareQuote className="h-5 w-5 text-primary" />
-                                                <span>Suggested Interview Questions</span>
-                                            </CardTitle>
-                                            <Button variant="ghost" size="icon" onClick={() => handleRegenerateQuestions()}>
-                                                <RefreshCw className="h-4 w-4" />
-                                                <span className="sr-only">Regenerate Questions</span>
+                    {selectedApplicant && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="font-headline text-2xl">{selectedApplicant.name}</DialogTitle>
+                                <DialogDescription>Applying for {job.title}</DialogDescription>
+                            </DialogHeader>
+                            <div className="grid lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
+                                <div className="lg:col-span-1 space-y-6 flex flex-col">
+                                    <Card className="flex flex-col">
+                                        <CardContent className="pt-6 flex flex-col items-center text-center">
+                                            <Avatar className="h-24 w-24 mb-4">
+                                                <AvatarFallback className="font-medium">{getInitials(selectedApplicant.name)}</AvatarFallback>
+                                            </Avatar>
+                                            <Button className="mt-4 w-full">
+                                                <CalendarPlus className="mr-2 h-4 w-4" />
+                                                Schedule Interview
                                             </Button>
-                                        </div>
-                                        <CardDescription>AI-generated questions based on the candidate's profile. Click the refresh icon to get a new set.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 pl-2">
-                                            {(selectedApplicant.interviewQuestions || interviewQuestions).map((q, i) => (
-                                                <li key={i}>{q}</li>
-                                            ))}
-                                            {(!selectedApplicant.interviewQuestions && interviewQuestions.length === 0) && (
-                                                <p className="text-center italic">No suggested questions available. Run AI evaluation first.</p>
+                                            <Button
+                                                variant="outline"
+                                                className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                                                onClick={() => handleAIEvaluate(selectedApplicant.id)}
+                                                disabled={isEvaluating}
+                                            >
+                                                {isEvaluating ? (
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Sparkles className="mr-2 h-4 w-4" />
+                                                )}
+                                                {selectedApplicant.matchScore > 0 ? 'Re-Evaluate with AI' : 'Evaluate with AI'}
+                                            </Button>
+                                        </CardContent>
+                                        <CardContent className="border-t pt-4">
+                                            <h3 className="font-semibold mb-2">Contact Information</h3>
+                                            <div className="space-y-2 text-sm text-muted-foreground">
+                                                <a href={`mailto:${selectedApplicant.email}`} className="flex items-center gap-2 hover:text-primary">
+                                                    <Mail className="h-4 w-4" /> <span>{selectedApplicant.email}</span>
+                                                </a>
+                                                <div className="flex items-center gap-2">
+                                                    <Phone className="h-4 w-4" /> <span>{selectedApplicant.phone || 'N/A'}</span>
+                                                </div>
+                                                <a href={selectedApplicant.linkedin ? `https://${selectedApplicant.linkedin}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary">
+                                                    <Linkedin className="h-4 w-4" /> <span>{selectedApplicant.linkedin || 'N/A'}</span>
+                                                </a>
+                                            </div>
+                                        </CardContent>
+                                        <CardContent className="border-t pt-4 mt-auto space-y-2">
+                                            {selectedApplicant.resumeUrl ? (
+                                                <Button asChild variant="outline" className="w-full">
+                                                    <a href={selectedApplicant.resumeUrl} target="_blank" rel="noopener noreferrer">
+                                                        <FileText className="mr-2 h-4 w-4" /> Download Resume
+                                                    </a>
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full"
+                                                    onClick={() => toast({ title: "No resume attached", description: "Candidate did not provide a resume file.", variant: "destructive" })}
+                                                >
+                                                    <FileText className="mr-2 h-4 w-4" /> No Resume
+                                                </Button>
                                             )}
-                                        </ul>
-                                    </CardContent>
-                                </Card>
-
-                                {applicantInterview && (
-                                    <Card className="border-primary/20 bg-primary/5">
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2">
-                                                <BrainCircuit className="h-5 w-5 text-primary" />
-                                                <span>AI Interview Intelligence</span>
-                                            </CardTitle>
-                                            <CardDescription>Comprehensive analysis of the candidate's last interview performance.</CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="space-y-6">
-                                            <div>
-                                                <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-yellow-500" /> AI Summary</h4>
-                                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                                    {applicantInterview.aiAnalysis?.summary}
-                                                </p>
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-2">
-                                                    <h5 className="text-xs font-bold text-green-600 uppercase tracking-wider">Key Strengths</h5>
-                                                    <ul className="text-xs space-y-1 text-muted-foreground">
-                                                        {applicantInterview.aiAnalysis?.strengths.map((s, i) => (
-                                                            <li key={i} className="flex items-center gap-1">
-                                                                <div className="h-1 w-1 rounded-full bg-green-600" /> {s}
-                                                            </li>
+                                            {canChangeStatus && (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button className="w-full">
+                                                            Change Stage
+                                                            <ChevronDown className="ml-2 h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        {hiringStages.filter(s => s !== selectedApplicant.status).map(s => (
+                                                            <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(selectedApplicant, s)} className='capitalize'>
+                                                                {s}
+                                                            </DropdownMenuItem>
                                                         ))}
-                                                    </ul>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <h5 className="text-xs font-bold text-orange-600 uppercase tracking-wider">Areas for Growth</h5>
-                                                    <ul className="text-xs space-y-1 text-muted-foreground">
-                                                        {applicantInterview.aiAnalysis?.weaknesses.map((w, i) => (
-                                                            <li key={i} className="flex items-center gap-1">
-                                                                <div className="h-1 w-1 rounded-full bg-orange-600" /> {w}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            </div>
-
-                                            <Card className="bg-white/50 border-primary/10">
-                                                <CardHeader className="pb-2">
-                                                    <CardTitle className="text-sm">Hiring Recommendation</CardTitle>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <p className="text-sm font-medium text-primary italic">
-                                                        "{applicantInterview.aiAnalysis?.recommendation}"
-                                                    </p>
-                                                </CardContent>
-                                            </Card>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            )}
                                         </CardContent>
                                     </Card>
-                                )}
-
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <MessagesSquare className="h-5 w-5 text-primary" />
-                                            <span>Internal Feedback & Notes</span>
-                                        </CardTitle>
-                                        <CardDescription>Record your thoughts on this candidate. Only visible to your team.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <ScrollArea className="h-40 pr-4">
-                                            <div className="space-y-4">
-                                                 {(feedbackNotes[selectedApplicant.id] || []).map((note, index) => (
-                                                    <div key={index} className="border-l-2 border-slate-200 pl-3 text-sm">
-                                                        <p className="font-semibold">{note.author} <span className="text-muted-foreground font-normal">- {note.date}</span></p>
-                                                        <p className="text-muted-foreground italic">"{note.note}"</p>
-                                                    </div>
-                                                ))}
-                                                {(!feedbackNotes[selectedApplicant.id] || feedbackNotes[selectedApplicant.id].length === 0) && (
-                                                    <p className="text-sm text-muted-foreground text-center pt-8">No feedback yet.</p>
-                                                )}
-                                            </div>
-                                        </ScrollArea>
-                                        <Separator />
-                                        <form onSubmit={handleAddNote}>
-                                            <Label htmlFor="feedback-note" className="font-semibold">Add a new note</Label>
-                                            <Textarea 
-                                                id="feedback-note" 
-                                                placeholder="Your feedback..." 
-                                                className="mt-2 min-h-[100px]"
-                                                value={newNote}
-                                                onChange={e => setNewNote(e.target.value)}
-                                             />
-                                            <Button className="mt-2" type="submit">Save Note</Button>
-                                        </form>
-                                    </CardContent>
-                                </Card>
                                 </div>
-                            </ScrollArea>
-                        </div>
+                                <ScrollArea className="lg:col-span-2">
+                                    <div className="space-y-6 pr-6">
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className='flex items-center justify-between'>
+                                                    <span>AI Match Score</span>
+                                                    <span className="font-bold text-primary text-2xl">{selectedApplicant.matchScore}%</span>
+                                                </CardTitle>
+                                                <CardDescription>Based on resume and job description.</CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <Progress value={selectedApplicant.matchScore} className="h-3" indicatorClassName={getScoreColor(selectedApplicant.matchScore)} />
+                                                <Separator className="my-4" />
+                                                <h4 className="text-sm font-semibold mb-3">Score Breakdown</h4>
+                                                <div className="space-y-3 text-sm">
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <span className="text-muted-foreground">Skill Depth & Relevance</span>
+                                                        <span className="font-semibold">{selectedApplicant.skillScore !== undefined ? `${selectedApplicant.skillScore}%` : '--'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <span className="text-muted-foreground">Role Experience Similarity</span>
+                                                        <span className="font-semibold">{selectedApplicant.experienceScore !== undefined ? `${selectedApplicant.experienceScore}%` : '--'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <span className="text-muted-foreground">Candidate Relevance</span>
+                                                        <span className="font-semibold">{selectedApplicant.relevanceScore !== undefined ? `${selectedApplicant.relevanceScore}%` : '--'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <span className="text-muted-foreground">Career Trajectory</span>
+                                                        <span className="font-semibold capitalize">
+                                                            {selectedApplicant.trajectoryClassification
+                                                                ? selectedApplicant.trajectoryClassification.replace(/_/g, ' ')
+                                                                : '--'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-4">
+                                                        <span className="text-muted-foreground">Risk Flags</span>
+                                                        <div className="font-semibold text-yellow-600 flex items-center gap-1">
+                                                            <ShieldAlert className="h-4 w-4" />
+                                                            <span>{selectedApplicant.matchScore > 0 && selectedApplicant.matchScore < 60 ? 'Identified' : 'Low'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle>Application Summary</CardTitle>
+                                                <CardDescription>A TLDR of the candidate's profile, generated by AI.</CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="space-y-6">
+                                                <div>
+                                                    <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><FileText className="h-4 w-4 text-blue-500" /> Candidate Summary</h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {selectedApplicant.summary}
+                                                    </p>
+                                                </div>
+                                                {selectedApplicant.keySkills && (
+                                                    <div>
+                                                        <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-yellow-500" /> Key Skills</h4>
+                                                        <div className="flex flex-wrap gap-2 pl-4">
+                                                            {selectedApplicant.keySkills.map((skill, i) => (
+                                                                <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><Briefcase className="h-4 w-4 text-purple-500" /> Experience Summary</h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {selectedApplicant.experienceSummary || 'No experience summary available.'}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4 text-green-500" /> Career Trajectory</h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {selectedApplicant.trajectorySummary || 'No trajectory analysis available.'}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><ShieldAlert className="h-4 w-4 text-red-500" /> Risk Flags</h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {selectedApplicant.riskFlags || 'No significant risks identified.'}
+                                                    </p>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                        <Card>
+                                            <CardHeader>
+                                                <div className="flex items-center justify-between">
+                                                    <CardTitle className="flex items-center gap-2">
+                                                        <MessageSquareQuote className="h-5 w-5 text-primary" />
+                                                        <span>Suggested Interview Questions</span>
+                                                    </CardTitle>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleRegenerateQuestions()}>
+                                                        <RefreshCw className="h-4 w-4" />
+                                                        <span className="sr-only">Regenerate Questions</span>
+                                                    </Button>
+                                                </div>
+                                                <CardDescription>AI-generated questions based on the candidate's profile. Click the refresh icon to get a new set.</CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 pl-2">
+                                                    {(selectedApplicant.interviewQuestions || interviewQuestions).map((q, i) => (
+                                                        <li key={i}>{q}</li>
+                                                    ))}
+                                                    {(!selectedApplicant.interviewQuestions && interviewQuestions.length === 0) && (
+                                                        <p className="text-center italic">No suggested questions available. Run AI evaluation first.</p>
+                                                    )}
+                                                </ul>
+                                            </CardContent>
+                                        </Card>
+
+                                        {applicantInterview && (
+                                            <Card className="border-primary/20 bg-primary/5">
+                                                <CardHeader>
+                                                    <CardTitle className="flex items-center gap-2">
+                                                        <BrainCircuit className="h-5 w-5 text-primary" />
+                                                        <span>AI Interview Intelligence</span>
+                                                    </CardTitle>
+                                                    <CardDescription>Comprehensive analysis of the candidate's last interview performance.</CardDescription>
+                                                </CardHeader>
+                                                <CardContent className="space-y-6">
+                                                    <div>
+                                                        <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-yellow-500" /> AI Summary</h4>
+                                                        <p className="text-sm text-muted-foreground leading-relaxed">
+                                                            {applicantInterview.aiAnalysis?.summary}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <h5 className="text-xs font-bold text-green-600 uppercase tracking-wider">Key Strengths</h5>
+                                                            <ul className="text-xs space-y-1 text-muted-foreground">
+                                                                {applicantInterview.aiAnalysis?.strengths.map((s, i) => (
+                                                                    <li key={i} className="flex items-center gap-1">
+                                                                        <div className="h-1 w-1 rounded-full bg-green-600" /> {s}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <h5 className="text-xs font-bold text-orange-600 uppercase tracking-wider">Areas for Growth</h5>
+                                                            <ul className="text-xs space-y-1 text-muted-foreground">
+                                                                {applicantInterview.aiAnalysis?.weaknesses.map((w, i) => (
+                                                                    <li key={i} className="flex items-center gap-1">
+                                                                        <div className="h-1 w-1 rounded-full bg-orange-600" /> {w}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+
+                                                    <Card className="bg-white/50 border-primary/10">
+                                                        <CardHeader className="pb-2">
+                                                            <CardTitle className="text-sm">Hiring Recommendation</CardTitle>
+                                                        </CardHeader>
+                                                        <CardContent>
+                                                            <p className="text-sm font-medium text-primary italic">
+                                                                "{applicantInterview.aiAnalysis?.recommendation}"
+                                                            </p>
+                                                        </CardContent>
+                                                    </Card>
+                                                </CardContent>
+                                            </Card>
+                                        )}
+
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <MessagesSquare className="h-5 w-5 text-primary" />
+                                                    <span>Internal Feedback & Notes</span>
+                                                </CardTitle>
+                                                <CardDescription>Record your thoughts on this candidate. Only visible to your team.</CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="space-y-4">
+                                                <ScrollArea className="h-40 pr-4">
+                                                    <div className="space-y-4">
+                                                        {(feedbackNotes[selectedApplicant.id] || []).map((note, index) => (
+                                                            <div key={index} className="border-l-2 border-slate-200 pl-3 text-sm">
+                                                                <p className="font-semibold">{note.author} <span className="text-muted-foreground font-normal">- {note.date}</span></p>
+                                                                <p className="text-muted-foreground italic">"{note.note}"</p>
+                                                            </div>
+                                                        ))}
+                                                        {(!feedbackNotes[selectedApplicant.id] || feedbackNotes[selectedApplicant.id].length === 0) && (
+                                                            <p className="text-sm text-muted-foreground text-center pt-8">No feedback yet.</p>
+                                                        )}
+                                                    </div>
+                                                </ScrollArea>
+                                                <Separator />
+                                                <form onSubmit={handleAddNote}>
+                                                    <Label htmlFor="feedback-note" className="font-semibold">Add a new note</Label>
+                                                    <Textarea
+                                                        id="feedback-note"
+                                                        placeholder="Your feedback..."
+                                                        className="mt-2 min-h-[100px]"
+                                                        value={newNote}
+                                                        onChange={e => setNewNote(e.target.value)}
+                                                    />
+                                                    <Button className="mt-2" type="submit">Save Note</Button>
+                                                </form>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </ScrollArea>
+                            </div>
                         </>
-                     )}
+                    )}
                 </DialogContent>
             </Dialog>
 
@@ -1123,8 +1137,8 @@ export default function JobApplicantsPage() {
                                     <TableCell className="font-semibold">Status</TableCell>
                                     {candidatesToCompare.map(candidate => (
                                         <TableCell key={candidate.id}>
-                                            <Badge 
-                                                variant={statusVariantMap[candidate.status] || 'secondary'} 
+                                            <Badge
+                                                variant={statusVariantMap[candidate.status] || 'secondary'}
                                                 className={`${statusClassMap[candidate.status]} capitalize`}
                                             >
                                                 {candidate.status}
@@ -1138,10 +1152,10 @@ export default function JobApplicantsPage() {
                                         <TableCell key={candidate.id}>
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold text-lg">{candidate.matchScore}%</span>
-                                                <Progress 
-                                                    value={candidate.matchScore} 
-                                                    className="h-2 w-[100px] bg-slate-200" 
-                                                    indicatorClassName={getScoreColor(candidate.matchScore)} 
+                                                <Progress
+                                                    value={candidate.matchScore}
+                                                    className="h-2 w-[100px] bg-slate-200"
+                                                    indicatorClassName={getScoreColor(candidate.matchScore)}
                                                 />
                                             </div>
                                         </TableCell>
@@ -1191,7 +1205,7 @@ export default function JobApplicantsPage() {
                                 </TableRow>
                                 <TableRow>
                                     <TableCell className="font-semibold align-top">
-                                    <div className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-red-500" /> Risk Flags</div>
+                                        <div className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-red-500" /> Risk Flags</div>
                                     </TableCell>
                                     {candidatesToCompare.map(candidate => (
                                         <TableCell key={candidate.id} className="text-sm text-muted-foreground align-top">

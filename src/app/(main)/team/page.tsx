@@ -7,22 +7,22 @@ import type { User } from '@/lib/types';
 import TeamMembersTable from './_components/team-members-table';
 import { PlusCircle, ShieldCheck } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -117,7 +117,7 @@ export default function TeamManagementPage() {
                 });
                 toast({
                     title: 'Invitation sent',
-                    description: `We emailed ${email.trim()} with a welcome note, temporary password, and an accept-invite link to set their own password. Ask them to check inbox and spam.`,
+                    description: `We emailed an invitation link to ${email.trim()} to set up their password. Ask them to check their inbox and spam.`,
                 });
             } else {
                 const roleName = accessChoice as BackendRoleName;
@@ -129,7 +129,7 @@ export default function TeamManagementPage() {
                 });
                 toast({
                     title: 'Invitation sent',
-                    description: `We emailed ${email.trim()} with a welcome note, temporary password, and an accept-invite link to set their own password. Ask them to check inbox and spam.`,
+                    description: `We emailed an invitation link to ${email.trim()} to set up their password. Ask them to check their inbox and spam.`,
                 });
             }
 
@@ -151,8 +151,8 @@ export default function TeamManagementPage() {
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <div>
-                <h1 className="text-3xl font-bold font-headline">Team Management</h1>
-                <p className="text-muted-foreground">Invite and manage your {"organization's"} members.</p>
+                    <h1 className="text-3xl font-bold font-headline">Team Management</h1>
+                    <p className="text-muted-foreground">Invite and manage your {"organization's"} members.</p>
                 </div>
                 <div className="flex gap-2">
                     <Button asChild variant="outline">
@@ -165,18 +165,18 @@ export default function TeamManagementPage() {
                         if (!open) resetInviteForm();
                     }}>
                         <DialogTrigger asChild>
-                             <Button>
+                            <Button>
                                 <PlusCircle className="mr-2 h-4 w-4" /> Invite Member
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="flex max-h-[92vh] max-w-lg flex-col gap-0 overflow-hidden sm:max-w-xl md:max-w-2xl">
                             <DialogHeader>
-                            <DialogTitle>Invite a new team member</DialogTitle>
-                            <DialogDescription>
-                                They will receive an email with instructions to set up their account. Access role controls what they can see and do.
-                            </DialogDescription>
+                                <DialogTitle>Invite a new team member</DialogTitle>
+                                <DialogDescription>
+                                    They will receive an email with instructions to set up their account. Access role controls what they can see and do.
+                                </DialogDescription>
                             </DialogHeader>
-                             <form onSubmit={handleInvite} className="flex min-h-0 flex-1 flex-col gap-0">
+                            <form onSubmit={handleInvite} className="flex min-h-0 flex-1 flex-col gap-0">
                                 <div className="grid gap-4 overflow-y-auto py-4 pr-1">
                                     <div className="grid grid-cols-4 items-center gap-4">
                                         <Label htmlFor="name" className="text-right">
@@ -190,7 +190,7 @@ export default function TeamManagementPage() {
                                         </Label>
                                         <Input id="email" name="email" type="email" className="col-span-3" required />
                                     </div>
-                                     <div className="grid grid-cols-4 items-start gap-4">
+                                    <div className="grid grid-cols-4 items-start gap-4">
                                         <Label htmlFor="invite-access-main" className="pt-2 text-right">
                                             Access role
                                         </Label>

@@ -85,7 +85,7 @@ export default function AddRecruiterPage() {
         });
         toast({
           title: 'Recruiter invited',
-          description: `We emailed ${em} with a welcome message, temporary password, and an accept-invite link to set their password. Custom role: “${otherRoleTitle.trim()}”. Ask them to check inbox and spam.`,
+          description: `We emailed an invitation link to ${em} to set up their password. Custom role: “${otherRoleTitle.trim()}”. Ask them to check their inbox and spam.`,
         });
       } else {
         const roleName = accessChoice as BackendRoleName;
@@ -97,7 +97,7 @@ export default function AddRecruiterPage() {
         });
         toast({
           title: 'Recruiter invited',
-          description: `We emailed ${em} with a welcome message, temporary password, and an accept-invite link (${inviteBackendRoleLabel(roleName)}). Ask them to check inbox and spam.`,
+          description: `We emailed an invitation link to ${em} to set up their password (${inviteBackendRoleLabel(roleName)}). Ask them to check their inbox and spam.`,
         });
       }
       router.push('/admin/recruiters');
@@ -134,8 +134,7 @@ export default function AddRecruiterPage() {
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Invite details</h2>
               <p className="text-sm text-muted-foreground">
-                Enter this person’s own email (their login). We email them a temporary password and a link to set a new
-                one.
+                Enter this person’s own email (their login). We will send them an email with an accept-invite link to set up their password.
               </p>
             </div>
             <div className="grid w-full min-w-0 gap-4 sm:grid-cols-2">
