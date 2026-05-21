@@ -1,35 +1,59 @@
-
 'use client';
 
 import React from 'react';
-import { CheckCircle, Circle, Clock, FileCheck, Mic, Award, XCircle } from 'lucide-react';
+import { CheckCircle, Circle, Clock, FileCheck, Mic, Award, XCircle, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const stages = [
-  { id: 'submitted', label: 'Application Submitted', icon: FileCheck },
-  { id: 'screening', label: 'Screening', icon: Clock },
-  { id: 'interview', label: 'Interview', icon: Mic },
-  { id: 'offer', label: 'Offer', icon: Award },
-  { id: 'hired', label: 'Hired', icon: CheckCircle },
+const defaultFlowStages = [
+  { stage: 'applied', label: 'Application Submitted', order: 1, enabled: true },
+  { stage: 'screening', label: 'Screening', order: 2, enabled: true },
+  { stage: 'technical_interview', label: 'Technical Interview', order: 3, enabled: true },
+  { stage: 'hr_interview', label: 'HR Interview', order: 4, enabled: true },
+  { stage: 'offer', label: 'Offer', order: 5, enabled: true },
+  { stage: 'hired', label: 'Hired', order: 6, enabled: true },
+  { stage: 'rejected', label: 'Rejected', order: 7, enabled: true },
 ];
 
-const getStatusIndex = (status: string) => {
-  if (status === 'rejected') return -1;
-  const index = stages.findIndex(s => s.id === status);
-  return index;
+const getStageIcon = (stageKey: string) => {
+  switch (stageKey) {
+    case 'applied': return FileCheck;
+    case 'screening': return Clock;
+    case 'technical_interview': return Mic;
+    case 'hr_interview': return Users;
+    case 'offer': return Award;
+    case 'hired': return CheckCircle;
+    default: return Circle;
+  }
 };
 
 interface ApplicationTimelineProps {
-  currentStatus: 'submitted' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
+  currentStage: string;
+  customStages?: {
+    stage: string;
+    label: string;
+    order: number;
+    enabled: boolean;
+  }[] | null;
 }
 
-export default function ApplicationTimeline({ currentStatus }: ApplicationTimelineProps) {
-  const currentStatusIndex = getStatusIndex(currentStatus);
+export default function ApplicationTimeline({ currentStage, customStages }: ApplicationTimelineProps) {
+  const stages = React.useMemo(() => {
+    const rawStages = customStages && Array.isArray(customStages) ? customStages : defaultFlowStages;
+    return [...rawStages]
+      .sort((a, b) => a.order - b.order)
+      .filter(s => s.enabled && s.stage !== 'rejected');
+  }, [customStages]);
 
-  if (currentStatus === 'rejected') {
+  const currentStageIndex = React.useMemo(() => {
+    if (currentStage === 'rejected') return -1;
+    const idx = stages.findIndex(s => s.stage === currentStage);
+    return idx !== -1 ? idx : 0;
+  }, [stages, currentStage]);
+
+  if (currentStage === 'rejected') {
     return (
-      <div className="flex items-center p-4 rounded-lg bg-destructive/10 border border-destructive/20">
-        <XCircle className="h-8 w-8 text-destructive mr-4" />
+      <div className="flex items-center p-4 rounded-lg bg-destructive/10 border border-destructive/20 w-full">
+        <XCircle className="h-8 w-8 text-destructive mr-4 flex-shrink-0" />
         <div>
           <h4 className="font-semibold text-destructive">Application Withdrawn or Rejected</h4>
           <p className="text-sm text-muted-foreground">This application is no longer under consideration.</p>
@@ -40,64 +64,54 @@ export default function ApplicationTimeline({ currentStatus }: ApplicationTimeli
 
   return (
     <div className="w-full">
-        <div className="flex items-center">
+      <div className="flex items-start justify-between">
         {stages.map((stage, index) => {
-            const isCompleted = currentStatusIndex > index;
-            const isCurrent = currentStatusIndex === index;
-            const isFuture = currentStatusIndex < index;
+          const isCompleted = currentStageIndex > index;
+          const isCurrent = currentStageIndex === index;
+          const isFuture = currentStageIndex < index;
+          const Icon = getStageIcon(stage.stage);
 
-            return (
-            <React.Fragment key={stage.id}>
-                <div className="flex flex-col items-center text-center w-24">
-                    <div
-                        className={cn(
-                        'h-12 w-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 shrink-0',
-                        isCompleted && 'bg-primary border-primary text-primary-foreground',
-                        isCurrent && 'bg-primary/20 border-primary text-primary animate-pulse',
-                        isFuture && 'bg-muted border-gray-300 text-muted-foreground'
-                        )}
-                    >
-                        <stage.icon className="h-6 w-6" />
-                    </div>
-                </div>
-                {index < stages.length - 1 && (
+          return (
+            <React.Fragment key={stage.stage}>
+              <div className="flex flex-col items-center text-center flex-1 px-1">
                 <div
+                  className={cn(
+                    'h-12 w-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 shrink-0',
+                    isCompleted && 'bg-primary border-primary text-primary-foreground',
+                    isCurrent && 'bg-primary/20 border-primary text-primary animate-pulse',
+                    isFuture && 'bg-muted border-slate-200 text-muted-foreground'
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="mt-3">
+                  <p
                     className={cn(
-                    'flex-1 h-1 rounded-full transition-colors duration-500 mx-2',
-                    isCompleted ? 'bg-primary' : 'bg-muted'
+                      'text-xs font-semibold leading-tight line-clamp-2 max-w-[120px]',
+                      isCompleted && 'text-primary',
+                      isCurrent && 'text-primary font-bold',
+                      isFuture && 'text-muted-foreground font-medium'
                     )}
+                  >
+                    {stage.label}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/60 capitalize mt-0.5">
+                    {stage.stage.startsWith('custom_') ? 'Custom Round' : stage.stage.replace('_', ' ')}
+                  </p>
+                </div>
+              </div>
+              {index < stages.length - 1 && (
+                <div
+                  className={cn(
+                    'hidden sm:block flex-1 h-[2px] rounded-full mt-6 self-start mx-2 transition-colors duration-500',
+                    isCompleted ? 'bg-primary' : 'bg-slate-100'
+                  )}
                 />
-                )}
+              )}
             </React.Fragment>
-            );
+          );
         })}
-        </div>
-        <div className="flex items-start mt-2">
-            {stages.map((stage, index) => {
-                const isCompleted = currentStatusIndex > index;
-                const isCurrent = currentStatusIndex === index;
-                const isFuture = currentStatusIndex < index;
-                 return (
-                    <React.Fragment key={stage.id}>
-                         <div className="flex flex-col items-center text-center w-24">
-                            <p
-                                className={cn(
-                                'text-xs font-semibold mt-2 transition-colors h-8',
-                                isCompleted && 'text-primary',
-                                isCurrent && 'text-primary',
-                                isFuture && 'text-muted-foreground'
-                                )}
-                            >
-                                {stage.label}
-                            </p>
-                        </div>
-                        {index < stages.length - 1 && (
-                             <div className="flex-1 mx-2" />
-                        )}
-                    </React.Fragment>
-                 )
-            })}
-        </div>
+      </div>
     </div>
   );
 }

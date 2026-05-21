@@ -50,6 +50,7 @@ export type Applicant = {
   skillScore?: number;
   experienceScore?: number;
   trajectoryClassification?: string;
+  notes?: { note: string; author: string; date: string }[];
 };
 
 export const applicantsData: Applicant[] = [

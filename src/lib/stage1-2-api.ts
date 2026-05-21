@@ -109,6 +109,12 @@ export type CreatedJob = {
   experienceMax?: number | null;
   createdAt?: string;
   updatedAt?: string;
+  customStages?: {
+    stage: string;
+    label: string;
+    order: number;
+    enabled: boolean;
+  }[] | null;
   _count?: {
     applications: number;
   };
@@ -163,6 +169,7 @@ export const jobsApi = {
       skillWeights?: SkillWeight[];
       experienceMin?: number;
       experienceMax?: number;
+      customStages?: any[];
     }>,
   ) => apiRequest<CreatedJob>(`/jobs/${jobId}`, { method: 'PATCH', auth: true, body: payload }),
 
@@ -266,8 +273,9 @@ export type ApiPipeline = {
   id: string;
   jobId: string;
   candidateId: string;
-  stage: 'applied' | 'screening' | 'technical_interview' | 'hr_interview' | 'offer' | 'hired' | 'rejected';
+  stage: string;
   decisionNote?: string | null;
+  notes?: string | null;
   assignedTo?: string | null;
   slaDeadline?: string | null;
   createdAt: string;
@@ -317,6 +325,9 @@ export const pipelinesApi = {
 
   setSLA: (id: string, deadline: string) =>
     apiRequest<ApiPipeline>(`/pipelines/${id}/sla`, { method: 'POST', auth: true, body: { deadline } }),
+
+  addNote: (id: string, note: string) =>
+    apiRequest<ApiPipeline>(`/pipelines/${id}/notes`, { method: 'POST', auth: true, body: { note } }),
 };
 
 export const evaluationsApi = {

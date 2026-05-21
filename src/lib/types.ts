@@ -39,6 +39,7 @@ export interface User {
   company?: string; // For recruiters
   companyRole?: CompanyRole; // For recruiters
   resumeUrl?: string; // For candidates
+  resumeMimeType?: string; // For candidates
   linkedinProfileUrl?: string; // For recruiters
   status?: 'active' | 'pending' | 'suspended'; // for user management
 }

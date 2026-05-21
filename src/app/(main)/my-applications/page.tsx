@@ -44,6 +44,16 @@ export default function MyApplicationsPage() {
         hired: 'bg-green-500/20 text-green-700',
     };
 
+    const getStageLabel = (app: any) => {
+        const stageKey = app.stage;
+        const customStages = app.job?.customStages;
+        if (customStages && Array.isArray(customStages)) {
+            const stageObj = customStages.find((s: any) => s.stage === stageKey);
+            if (stageObj) return stageObj.label;
+        }
+        return stageKey.replace('_', ' ');
+    };
+
     return (
         <div className="flex flex-col gap-6">
              <div>
@@ -84,8 +94,8 @@ export default function MyApplicationsPage() {
                                   <TableCell className="capitalize">{app.job.department || 'General'}</TableCell>
                                   <TableCell>{new Date(app.appliedAt).toLocaleDateString()}</TableCell>
                                   <TableCell>
-                                      <Badge variant="secondary" className={`${statusVariantMap[app.stage] || ''} capitalize`}>
-                                          {app.stage.replace('_', ' ')}
+                                      <Badge variant="secondary" className={`${statusVariantMap[app.stage] || ''}`}>
+                                          {getStageLabel(app)}
                                       </Badge>
                                   </TableCell>
                                   <TableCell className="text-right pr-6">

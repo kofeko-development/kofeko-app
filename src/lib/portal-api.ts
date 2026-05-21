@@ -8,6 +8,12 @@ export type PortalJobListItem = {
   location?: string | null;
   employmentType?: string | null;
   createdAt: string;
+  customStages?: {
+    stage: string;
+    label: string;
+    order: number;
+    enabled: boolean;
+  }[] | null;
   tenant: {
     id: string;
     slug: string;

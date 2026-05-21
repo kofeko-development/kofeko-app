@@ -63,6 +63,7 @@ type RegisterCandidateInput = {
   lastName: string;
   email: string;
   password: string;
+  emailVerificationToken?: string;
 };
 
 type LoginCandidateInput = {
@@ -95,6 +96,7 @@ export type BackendUser = {
   hobbies?: string[];
   skills?: string[];
   linkedinUrl?: string;
+  resumeMimeType?: string;
 };
 
 interface AuthContextType {
@@ -156,6 +158,7 @@ export const mapBackendUser = (backendUser: BackendUser): User => {
     hobbies: backendUser.hobbies,
     skills: backendUser.skills,
     linkedinProfileUrl: backendUser.linkedinUrl,
+    resumeMimeType: backendUser.resumeMimeType,
   };
 };
 
@@ -246,13 +249,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Other API errors (404, 500) — keep session, log the issue
           console.warn('Session bootstrap non-fatal error:', error.message);
         } else {
-           // Network error or other — try to restore from sessionStorage cache
+          // Network error or other — try to restore from sessionStorage cache
           const cached = sessionStorage.getItem('kofeko_user_cache');
           if (cached) {
             try {
               const cachedUser = JSON.parse(cached) as User;
               setUser(cachedUser);
-            } catch {/* ignore */}
+            } catch {/* ignore */ }
           }
         }
         setLoading(false);
@@ -275,7 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Re-run bootstrap to load the new staff session
         apiRequest<BackendUser>('/auth/me', { auth: true, authType: 'staff' })
           .then((me) => setUser(mapBackendUser(me)))
-          .catch(() => {/* ignore — bootstrap will handle on next load */});
+          .catch(() => {/* ignore — bootstrap will handle on next load */ });
       }
     };
 

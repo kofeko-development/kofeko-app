@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Briefcase, MapPin, Loader2 } from "lucide-react";
+import { Briefcase, MapPin, Loader2, Info } from "lucide-react";
 import PublicNavbar from "@/components/public-navbar";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -94,6 +94,68 @@ function PageContent({
                             <h2 className="text-2xl font-bold">About the Role</h2>
                             <div dangerouslySetInnerHTML={{ __html: cleanDescription }} className="mt-4 leading-relaxed" />
                         </div>
+
+                        {/* Dynamic Hiring Process Roadmap */}
+                        {(() => {
+                            const defaultFlowStages = [
+                                { stage: 'applied', label: 'Applied', order: 1, enabled: true },
+                                { stage: 'screening', label: 'Screening', order: 2, enabled: true },
+                                { stage: 'technical_interview', label: 'Technical Interview', order: 3, enabled: true },
+                                { stage: 'hr_interview', label: 'HR Interview', order: 4, enabled: true },
+                                { stage: 'offer', label: 'Offer', order: 5, enabled: true },
+                                { stage: 'hired', label: 'Hired', order: 6, enabled: true },
+                                { stage: 'rejected', label: 'Rejected', order: 7, enabled: true },
+                            ];
+                            const customStages = job.customStages || defaultFlowStages;
+                            const activeStages = [...customStages]
+                                .sort((a: any, b: any) => a.order - b.order)
+                                .filter((s: any) => s.enabled && s.stage !== 'rejected');
+
+                            return (
+                                <div className="bg-card rounded-xl p-6 border shadow-sm space-y-6">
+                                    <div>
+                                        <h3 className="text-xl font-bold font-headline">Hiring Process</h3>
+                                        <p className="text-sm text-muted-foreground">What to expect throughout our recruitment journey</p>
+                                    </div>
+                                    
+                                    <div className="relative">
+                                        {/* Desktop Horizontal Timeline */}
+                                        <div className="hidden md:flex items-start justify-between relative">
+                                            <div className="absolute top-5 left-8 right-8 h-0.5 bg-slate-100 -z-10" />
+                                            
+                                            {activeStages.map((stage: any, index: number) => {
+                                                return (
+                                                    <div key={stage.stage} className="flex flex-col items-center text-center flex-1 px-2 relative group">
+                                                        <div className="size-10 rounded-full bg-primary/10 border-2 border-primary text-primary flex items-center justify-center font-bold text-sm shadow-sm transition-transform group-hover:scale-110 duration-200">
+                                                            {index + 1}
+                                                        </div>
+                                                        <p className="mt-3 font-semibold text-sm leading-tight text-slate-800">{stage.label}</p>
+                                                        <p className="mt-1 text-[11px] text-muted-foreground capitalize">{stage.stage.replace('_', ' ')}</p>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Mobile Vertical Timeline */}
+                                        <div className="flex md:hidden flex-col gap-6 relative pl-6 border-l-2 border-slate-100 ml-4">
+                                            {activeStages.map((stage: any, index: number) => {
+                                                return (
+                                                    <div key={stage.stage} className="relative flex gap-4 items-start">
+                                                        <div className="absolute -left-[35px] top-0 size-7 rounded-full bg-primary/10 border-2 border-primary text-primary flex items-center justify-center font-bold text-xs shadow-sm">
+                                                            {index + 1}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-semibold text-sm text-slate-800">{stage.label}</h4>
+                                                            <p className="text-[11px] text-muted-foreground capitalize">{stage.stage.replace('_', ' ')}</p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         {company?.shortDescription && (
                             <div className="bg-muted/30 rounded-xl p-6 border">

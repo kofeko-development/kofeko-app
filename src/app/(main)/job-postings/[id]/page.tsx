@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, ChevronDown, ChevronUp, Search, ArrowLeft, Share2, Linkedin, Loader2, FileEdit, Trash2, Mail, Phone, FileText, CalendarPlus, Sparkles, CheckCircle, AlertTriangle, MessageSquareQuote, TrendingUp, ShieldAlert, Briefcase, MessagesSquare, RefreshCw, Users, BrainCircuit } from 'lucide-react';
+import { Eye, ChevronDown, ChevronUp, Search, ArrowLeft, Share2, Linkedin, Loader2, FileEdit, Trash2, Mail, Phone, FileText, CalendarPlus, Sparkles, CheckCircle, AlertTriangle, MessageSquareQuote, TrendingUp, ShieldAlert, Briefcase, MessagesSquare, RefreshCw, Users, BrainCircuit, Settings, ArrowUp, ArrowDown, Lock, Info, Plus } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -88,7 +88,7 @@ function mapPipelineToApplicant(p: ApiPipeline): Applicant {
         status: p.stage as any,
         appliedAt: p.createdAt,
         matchScore: evaluation?.score ?? 0,
-        summary: hi?.applicationSummary || evaluation?.whyCard || evaluation?.summary || p.decisionNote || 'No summary available.',
+        summary: hi?.applicationSummary || evaluation?.whyCard || evaluation?.summary || undefined,
         phone: p.candidate.phoneNumber || undefined,
         linkedin: p.candidate.linkedinUrl || undefined,
         resumeUrl: p.candidate.resumeUrl || undefined,
@@ -103,6 +103,11 @@ function mapPipelineToApplicant(p: ApiPipeline): Applicant {
         skillScore: hi?.skillsAnalysis?.matchScorePercent || undefined,
         experienceScore: hi?.experienceSummary?.matchScorePercent || undefined,
         trajectoryClassification: hi?.careerTrajectory?.classification || undefined,
+        notes: (() => {
+            if (!p.notes) return [];
+            if (typeof p.notes !== 'string') return p.notes;
+            try { return JSON.parse(p.notes); } catch { return []; }
+        })(),
     };
 }
 
@@ -136,6 +141,131 @@ export default function JobApplicantsPage() {
     const [applicants, setApplicants] = useState<Applicant[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    const defaultFlowStages = useMemo(() => [
+        { stage: 'applied', label: 'Applied', order: 1, enabled: true },
+        { stage: 'screening', label: 'Screening', order: 2, enabled: true },
+        { stage: 'technical_interview', label: 'Technical Interview', order: 3, enabled: true },
+        { stage: 'hr_interview', label: 'HR Interview', order: 4, enabled: true },
+        { stage: 'offer', label: 'Offer', order: 5, enabled: true },
+        { stage: 'hired', label: 'Hired', order: 6, enabled: true },
+        { stage: 'rejected', label: 'Rejected', order: 7, enabled: true },
+    ], []);
+
+    const [isCustomizeFlowDialogOpen, setIsCustomizeFlowDialogOpen] = useState(false);
+    const [flowStages, setFlowStages] = useState<any[]>([]);
+    const [isSavingFlow, setIsSavingFlow] = useState(false);
+
+    const customStagesConfig = useMemo(() => {
+        if (job?.customStages && Array.isArray(job.customStages)) {
+            return job.customStages;
+        }
+        return defaultFlowStages;
+    }, [job, defaultFlowStages]);
+
+    const activeHiringStages = useMemo(() => {
+        const sorted = [...customStagesConfig].sort((a, b) => a.order - b.order);
+        return sorted.filter(s => s.enabled).map(s => s.stage);
+    }, [customStagesConfig]);
+
+    const getStageLabel = useCallback((stageKey: string | null) => {
+        if (!stageKey) return '';
+        const stageObj = customStagesConfig.find(s => s.stage === stageKey);
+        return stageObj ? stageObj.label : stageKey;
+    }, [customStagesConfig]);
+
+    const openCustomizeFlowDialog = () => {
+        if (job) {
+            let stagesToSet = defaultFlowStages;
+            if (job.customStages && Array.isArray(job.customStages)) {
+                stagesToSet = job.customStages;
+            }
+
+            // Filter out disabled middle stages so the builder is a clean active-only list
+            const activeOnly = stagesToSet.filter(s => s.enabled || s.stage === 'applied' || s.stage === 'hired' || s.stage === 'rejected');
+
+            // Re-order them sequentially
+            const sortedAndCleaned = JSON.parse(JSON.stringify(activeOnly))
+                .sort((a: any, b: any) => a.order - b.order);
+
+            sortedAndCleaned.forEach((s: any, idx: number) => { s.order = idx + 1; s.enabled = true; });
+
+            setFlowStages(sortedAndCleaned);
+            setIsCustomizeFlowDialogOpen(true);
+        }
+    };
+
+    const handleRenameStage = (index: number, newLabel: string) => {
+        const updated = [...flowStages];
+        updated[index].label = newLabel;
+        setFlowStages(updated);
+    };
+
+    const handleDeleteStage = (index: number) => {
+        const stageKey = flowStages[index].stage;
+        if (stageKey === 'applied' || stageKey === 'hired' || stageKey === 'rejected') {
+            return;
+        }
+        const updated = [...flowStages];
+        updated.splice(index, 1);
+        updated.forEach((s, idx) => { s.order = idx + 1; });
+        setFlowStages(updated);
+    };
+
+    const handleAddStage = () => {
+        const newStage = {
+            stage: `custom_${Date.now()}`,
+            label: 'New Stage',
+            order: 0,
+            enabled: true,
+        };
+        const updated = [...flowStages];
+        updated.splice(updated.length - 2, 0, newStage);
+        updated.forEach((s, idx) => { s.order = idx + 1; });
+        setFlowStages(updated);
+    };
+
+    const handleMoveStage = (index: number, direction: 'up' | 'down') => {
+        const minIndex = 1;
+        const maxIndex = flowStages.length - 3;
+
+        if (direction === 'up' && index > minIndex) {
+            const updated = [...flowStages];
+            const temp = updated[index];
+            updated[index] = updated[index - 1];
+            updated[index - 1] = temp;
+            updated.forEach((s, idx) => { s.order = idx + 1; });
+            setFlowStages(updated);
+        } else if (direction === 'down' && index < maxIndex) {
+            const updated = [...flowStages];
+            const temp = updated[index];
+            updated[index] = updated[index + 1];
+            updated[index + 1] = temp;
+            updated.forEach((s, idx) => { s.order = idx + 1; });
+            setFlowStages(updated);
+        }
+    };
+
+    const handleSaveFlow = async () => {
+        setIsSavingFlow(true);
+        try {
+            await jobsApi.update(id, { customStages: flowStages });
+            toast({
+                title: 'Hiring Flow Updated',
+                description: 'The customizable recruitment flow has been successfully saved.',
+            });
+            setIsCustomizeFlowDialogOpen(false);
+            void loadData();
+        } catch (error) {
+            toast({
+                title: 'Failed to save flow',
+                description: error instanceof Error ? error.message : 'Please try again.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSavingFlow(false);
+        }
+    };
+
     const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
     const [selectedStage, setSelectedStage] = useState<string | null>(null);
     const [isStageChangeDialogOpen, setIsStageChangeDialogOpen] = useState(false);
@@ -162,10 +292,31 @@ export default function JobApplicantsPage() {
     }, [handleRegenerateQuestions]);
     const [stageChangeNote, setStageChangeNote] = useState('');
     const [newNote, setNewNote] = useState('');
-    const [feedbackNotes, setFeedbackNotes] = useState<Record<string, Feedback[]>>({});
-
-    const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
     const [isComparisonDialogOpen, setIsComparisonDialogOpen] = useState(false);
+    const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
+
+    const [isClosingJob, setIsClosingJob] = useState(false);
+
+
+    const handleCloseJob = async () => {
+        try {
+            setIsClosingJob(true);
+            await jobsApi.close(id);
+            toast({
+                title: 'Job Closed',
+                description: 'This job has been closed and moved to the closed section.',
+            });
+            void loadData();
+        } catch (error) {
+            toast({
+                title: 'Failed to close job',
+                description: error instanceof Error ? error.message : 'Please try again.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsClosingJob(false);
+        }
+    };
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -361,26 +512,34 @@ export default function JobApplicantsPage() {
         setIsProfileDialogOpen(true);
     }
 
-    const handleAddNote = (e: React.FormEvent) => {
+    const handleAddNote = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newNote.trim() || !selectedApplicant) return;
 
-        const feedbackToAdd: Feedback = {
-            author: user!.name,
-            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-            note: newNote,
-        };
+        try {
+            await pipelinesApi.addNote(selectedApplicant.id, newNote);
+            toast({ title: 'Note saved successfully!' });
+            setNewNote('');
+            void loadData(); // Re-fetch to get updated notes
 
-        setFeedbackNotes(prev => {
-            const existingFeedback = prev[selectedApplicant.id] || [];
-            return {
-                ...prev,
-                [selectedApplicant.id]: [...existingFeedback, feedbackToAdd]
-            };
-        });
-
-        toast({ title: 'Note saved!' });
-        setNewNote('');
+            // Optionally update local state immediately so UI feels fast
+            setSelectedApplicant(prev => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    notes: [
+                        ...(prev.notes || []),
+                        {
+                            author: user!.name,
+                            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                            note: newNote
+                        }
+                    ]
+                };
+            });
+        } catch (error) {
+            toast({ title: 'Failed to save note', variant: 'destructive' });
+        }
     };
 
     const handleShareJob = () => {
@@ -515,9 +674,9 @@ export default function JobApplicantsPage() {
                     <TableCell>
                         <Badge
                             variant={statusVariantMap[applicant.status] || 'secondary'}
-                            className={`${statusClassMap[applicant.status]} capitalize hover:${statusClassMap[applicant.status]}`}
+                            className={`${statusClassMap[applicant.status]} hover:${statusClassMap[applicant.status]}`}
                         >
-                            {applicant.status}
+                            {getStageLabel(applicant.status)}
                         </Badge>
                     </TableCell>
                 )}
@@ -535,9 +694,9 @@ export default function JobApplicantsPage() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent>
-                                    {hiringStages.filter(s => s !== applicant.status).map(s => (
-                                        <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(applicant, s)} className='capitalize'>
-                                            {s}
+                                    {activeHiringStages.filter(s => s !== applicant.status).map(s => (
+                                        <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(applicant, s)}>
+                                            {getStageLabel(s)}
                                         </DropdownMenuItem>
                                     ))}
                                 </DropdownMenuContent>
@@ -546,11 +705,13 @@ export default function JobApplicantsPage() {
                     </div>
                 </TableCell>
             </TableRow>
-            <TableRow className="group-hover:bg-transparent">
-                <TableCell colSpan={isGrouped ? 4 : 5} className="py-2 px-4 pt-0 pl-16">
-                    <p className="text-sm text-muted-foreground">{applicant.summary}</p>
-                </TableCell>
-            </TableRow>
+            {applicant.summary && (
+                <TableRow className="group-hover:bg-transparent">
+                    <TableCell colSpan={isGrouped ? 4 : 5} className="py-2 px-4 pt-0 pl-16">
+                        <p className="text-sm text-muted-foreground">{applicant.summary}</p>
+                    </TableCell>
+                </TableRow>
+            )}
         </TableBody>
     );
 
@@ -559,7 +720,18 @@ export default function JobApplicantsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-sm text-muted-foreground">Job Post</p>
-                    <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
+                        <Badge
+                            variant="secondary"
+                            className={`capitalize font-bold text-xs px-2.5 py-0.5 border ${job.status === 'open' ? 'bg-green-50 text-green-700 border-green-200' :
+                                job.status === 'draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                    'bg-slate-50 text-slate-700 border-slate-200'
+                                }`}
+                        >
+                            {job.status}
+                        </Badge>
+                    </div>
                 </div>
                 <div className='flex gap-2'>
                     <Button variant="outline" onClick={() => router.back()}>
@@ -570,22 +742,42 @@ export default function JobApplicantsPage() {
                         <>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline">
+                                    <Button variant="outline" disabled={isClosingJob}>
+                                        {isClosingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Actions
                                         <ChevronDown className="ml-2 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                    <DropdownMenuItem asChild>
-                                        <Link href={`${routePrefix}/job-postings?edit=${job.id}`}>
-                                            <FileEdit className="mr-2 h-4 w-4" />
-                                            Edit Job
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="text-destructive focus:text-destructive">
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Close Job
-                                    </DropdownMenuItem>
+                                    {job.status !== 'closed' ? (
+                                        <>
+                                            <DropdownMenuItem asChild>
+                                                <Link href={`${routePrefix}/job-postings?edit=${job.id}`}>
+                                                    <FileEdit className="mr-2 h-4 w-4" />
+                                                    Edit Job
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                className="cursor-pointer"
+                                                onClick={openCustomizeFlowDialog}
+                                            >
+                                                <Settings className="mr-2 h-4 w-4" />
+                                                Customize Flow
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                className="text-destructive focus:text-destructive cursor-pointer"
+                                                onClick={handleCloseJob}
+                                                disabled={isClosingJob}
+                                            >
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                Close Job
+                                            </DropdownMenuItem>
+                                        </>
+                                    ) : (
+                                        <DropdownMenuItem disabled className="text-muted-foreground">
+                                            Job is Closed
+                                        </DropdownMenuItem>
+                                    )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             <DropdownMenu>
@@ -639,8 +831,8 @@ export default function JobApplicantsPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Statuses</SelectItem>
-                                {hiringStages.map(stage => (
-                                    <SelectItem key={stage} value={stage} className="capitalize">{stage}</SelectItem>
+                                {activeHiringStages.map(stage => (
+                                    <SelectItem key={stage} value={stage}>{getStageLabel(stage)}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -707,7 +899,7 @@ export default function JobApplicantsPage() {
             </Card>
 
             <div className="space-y-4">
-                {isGrouped && groupedApplicants && hiringStages.map(stage => {
+                {isGrouped && groupedApplicants && activeHiringStages.map(stage => {
                     const stageApplicants = groupedApplicants[stage];
                     if (!stageApplicants || stageApplicants.length === 0) return null;
                     const isOpen = openCollapsibles.includes(stage);
@@ -720,9 +912,9 @@ export default function JobApplicantsPage() {
                                         <div className='flex items-center gap-3'>
                                             <Badge
                                                 variant={statusVariantMap[stage] || 'secondary'}
-                                                className={`${statusClassMap[stage]} capitalize text-base hover:${statusClassMap[stage]}`}
+                                                className={`${statusClassMap[stage]} text-base hover:${statusClassMap[stage]}`}
                                             >
-                                                {stage}
+                                                {getStageLabel(stage)}
                                             </Badge>
                                             <span className='font-semibold'>{stageApplicants.length} Applicants</span>
                                         </div>
@@ -774,35 +966,185 @@ export default function JobApplicantsPage() {
                                     </TableRow>
                                 </TableHeader>
                                 {filteredApplicants.map(renderApplicantRow)}
+                                {filteredApplicants.length === 0 && (
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="h-24 text-center">
+                                                No applicants found.
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                )}
                             </Table>
-                            {filteredApplicants.length === 0 && (
-                                <TableBody>
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="h-24 text-center">
-                                            No applicants found.
-                                        </TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            )}
                         </CardContent>
                     </Card>
                 )}
             </div>
 
 
+            <Dialog open={isCustomizeFlowDialogOpen} onOpenChange={setIsCustomizeFlowDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6 overflow-hidden">
+                    <DialogHeader className="pb-4 border-b">
+                        <DialogTitle className="font-headline text-2xl flex items-center gap-2">
+                            <Settings className="h-6 w-6 text-primary" />
+                            Customize Hiring Pipeline Flow
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-muted-foreground mt-1">
+                            Tailor the recruitment stages for this specific job. Rename stages, toggle middle rounds, and drag or reorder the timeline. Candidates will see this customized roadmap.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto min-h-0 my-4 pr-3">
+                        <div className="space-y-4 py-2">
+
+
+                            <div className=" ml-2">
+                                <h3 className="text-xs font-bold text-muted-foreground tracking-wider uppercase mb-5 ml-1">Active Pipeline Flow</h3>
+                                <div className="space-y-0 relative">
+                                    {flowStages.map((stageItem, index) => {
+                                        const isFirst = index === 0;
+                                        const isTerminal = index >= flowStages.length - 2;
+                                        const isLocked = isFirst || isTerminal;
+                                        const isLast = index === flowStages.length - 1;
+
+                                        return (
+                                            <div
+                                                key={stageItem.stage}
+                                                className="relative flex items-stretch gap-4 pb-6 group"
+                                            >
+                                                {/* Left Side: Connecting Timeline & Circle */}
+                                                <div className="flex flex-col items-center w-9 shrink-0 relative mt-1">
+                                                    <div className={`flex items-center justify-center h-9 w-9 rounded-full font-bold text-xs shadow-sm z-10 ${isLocked ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-primary text-primary-foreground'}`}>
+                                                        {index + 1}
+                                                    </div>
+                                                    {!isLast && (
+                                                        <div className="absolute top-9 bottom-[-1.5rem] w-[2px] bg-slate-200 z-0" />
+                                                    )}
+                                                </div>
+
+                                                {/* Right Side: The Content Card */}
+                                                <div className={`flex-1 flex items-center gap-3 p-3 rounded-xl border transition-all bg-white shadow-sm hover:shadow-md hover:border-primary/40`}>
+
+                                                    {/* Re-order arrows */}
+                                                    <div className="flex flex-col items-center justify-center w-6 shrink-0">
+                                                        {!isLocked ? (
+                                                            <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                                                <button
+                                                                    type="button"
+                                                                    className="h-6 w-6 rounded hover:bg-slate-100 flex items-center justify-center disabled:opacity-30 disabled:hover:bg-transparent"
+                                                                    disabled={index === 1}
+                                                                    onClick={() => handleMoveStage(index, 'up')}
+                                                                    title="Move Up"
+                                                                >
+                                                                    <ArrowUp className="h-3 w-3" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="h-6 w-6 rounded hover:bg-slate-100 flex items-center justify-center disabled:opacity-30 disabled:hover:bg-transparent"
+                                                                    disabled={index === flowStages.length - 3}
+                                                                    onClick={() => handleMoveStage(index, 'down')}
+                                                                    title="Move Down"
+                                                                >
+                                                                    <ArrowDown className="h-3 w-3" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <Lock className="h-4 w-4 text-slate-300" />
+                                                        )}
+                                                    </div>
+
+                                                    {/* Inputs */}
+                                                    <div className="flex-1 grid gap-0.5 ml-1">
+                                                        <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
+                                                            {stageItem.stage.startsWith('custom_') ? 'Custom Round' : `Original Round: ${stageItem.stage.replace('_', ' ')}`}
+                                                        </Label>
+                                                        <Input
+                                                            value={stageItem.label}
+                                                            onChange={(e) => handleRenameStage(index, e.target.value)}
+                                                            placeholder="Stage Name"
+                                                            className="h-8 font-semibold text-base border-transparent hover:border-input focus:border-primary bg-transparent px-2 -ml-2 shadow-none transition-colors"
+                                                        />
+                                                    </div>
+
+                                                    {/* Delete and Lock Action */}
+                                                    {!isLocked && (
+                                                        <div className="flex items-center gap-2 pl-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+                                                                onClick={() => handleDeleteStage(index)}
+                                                                title="Delete Stage"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                    {isLocked && (
+                                                        <div className="text-xs text-muted-foreground/60 font-semibold px-3 py-1 bg-slate-50 border rounded-full">
+                                                            Locked
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-1 py-3 border-t bg-slate-50/50">
+                        <button
+                            type="button"
+                            onClick={handleAddStage}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:border-primary/50 transition-colors font-semibold"
+                        >
+                            <Plus className="h-5 w-5" />
+                            Add Custom Stage
+                        </button>
+                    </div>
+
+                    <DialogFooter className="pt-4 border-t gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsCustomizeFlowDialogOpen(false)}
+                            disabled={isSavingFlow}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSaveFlow}
+                            disabled={isSavingFlow}
+                            className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold px-6"
+                        >
+                            {isSavingFlow ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving Flow...
+                                </>
+                            ) : (
+                                'Save Configuration'
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <AlertDialog open={isStageChangeDialogOpen} onOpenChange={handleStageChangeDialogClose}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Change applicant stage</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Move <span className='font-bold'>{selectedApplicant?.name}</span> to the <span className='font-bold capitalize'>{selectedStage}</span> stage. You can add an optional note below.
+                            Move <span className='font-bold'>{selectedApplicant?.name}</span> to the <span className='font-bold'>{getStageLabel(selectedStage)}</span> stage. You can add an optional note below.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="py-4">
                         <Label htmlFor="stage-change-note" className="font-semibold">Add a note (optional)</Label>
                         <Textarea
                             id="stage-change-note"
-                            placeholder={`Reason for moving to ${selectedStage}...`}
+                            placeholder={`Reason for moving to ${getStageLabel(selectedStage)}...`}
                             className="mt-2 min-h-[100px]"
                             value={stageChangeNote}
                             onChange={(e) => setStageChangeNote(e.target.value)}
@@ -887,9 +1229,9 @@ export default function JobApplicantsPage() {
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent>
-                                                        {hiringStages.filter(s => s !== selectedApplicant.status).map(s => (
-                                                            <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(selectedApplicant, s)} className='capitalize'>
-                                                                {s}
+                                                        {activeHiringStages.filter(s => s !== selectedApplicant.status).map(s => (
+                                                            <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(selectedApplicant, s)}>
+                                                                {getStageLabel(s)}
                                                             </DropdownMenuItem>
                                                         ))}
                                                     </DropdownMenuContent>
@@ -1076,13 +1418,13 @@ export default function JobApplicantsPage() {
                                             <CardContent className="space-y-4">
                                                 <ScrollArea className="h-40 pr-4">
                                                     <div className="space-y-4">
-                                                        {(feedbackNotes[selectedApplicant.id] || []).map((note, index) => (
+                                                        {(selectedApplicant.notes || []).map((note, index) => (
                                                             <div key={index} className="border-l-2 border-slate-200 pl-3 text-sm">
                                                                 <p className="font-semibold">{note.author} <span className="text-muted-foreground font-normal">- {note.date}</span></p>
                                                                 <p className="text-muted-foreground italic">"{note.note}"</p>
                                                             </div>
                                                         ))}
-                                                        {(!feedbackNotes[selectedApplicant.id] || feedbackNotes[selectedApplicant.id].length === 0) && (
+                                                        {(!selectedApplicant.notes || selectedApplicant.notes.length === 0) && (
                                                             <p className="text-sm text-muted-foreground text-center pt-8">No feedback yet.</p>
                                                         )}
                                                     </div>
@@ -1218,13 +1560,13 @@ export default function JobApplicantsPage() {
                                     {candidatesToCompare.map(candidate => (
                                         <TableCell key={candidate.id} className="align-top">
                                             <div className="space-y-2">
-                                                {(feedbackNotes[candidate.id] || []).map((note, index) => (
+                                                {(candidate.notes || []).map((note, index) => (
                                                     <div key={index} className="border-l-2 border-slate-200 pl-3 text-xs">
                                                         <p className="font-semibold">{note.author} <span className="text-muted-foreground font-normal">- {note.date}</span></p>
                                                         <p className="text-muted-foreground italic">"{note.note}"</p>
                                                     </div>
                                                 ))}
-                                                {(!feedbackNotes[candidate.id] || feedbackNotes[candidate.id].length === 0) && (
+                                                {(!candidate.notes || candidate.notes.length === 0) && (
                                                     <p className="text-xs text-muted-foreground text-center">No feedback yet.</p>
                                                 )}
                                             </div>

@@ -20,15 +20,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { portalApi } from '@/lib/portal-api';
 
-const getTimelineStatus = (backendStage: string): 'submitted' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected' => {
-  const s = (backendStage ?? '').toLowerCase();
-  if (s === 'applied') return 'submitted';
-  if (s === 'screening') return 'screening';
-  if (s === 'technical_interview' || s === 'hr_interview' || s === 'interview') return 'interview';
-  if (s === 'offer') return 'offer';
-  if (s === 'hired') return 'hired';
-  return 'rejected';
-};
 
 export default function ApplicationStatusPage() {
     const params = useParams();
@@ -131,7 +122,7 @@ export default function ApplicationStatusPage() {
                     <CardDescription>Track the interview stage of your application in real-time.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex justify-center p-8">
-                   <ApplicationTimeline currentStatus={getTimelineStatus(application.stage)} />
+                   <ApplicationTimeline currentStage={application.stage} customStages={application.job?.customStages} />
                 </CardContent>
             </Card>
 
