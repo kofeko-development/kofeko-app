@@ -44,6 +44,7 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
+import { LinkedInShareModal } from '@/components/linkedin-share-modal';
 
 const getInitials = (name: string) => {
     const names = name.split(' ');
@@ -134,7 +135,7 @@ export default function JobApplicantsPage() {
     const isAdmin = pathname.startsWith('/admin');
     const routePrefix = isAdmin ? '/admin' : '';
     const id = params.id as string;
-    const { user } = useAuth();
+    const { user, hasPermission } = useAuth();
     const { toast } = useToast();
 
     const [job, setJob] = useState<CreatedJob | null>(null);
@@ -270,7 +271,7 @@ export default function JobApplicantsPage() {
     const [selectedStage, setSelectedStage] = useState<string | null>(null);
     const [isStageChangeDialogOpen, setIsStageChangeDialogOpen] = useState(false);
     const [openCollapsibles, setOpenCollapsibles] = useState<string[]>(hiringStages);
-    const [isPostingToLinkedIn, setIsPostingToLinkedIn] = useState(false);
+    const [isLinkedInDialogOpen, setIsLinkedInDialogOpen] = useState(false);
     const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -357,6 +358,7 @@ export default function JobApplicantsPage() {
 
     const canManageJob = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
     const canChangeStatus = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
+    const canShareLinkedIn = hasPermission('linkedin:post');
 
     const filteredApplicants = useMemo(() => {
         let filtered = applicants.filter(app => {
@@ -552,24 +554,8 @@ export default function JobApplicantsPage() {
         });
     };
 
-    const handlePostToLinkedIn = async () => {
-        if (!user?.linkedinProfileUrl) {
-            toast({
-                title: 'LinkedIn URL Missing',
-                description: "Please add your company's LinkedIn profile URL in your account settings.",
-                variant: 'destructive',
-            });
-            return;
-        }
-        if (!job) return;
-        setIsPostingToLinkedIn(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setIsPostingToLinkedIn(false);
-        toast({
-            title: 'Posted to LinkedIn!',
-            description: 'Your job has been posted successfully.',
-        });
+    const handlePostToLinkedIn = () => {
+        setIsLinkedInDialogOpen(true);
     };
 
     const toggleCollapsible = (stage: string) => {
@@ -738,6 +724,12 @@ export default function JobApplicantsPage() {
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back
                     </Button>
+                    {canShareLinkedIn && (
+                        <Button onClick={handlePostToLinkedIn}>
+                            <Linkedin className="mr-2 h-4 w-4" />
+                            Share to LinkedIn
+                        </Button>
+                    )}
                     {canManageJob && (
                         <>
                             <DropdownMenu>
@@ -780,33 +772,38 @@ export default function JobApplicantsPage() {
                                     )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button>
-                                        <Share2 className="mr-2 h-4 w-4" />
-                                        Share
-                                        <ChevronDown className="ml-2 h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={handleShareJob}>
-                                        <Share2 className="mr-2 h-4 w-4" />
-                                        Copy Public Link
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={handlePostToLinkedIn} disabled={isPostingToLinkedIn}>
-                                        {isPostingToLinkedIn ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Linkedin className="mr-2 h-4 w-4" />
-                                        )}
-                                        {isPostingToLinkedIn ? 'Posting...' : 'Post to LinkedIn'}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            {!canShareLinkedIn ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline">
+                                            <Share2 className="mr-2 h-4 w-4" />
+                                            Share
+                                            <ChevronDown className="ml-2 h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={handleShareJob}>
+                                            <Share2 className="mr-2 h-4 w-4" />
+                                            Copy Public Link
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : (
+                                <Button variant="outline" onClick={handleShareJob}>
+                                    <Share2 className="mr-2 h-4 w-4" />
+                                    Copy link
+                                </Button>
+                            )}
                         </>
                     )}
                 </div>
             </div>
+
+            <LinkedInShareModal
+                open={isLinkedInDialogOpen}
+                onOpenChange={setIsLinkedInDialogOpen}
+                jobId={job.id}
+            />
 
             <Card>
                 <CardContent className='pt-6 grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-end'>
@@ -1288,7 +1285,7 @@ export default function JobApplicantsPage() {
                                         <Card>
                                             <CardHeader>
                                                 <CardTitle>Application Summary</CardTitle>
-                                                <CardDescription>A TLDR of the candidate's profile, generated by AI.</CardDescription>
+                                                <CardDescription>A TLDR of the candidate&apos;s profile, generated by AI.</CardDescription>
                                             </CardHeader>
                                             <CardContent className="space-y-6">
                                                 <div>
@@ -1339,7 +1336,7 @@ export default function JobApplicantsPage() {
                                                         <span className="sr-only">Regenerate Questions</span>
                                                     </Button>
                                                 </div>
-                                                <CardDescription>AI-generated questions based on the candidate's profile. Click the refresh icon to get a new set.</CardDescription>
+                                                <CardDescription>AI-generated questions based on the candidate&apos;s profile. Click the refresh icon to get a new set.</CardDescription>
                                             </CardHeader>
                                             <CardContent>
                                                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 pl-2">
@@ -1360,7 +1357,7 @@ export default function JobApplicantsPage() {
                                                         <BrainCircuit className="h-5 w-5 text-primary" />
                                                         <span>AI Interview Intelligence</span>
                                                     </CardTitle>
-                                                    <CardDescription>Comprehensive analysis of the candidate's last interview performance.</CardDescription>
+                                                    <CardDescription>Comprehensive analysis of the candidate&apos;s last interview performance.</CardDescription>
                                                 </CardHeader>
                                                 <CardContent className="space-y-6">
                                                     <div>
@@ -1399,7 +1396,7 @@ export default function JobApplicantsPage() {
                                                         </CardHeader>
                                                         <CardContent>
                                                             <p className="text-sm font-medium text-primary italic">
-                                                                "{applicantInterview.aiAnalysis?.recommendation}"
+                                                                &quot;{applicantInterview.aiAnalysis?.recommendation}&quot;
                                                             </p>
                                                         </CardContent>
                                                     </Card>
@@ -1421,7 +1418,7 @@ export default function JobApplicantsPage() {
                                                         {(selectedApplicant.notes || []).map((note, index) => (
                                                             <div key={index} className="border-l-2 border-slate-200 pl-3 text-sm">
                                                                 <p className="font-semibold">{note.author} <span className="text-muted-foreground font-normal">- {note.date}</span></p>
-                                                                <p className="text-muted-foreground italic">"{note.note}"</p>
+                                                                <p className="text-muted-foreground italic">&quot;{note.note}&quot;</p>
                                                             </div>
                                                         ))}
                                                         {(!selectedApplicant.notes || selectedApplicant.notes.length === 0) && (
@@ -1563,7 +1560,7 @@ export default function JobApplicantsPage() {
                                                 {(candidate.notes || []).map((note, index) => (
                                                     <div key={index} className="border-l-2 border-slate-200 pl-3 text-xs">
                                                         <p className="font-semibold">{note.author} <span className="text-muted-foreground font-normal">- {note.date}</span></p>
-                                                        <p className="text-muted-foreground italic">"{note.note}"</p>
+                                                        <p className="text-muted-foreground italic">&quot;{note.note}&quot;</p>
                                                     </div>
                                                 ))}
                                                 {(!candidate.notes || candidate.notes.length === 0) && (

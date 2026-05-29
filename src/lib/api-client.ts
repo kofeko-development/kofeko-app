@@ -95,11 +95,13 @@ export const API_BASE_URL =
 export class ApiError extends Error {
   status: number;
   errorCode?: string;
+  details?: unknown;
 
-  constructor(message: string, status: number, errorCode?: string) {
+  constructor(message: string, status: number, errorCode?: string, details?: unknown) {
     super(message);
     this.status = status;
     this.errorCode = errorCode;
+    this.details = details;
   }
 }
 
@@ -140,8 +142,16 @@ async function refreshAccessToken(type: AuthType): Promise<boolean> {
 // ── Error parser ──────────────────────────────────────────────────────────────
 async function parseError(response: Response): Promise<ApiError> {
   try {
-    const payload = (await response.json()) as Partial<ApiEnvelope<unknown>> & { errorCode?: string };
-    return new ApiError(payload.message ?? 'Request failed', response.status, payload.errorCode);
+    const payload = (await response.json()) as Partial<ApiEnvelope<unknown>> & {
+      errorCode?: string;
+      details?: unknown;
+    };
+    return new ApiError(
+      payload.message ?? 'Request failed',
+      response.status,
+      payload.errorCode,
+      payload.details,
+    );
   } catch {
     return new ApiError('Request failed', response.status);
   }

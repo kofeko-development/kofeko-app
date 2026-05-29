@@ -26,6 +26,7 @@ import {
     Building,
     CreditCard,
     Mic,
+    Settings,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo from '@/components/logo';
@@ -63,6 +64,7 @@ const routePermissions: RouteRule[] = [
     { route: '/company-profile', permissions: ['company:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/subscription', permissions: ['company:update'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/inbox', permissions: ['communication:read'] },
+    { route: '/settings', permissions: ['linkedin:read', 'linkedin:connect', 'linkedin:post'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     // Candidate-only routes
     { route: '/find-jobs', permissions: [], allowedRoles: ['candidate'], redirectTo: '/dashboard' },
     { route: '/my-applications', permissions: [], allowedRoles: ['candidate'], redirectTo: '/dashboard' },
@@ -152,6 +154,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/job-postings', label: 'Job Postings', icon: Briefcase, permissions: ['job:read'] },
         { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'] },
         { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'] },
+        { href: '/settings/integrations', label: 'Integrations', icon: Settings, permissions: ['linkedin:read', 'linkedin:connect', 'linkedin:post'] },
     ];
 
     const recruiterNav = allRecruiterNav.filter((item) => item.permissions.some((permission) => hasPermission(permission)));

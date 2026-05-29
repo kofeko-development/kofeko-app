@@ -148,6 +148,56 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
     title: 'Upload Failed',
     description: 'File upload failed. Please try again.',
   },
+
+  // LinkedIn
+  LINKEDIN_NOT_CONNECTED: {
+    title: 'LinkedIn not connected',
+    description: 'Connect your LinkedIn account in Settings → Integrations to use auto-post.',
+    action: 'Open Integrations',
+    actionHref: '/settings/integrations',
+  },
+  LINKEDIN_TOKEN_EXPIRED: {
+    title: 'LinkedIn session expired',
+    description: 'Disconnect and reconnect your LinkedIn account in Settings → Integrations.',
+    action: 'Open Integrations',
+    actionHref: '/settings/integrations',
+  },
+  LINKEDIN_DUPLICATE_POST: {
+    title: 'Duplicate post on LinkedIn',
+    description:
+      'LinkedIn already has a post with the same content. Change the text, use a different share image, or wait before posting again.',
+  },
+  LINKEDIN_ORG_NOT_FOUND: {
+    title: 'Company page not available',
+    description: 'Post as your personal profile, refresh company pages, or link your page ID in Integrations.',
+    action: 'Open Integrations',
+    actionHref: '/settings/integrations',
+  },
+  LINKEDIN_SCOPE_DENIED: {
+    title: 'LinkedIn permission denied',
+    description:
+      'Your app or token lacks permission for this action. Reconnect after Community Management API approval, or post as personal profile.',
+    action: 'Open Integrations',
+    actionHref: '/settings/integrations',
+  },
+  LINKEDIN_RATE_LIMITED: {
+    title: 'LinkedIn daily limit',
+    description: 'LinkedIn limits how many posts you can publish per day. Try again tomorrow.',
+  },
+  LINKEDIN_POST_FAILED: {
+    title: 'Could not post to LinkedIn',
+    description: 'LinkedIn rejected the post. Check your connection and try again.',
+  },
+  LINKEDIN_OAUTH_FAILED: {
+    title: 'LinkedIn connection failed',
+    description: 'Authorization did not complete. Check app credentials and redirect URL, then try again.',
+    action: 'Open Integrations',
+    actionHref: '/settings/integrations',
+  },
+  LINKEDIN_NETWORK_ERROR: {
+    title: 'LinkedIn unreachable',
+    description: 'Could not reach LinkedIn. Check your internet connection and try again.',
+  },
 };
 
 // Helper: get display info from ApiError
