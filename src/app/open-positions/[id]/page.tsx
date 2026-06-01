@@ -199,7 +199,7 @@ function PageContent({
                                     )}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <Label htmlFor="resume" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume/CV</Label>
+                                            <Label htmlFor="resume" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume/CV *</Label>
                                             {user?.resumeUrl && (
                                                 <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase">Attached</span>
                                             )}
@@ -207,6 +207,7 @@ function PageContent({
                                         <Input
                                             id="resume"
                                             type="file"
+                                            accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                                             className="file:text-primary file:font-semibold h-11 pt-2"
                                             onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)}
                                             required={!user?.resumeUrl}

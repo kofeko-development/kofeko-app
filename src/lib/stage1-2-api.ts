@@ -215,7 +215,7 @@ export type CreateCandidatePayload = {
   lastName: string;
   email: string;
   phoneNumber?: string;
-  resumeUrl?: string;
+  resumeUrl: string;
   resumeMimeType?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
@@ -330,28 +330,62 @@ export const pipelinesApi = {
     apiRequest<ApiPipeline>(`/pipelines/${id}/notes`, { method: 'POST', auth: true, body: { note } }),
 };
 
+export type EvaluationRecord = {
+  id: string;
+  score: number;
+  summary?: string | null;
+  whyCard?: string | null;
+  skillMatches?: unknown;
+  sectionScores?: unknown;
+  hiringIntelligence?: unknown;
+  aiGenerated?: boolean;
+  createdAt?: string;
+  candidate?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  job?: { id: string; title: string } | null;
+};
+
+export type EvaluateAllResult = {
+  evaluated: number;
+  failed: number;
+  errors?: Array<{ candidateId: string; reason: string }>;
+};
+
+export type JobRankingEntry = {
+  rank: number;
+  candidate: { id: string; firstName?: string; lastName?: string; email?: string };
+  evaluation: { id?: string; score: number };
+};
+
 export const evaluationsApi = {
   list: (params?: { page?: number; limit?: number }) => {
     const qs = new URLSearchParams();
     if (params?.page != null) qs.set('page', String(params.page));
     if (params?.limit != null) qs.set('limit', String(params.limit));
     const q = qs.toString();
-    return apiRequest<{ items: any[]; total: number }>(`/evaluations${q ? `?${q}` : ''}`, { auth: true });
+    return apiRequest<{ items: EvaluationRecord[]; total: number }>(
+      `/evaluations${q ? `?${q}` : ''}`,
+      { auth: true },
+    );
   },
 
   aiEvaluate: (payload: { jobId: string; candidateId: string; pipelineId?: string }) =>
-    apiRequest<any>('/evaluations/ai-evaluate', { method: 'POST', auth: true, body: payload }),
+    apiRequest<EvaluationRecord>('/evaluations/ai-evaluate', { method: 'POST', auth: true, body: payload }),
 
-  get: (id: string) => apiRequest<any>(`/evaluations/${id}`, { auth: true }),
+  get: (id: string) => apiRequest<EvaluationRecord>(`/evaluations/${id}`, { auth: true }),
 
   update: (id: string, payload: { score?: number; whyCard?: string }) =>
-    apiRequest<any>(`/evaluations/${id}`, { method: 'PATCH', auth: true, body: payload }),
+    apiRequest<EvaluationRecord>(`/evaluations/${id}`, { method: 'PATCH', auth: true, body: payload }),
 
   evaluateAll: (jobId: string) =>
-    apiRequest<any>(`/jobs/${jobId}/evaluate-all`, { method: 'POST', auth: true }),
+    apiRequest<EvaluateAllResult>(`/jobs/${jobId}/evaluate-all`, { method: 'POST', auth: true }),
 
   getRankings: (jobId: string) =>
-    apiRequest<any[]>(`/jobs/${jobId}/rankings`, { auth: true }),
+    apiRequest<JobRankingEntry[]>(`/jobs/${jobId}/rankings`, { auth: true }),
 };
 
 export const communicationApi = {

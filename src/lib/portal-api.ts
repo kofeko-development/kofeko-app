@@ -57,7 +57,7 @@ export const portalApi = {
     return apiRequest<PortalJobDetail>(`/portal/jobs/${jobId}`);
   },
 
-  apply: async (tenantSlug: string, jobId: string, payload: { resumeUrl?: string; resumeMimeType?: string; coverLetter?: string }) => {
+  apply: async (tenantSlug: string, jobId: string, payload: { resumeUrl: string; resumeMimeType?: string; coverLetter?: string }) => {
     return apiRequest<{
       pipelineId: string;
       jobTitle: string;

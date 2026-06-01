@@ -36,7 +36,11 @@ export type Applicant = {
   status: 'applied' | 'screening' | 'technical_interview' | 'hr_interview' | 'offer' | 'rejected' | 'hired';
   appliedAt: string;
   matchScore: number;
-  summary: string;
+  /** False when no AI evaluation exists yet (matchScore should not be shown as 0%). */
+  hasEvaluation?: boolean;
+  evaluationId?: string;
+  evaluationRank?: number;
+  summary?: string;
   phone?: string;
   linkedin?: string;
   resumeText?: string;

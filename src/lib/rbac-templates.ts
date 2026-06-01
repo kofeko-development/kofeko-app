@@ -24,7 +24,9 @@ export const HR_MANAGER_PERMISSION_KEYS: string[] = [
   'candidate:update',
   'pipeline:read',
   'pipeline:update',
+  'evaluation:create',
   'evaluation:read',
+  'evaluation:update',
   'communication:read',
   'analytics:read',
   'audit:read',
@@ -43,6 +45,7 @@ export const RECRUITER_PERMISSION_KEYS: string[] = [
   'pipeline:update',
   'evaluation:create',
   'evaluation:read',
+  'evaluation:update',
   'communication:create',
   'communication:read',
   'analytics:read',
@@ -239,13 +242,13 @@ export const INVITE_BACKEND_ROLE_OPTIONS: {
     value: 'hr_manager',
     label: 'HR Manager',
     accessDescription:
-      'Company & workspace settings, invite and manage users, full jobs and candidates lifecycle, pipeline updates, read analytics and audit.',
+      'Company & workspace settings, invite and manage users, full jobs and candidates lifecycle, pipeline updates, AI evaluations, read analytics and audit.',
   },
   {
     value: 'recruiter',
     label: 'Recruiter',
     accessDescription:
-      'Create and manage jobs, candidates, and pipeline; evaluations and candidate messaging; analytics read.',
+      'Create and manage jobs, candidates, and pipeline; run and edit AI evaluations; candidate messaging; analytics read.',
   },
   {
     value: 'interviewer',

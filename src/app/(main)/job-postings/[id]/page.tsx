@@ -36,6 +36,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { useAuth } from '@/lib/auth';
 import { Applicant } from '@/lib/data';
 import { interviewsData } from '@/lib/interviews-data';
@@ -45,6 +46,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
 import { LinkedInShareModal } from '@/components/linkedin-share-modal';
+import {
+    parseHiringIntelligence,
+    hasAiEvaluation,
+    getEvaluationScore,
+    formatMatchScoreLabel,
+    getMatchScoreProgress,
+    buildRankMap,
+    formatBatchEvaluationMessage,
+} from '@/lib/evaluation-utils';
 
 const getInitials = (name: string) => {
     const names = name.split(' ');
@@ -76,10 +86,14 @@ const statusClassMap: { [key: string]: string } = {
     hired: 'bg-green-500/20 text-green-700',
 };
 
-function mapPipelineToApplicant(p: ApiPipeline): Applicant {
+function mapPipelineToApplicant(
+    p: ApiPipeline,
+    rankByCandidateId?: Map<string, number>,
+): Applicant {
     const evaluation = (p as any).evaluation || (p.evaluations && p.evaluations[0]);
-    const rawHi = evaluation?.hiringIntelligence;
-    const hi = typeof rawHi === 'string' ? JSON.parse(rawHi) : rawHi;
+    const hi = parseHiringIntelligence(evaluation?.hiringIntelligence);
+    const evaluated = hasAiEvaluation(evaluation);
+    const score = getEvaluationScore(evaluation);
 
     return {
         id: p.id,
@@ -88,22 +102,37 @@ function mapPipelineToApplicant(p: ApiPipeline): Applicant {
         email: p.candidate.email,
         status: p.stage as any,
         appliedAt: p.createdAt,
-        matchScore: evaluation?.score ?? 0,
-        summary: hi?.applicationSummary || evaluation?.whyCard || evaluation?.summary || undefined,
+        hasEvaluation: evaluated,
+        evaluationId: evaluation?.id,
+        evaluationRank: rankByCandidateId?.get(p.candidateId),
+        matchScore: evaluated && score !== null ? score : 0,
+        summary: (hi?.applicationSummary as string) || evaluation?.whyCard || evaluation?.summary || '',
         phone: p.candidate.phoneNumber || undefined,
         linkedin: p.candidate.linkedinUrl || undefined,
         resumeUrl: p.candidate.resumeUrl || undefined,
         keySkills: (hi?.keySkills || (evaluation?.skillMatches as any[])
             ? (evaluation?.skillMatches as any[])?.filter((s: any) => s.matched).map((s: any) => s.skill)
             : p.candidate.skills) || [],
-        experienceSummary: hi?.experienceSummary?.narrative || evaluation?.roleFitNotes || undefined,
-        trajectorySummary: hi?.careerTrajectory?.explanation || evaluation?.rankingSummary || undefined,
-        riskFlags: hi?.riskFlags?.join(', ') || undefined,
-        interviewQuestions: hi?.suggestedInterviewQuestions || undefined,
-        relevanceScore: hi?.relevanceToRole?.matchScorePercent || undefined,
-        skillScore: hi?.skillsAnalysis?.matchScorePercent || undefined,
-        experienceScore: hi?.experienceSummary?.matchScorePercent || undefined,
-        trajectoryClassification: hi?.careerTrajectory?.classification || undefined,
+        experienceSummary:
+            (hi?.experienceSummary as { narrative?: string } | undefined)?.narrative ||
+            evaluation?.roleFitNotes ||
+            undefined,
+        trajectorySummary:
+            (hi?.careerTrajectory as { explanation?: string } | undefined)?.explanation ||
+            evaluation?.rankingSummary ||
+            undefined,
+        riskFlags: Array.isArray(hi?.riskFlags)
+            ? (hi.riskFlags as string[]).join(', ')
+            : typeof hi?.riskFlags === 'string'
+              ? hi.riskFlags
+              : undefined,
+        interviewQuestions: Array.isArray(hi?.suggestedInterviewQuestions)
+            ? (hi.suggestedInterviewQuestions as string[])
+            : undefined,
+        relevanceScore: (hi?.relevanceToRole as { matchScorePercent?: number } | undefined)?.matchScorePercent || undefined,
+        skillScore: (hi?.skillsAnalysis as { matchScorePercent?: number } | undefined)?.matchScorePercent || undefined,
+        experienceScore: (hi?.experienceSummary as { matchScorePercent?: number } | undefined)?.matchScorePercent || undefined,
+        trajectoryClassification: (hi?.careerTrajectory as { classification?: string } | undefined)?.classification || undefined,
         notes: (() => {
             if (!p.notes) return [];
             if (typeof p.notes !== 'string') return p.notes;
@@ -111,16 +140,6 @@ function mapPipelineToApplicant(p: ApiPipeline): Applicant {
         })(),
     };
 }
-
-const ALL_SUGGESTED_QUESTIONS = [
-    "Can you walk us through a complex project you've worked on? What was your specific role and contribution?",
-    "Your resume highlights experience in a specific skill. How do you see that applying to the challenges of this role?",
-    "This role requires a certain attribute. Can you provide an example of a time you demonstrated that quality?",
-    "Describe a time you faced a significant setback or failure in a project. How did you handle it, and what did you learn?",
-    "How do you stay current with the latest trends and technologies in your field?",
-    "What kind of team environment do you thrive in and why?",
-    "Where do you see yourself in the next 5 years, and how does this role fit into your career goals?"
-];
 
 type Feedback = {
     author: string;
@@ -137,6 +156,7 @@ export default function JobApplicantsPage() {
     const id = params.id as string;
     const { user, hasPermission } = useAuth();
     const { toast } = useToast();
+    const { showError } = useApiErrorToast();
 
     const [job, setJob] = useState<CreatedJob | null>(null);
     const [applicants, setApplicants] = useState<Applicant[]>([]);
@@ -281,16 +301,7 @@ export default function JobApplicantsPage() {
     const [sortBy, setSortBy] = useState('appliedAt-desc');
     const [dateFilter, setDateFilter] = useState('all');
 
-    const [interviewQuestions, setInterviewQuestions] = useState<string[]>([]);
-
-    const handleRegenerateQuestions = useCallback(() => {
-        const shuffled = [...ALL_SUGGESTED_QUESTIONS].sort(() => 0.5 - Math.random());
-        setInterviewQuestions(shuffled.slice(0, 3));
-    }, []);
-
-    useEffect(() => {
-        handleRegenerateQuestions();
-    }, [handleRegenerateQuestions]);
+    const [evaluatingPipelineId, setEvaluatingPipelineId] = useState<string | null>(null);
     const [stageChangeNote, setStageChangeNote] = useState('');
     const [newNote, setNewNote] = useState('');
     const [isComparisonDialogOpen, setIsComparisonDialogOpen] = useState(false);
@@ -322,22 +333,20 @@ export default function JobApplicantsPage() {
     const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [jobRes, pipeRes] = await Promise.all([
+            const [jobRes, pipeRes, rankingsRes] = await Promise.all([
                 jobsApi.get(id),
-                pipelinesApi.list({ jobId: id, limit: 100 })
+                pipelinesApi.list({ jobId: id, limit: 100 }),
+                evaluationsApi.getRankings(id).catch(() => []),
             ]);
+            const rankMap = buildRankMap(rankingsRes);
             setJob(jobRes);
-            setApplicants(pipeRes.items.map(mapPipelineToApplicant));
+            setApplicants(pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
         } catch (error) {
-            toast({
-                title: 'Failed to load data',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setIsLoading(false);
         }
-    }, [id, toast]);
+    }, [id, showError]);
 
     useEffect(() => {
         void loadData();
@@ -345,31 +354,35 @@ export default function JobApplicantsPage() {
 
     useEffect(() => {
         if (selectedApplicant) {
-            const updated = applicants.find(a => a.id === selectedApplicant.id);
+            const updated = applicants.find((a) => a.id === selectedApplicant.id);
             if (updated) {
-                // We compare IDs or deep compare if needed, but usually re-setting is fine if we want latest data
-                // Only update if something actually changed to avoid infinite loops if loadData is called frequently
-                if (updated.matchScore !== selectedApplicant.matchScore || updated.summary !== selectedApplicant.summary) {
-                    setSelectedApplicant(updated);
-                }
+                setSelectedApplicant(updated);
             }
         }
-    }, [applicants, selectedApplicant]);
+    }, [applicants, selectedApplicant?.id]);
 
     const canManageJob = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
     const canChangeStatus = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
     const canShareLinkedIn = hasPermission('linkedin:post');
+    const canRunAiEvaluation = hasPermission('evaluation:create');
+    const hasJobSkillWeights =
+        Array.isArray(job?.skillWeights) && (job.skillWeights as unknown[]).length > 0;
+    const jobIsOpen = job?.status === 'open';
+    const canBatchEvaluate =
+        canRunAiEvaluation && jobIsOpen && hasJobSkillWeights && applicants.length > 0;
 
     const filteredApplicants = useMemo(() => {
         let filtered = applicants.filter(app => {
             const searchLower = searchTerm.toLowerCase();
+            const summaryText = (app.summary ?? '').toLowerCase();
             const matchesSearch = searchLower === '' ||
                 app.name.toLowerCase().includes(searchLower) ||
                 app.email.toLowerCase().includes(searchLower) ||
-                app.summary.toLowerCase().includes(searchLower);
+                summaryText.includes(searchLower);
 
             const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-            const matchesScore = app.matchScore >= scoreThreshold;
+            const matchesScore =
+                scoreThreshold === 0 || !app.hasEvaluation || app.matchScore >= scoreThreshold;
 
             const appDate = new Date(app.appliedAt);
             const today = new Date();
@@ -388,10 +401,10 @@ export default function JobApplicantsPage() {
         const [sortKey, sortDir] = sortBy.split('-');
 
         return filtered.sort((a, b) => {
-            let valA, valB;
+            let valA: number, valB: number;
             if (sortKey === 'matchScore') {
-                valA = a.matchScore;
-                valB = b.matchScore;
+                valA = a.hasEvaluation ? a.matchScore : -1;
+                valB = b.hasEvaluation ? b.matchScore : -1;
             } else { // appliedAt
                 valA = new Date(a.appliedAt).getTime();
                 valB = new Date(b.appliedAt).getTime();
@@ -460,29 +473,114 @@ export default function JobApplicantsPage() {
         }
     };
 
-    const [isEvaluating, setIsEvaluating] = useState(false);
+    const [isBatchEvaluating, setIsBatchEvaluating] = useState(false);
+
+    const getAiEvaluateDisabledReason = (applicant: Applicant): string | undefined => {
+        if (!jobIsOpen) return 'AI evaluation is only available for open jobs';
+        if (!hasJobSkillWeights) return 'Add skill weights to this job before running AI evaluation';
+        if (!applicant.resumeUrl) return 'Upload a resume before running AI evaluation';
+        if (isBatchEvaluating) return 'Wait for batch evaluation to finish';
+        if (evaluatingPipelineId && evaluatingPipelineId !== applicant.id) return 'Another evaluation is in progress';
+        return undefined;
+    };
+
     const handleAIEvaluate = async (pipelineId: string) => {
-        setIsEvaluating(true);
+        const pipe = applicants.find((a) => a.id === pipelineId);
+        if (!pipe?.candidateId) {
+            toast({ title: 'Candidate not found', variant: 'destructive' });
+            return;
+        }
+        if (!jobIsOpen) {
+            toast({
+                title: 'Job not open',
+                description: 'AI evaluation is only available for open job postings.',
+                variant: 'destructive',
+            });
+            return;
+        }
+        if (!pipe.resumeUrl) {
+            toast({
+                title: 'No Resume',
+                description: 'Please upload a resume before running AI evaluation.',
+                variant: 'destructive',
+            });
+            return;
+        }
+        if (!hasJobSkillWeights) {
+            toast({
+                title: 'No Skill Weights',
+                description: 'Add skill priorities to the job before running AI evaluation.',
+                variant: 'destructive',
+            });
+            return;
+        }
+        if (isBatchEvaluating) {
+            toast({
+                title: 'Batch in progress',
+                description: 'Wait for batch evaluation to finish before evaluating one candidate.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        setEvaluatingPipelineId(pipelineId);
         try {
-            const pipe = applicants.find(a => a.id === pipelineId);
             await evaluationsApi.aiEvaluate({
                 jobId: id,
-                candidateId: pipe?.candidateId || '',
-                pipelineId
+                candidateId: pipe.candidateId,
+                pipelineId,
             });
             toast({
                 title: 'Evaluation Complete',
                 description: 'AI has analyzed the resume.',
             });
-            void loadData();
+            await loadData();
         } catch (error) {
+            showError(error);
+        } finally {
+            setEvaluatingPipelineId(null);
+        }
+    };
+
+    const handleEvaluateAll = async () => {
+        if (applicants.length === 0) {
             toast({
-                title: 'AI Evaluation Failed',
-                description: error instanceof Error ? error.message : 'Please try again.',
+                title: 'No candidates',
+                description: 'Add candidates to this job before running batch evaluation.',
                 variant: 'destructive',
             });
+            return;
+        }
+        if (!hasJobSkillWeights) {
+            toast({
+                title: 'No Skill Weights',
+                description: 'Add skill priorities to the job before running batch evaluation.',
+                variant: 'destructive',
+            });
+            return;
+        }
+        if (!jobIsOpen) {
+            toast({
+                title: 'Job not open',
+                description: 'Batch evaluation is only available for open job postings.',
+                variant: 'destructive',
+            });
+            return;
+        }
+        setIsBatchEvaluating(true);
+        try {
+            const result = await evaluationsApi.evaluateAll(id);
+            const msg = formatBatchEvaluationMessage(result, applicants.length);
+            toast({
+                title: msg.title,
+                description: msg.description,
+                variant: result.failed > 0 && result.evaluated === 0 ? 'destructive' : 'default',
+            });
+            await loadData();
+        } catch (error) {
+            showError(error);
         } finally {
-            setIsEvaluating(false);
+            setIsBatchEvaluating(false);
         }
     };
 
@@ -624,7 +722,12 @@ export default function JobApplicantsPage() {
         );
     }
 
-    const renderApplicantRow = (applicant: Applicant) => (
+    const renderApplicantRow = (applicant: Applicant) => {
+        const scoreLabel = formatMatchScoreLabel(!!applicant.hasEvaluation, applicant.hasEvaluation ? applicant.matchScore : null);
+        const progressValue = getMatchScoreProgress(!!applicant.hasEvaluation, applicant.hasEvaluation ? applicant.matchScore : null);
+        const isRowEvaluating = evaluatingPipelineId === applicant.id;
+
+        return (
         <TableBody key={applicant.id} className="group hover:bg-muted/50 border-b">
             <TableRow className="border-b-0 group-hover:bg-transparent">
                 <TableCell className="pl-4 w-12">
@@ -641,19 +744,32 @@ export default function JobApplicantsPage() {
                             <AvatarFallback>{getInitials(applicant.name)}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <p className="font-semibold">{applicant.name}</p>
+                            <p className="font-semibold flex items-center gap-2 flex-wrap">
+                                {applicant.name}
+                                {!applicant.resumeUrl && (
+                                    <Badge variant="outline" className="text-xs font-normal">No resume</Badge>
+                                )}
+                                {applicant.evaluationRank != null && (
+                                    <Badge variant="secondary" className="text-xs">Rank #{applicant.evaluationRank}</Badge>
+                                )}
+                            </p>
                             <p className="text-sm text-muted-foreground">{applicant.email}</p>
                         </div>
                     </div>
                 </TableCell>
                 <TableCell>
                     <div className="flex items-center gap-2">
-                        <span className="font-bold text-lg">{applicant.matchScore}%</span>
-                        <Progress
-                            value={applicant.matchScore}
-                            className="h-2 w-[100px] bg-slate-200"
-                            indicatorClassName={getScoreColor(applicant.matchScore)}
-                        />
+                        <span className={`font-bold text-lg ${!applicant.hasEvaluation ? 'text-muted-foreground' : ''}`}>
+                            {scoreLabel}
+                        </span>
+                        {applicant.hasEvaluation && (
+                            <Progress
+                                value={progressValue}
+                                className="h-2 w-[100px] bg-slate-200"
+                                indicatorClassName={getScoreColor(applicant.matchScore)}
+                            />
+                        )}
+                        {isRowEvaluating && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
                     </div>
                 </TableCell>
                 {!isGrouped && (
@@ -699,7 +815,8 @@ export default function JobApplicantsPage() {
                 </TableRow>
             )}
         </TableBody>
-    );
+        );
+    };
 
     return (
         <div className="flex flex-col gap-6">
@@ -724,6 +841,31 @@ export default function JobApplicantsPage() {
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back
                     </Button>
+                    {canRunAiEvaluation && (
+                        <Button
+                            variant="outline"
+                            onClick={() => void handleEvaluateAll()}
+                            disabled={!canBatchEvaluate || isBatchEvaluating || evaluatingPipelineId !== null}
+                            title={
+                                !jobIsOpen
+                                    ? 'Batch evaluation is only available for open jobs'
+                                    : applicants.length === 0
+                                      ? 'Add candidates before batch evaluation'
+                                      : !hasJobSkillWeights
+                                        ? 'Add skill weights on the job before batch AI evaluation'
+                                        : evaluatingPipelineId
+                                          ? 'Wait for the current evaluation to finish'
+                                          : undefined
+                            }
+                        >
+                            {isBatchEvaluating ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Sparkles className="mr-2 h-4 w-4" />
+                            )}
+                            Evaluate all
+                        </Button>
+                    )}
                     {canShareLinkedIn && (
                         <Button onClick={handlePostToLinkedIn}>
                             <Linkedin className="mr-2 h-4 w-4" />
@@ -804,6 +946,31 @@ export default function JobApplicantsPage() {
                 onOpenChange={setIsLinkedInDialogOpen}
                 jobId={job.id}
             />
+
+            {canRunAiEvaluation && !hasJobSkillWeights && (
+                <Card className="border-amber-200 bg-amber-50/50">
+                    <CardContent className="py-4 flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-semibold text-amber-900">Skill weights required for AI evaluation</p>
+                            <p className="text-sm text-amber-800/90 mt-1">
+                                Add skill priorities to this job posting before using Evaluate with AI or Evaluate all.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {canRunAiEvaluation && hasJobSkillWeights && !jobIsOpen && (
+                <Card className="border-slate-200 bg-slate-50/50">
+                    <CardContent className="py-4 flex items-start gap-3">
+                        <Info className="h-5 w-5 text-slate-600 shrink-0 mt-0.5" />
+                        <p className="text-sm text-slate-700">
+                            This job is <span className="font-semibold capitalize">{job.status}</span>. AI evaluation is only available while the job is open.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardContent className='pt-6 grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-end'>
@@ -896,7 +1063,19 @@ export default function JobApplicantsPage() {
             </Card>
 
             <div className="space-y-4">
-                {isGrouped && groupedApplicants && activeHiringStages.map(stage => {
+                {applicants.length === 0 && (
+                    <Card className="border-dashed border-2">
+                        <CardContent className="py-12 flex flex-col items-center text-center gap-2">
+                            <Users className="h-10 w-10 text-muted-foreground opacity-60" />
+                            <h3 className="font-semibold text-lg">No candidates in this job</h3>
+                            <p className="text-sm text-muted-foreground max-w-md">
+                                Add applicants to the pipeline to run AI evaluation, compare candidates, and move them through hiring stages.
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {applicants.length > 0 && isGrouped && groupedApplicants && activeHiringStages.map(stage => {
                     const stageApplicants = groupedApplicants[stage];
                     if (!stageApplicants || stageApplicants.length === 0) return null;
                     const isOpen = openCollapsibles.includes(stage);
@@ -941,7 +1120,7 @@ export default function JobApplicantsPage() {
                     )
                 })}
 
-                {!isGrouped && (
+                {applicants.length > 0 && !isGrouped && (
                     <Card>
                         <CardContent className="p-0 border-t">
                             <Table className="min-w-[800px]">
@@ -966,8 +1145,8 @@ export default function JobApplicantsPage() {
                                 {filteredApplicants.length === 0 && (
                                     <TableBody>
                                         <TableRow>
-                                            <TableCell colSpan={5} className="h-24 text-center">
-                                                No applicants found.
+                                            <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                                No applicants match your filters. Try clearing search or filters.
                                             </TableCell>
                                         </TableRow>
                                     </TableBody>
@@ -1173,19 +1352,24 @@ export default function JobApplicantsPage() {
                                                 <CalendarPlus className="mr-2 h-4 w-4" />
                                                 Schedule Interview
                                             </Button>
-                                            <Button
-                                                variant="outline"
-                                                className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50"
-                                                onClick={() => handleAIEvaluate(selectedApplicant.id)}
-                                                disabled={isEvaluating}
-                                            >
-                                                {isEvaluating ? (
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                ) : (
-                                                    <Sparkles className="mr-2 h-4 w-4" />
-                                                )}
-                                                {selectedApplicant.matchScore > 0 ? 'Re-Evaluate with AI' : 'Evaluate with AI'}
-                                            </Button>
+                                            {canRunAiEvaluation && (
+                                                <Button
+                                                    variant="outline"
+                                                    className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                                                    onClick={() => void handleAIEvaluate(selectedApplicant.id)}
+                                                    disabled={Boolean(getAiEvaluateDisabledReason(selectedApplicant)) || evaluatingPipelineId === selectedApplicant.id}
+                                                    title={getAiEvaluateDisabledReason(selectedApplicant)}
+                                                >
+                                                    {evaluatingPipelineId === selectedApplicant.id ? (
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="mr-2 h-4 w-4" />
+                                                    )}
+                                                    {selectedApplicant.hasEvaluation
+                                                        ? 'Re-Evaluate with AI'
+                                                        : 'Evaluate with AI'}
+                                                </Button>
+                                            )}
                                         </CardContent>
                                         <CardContent className="border-t pt-4">
                                             <h3 className="font-semibold mb-2">Contact Information</h3>
@@ -1241,14 +1425,29 @@ export default function JobApplicantsPage() {
                                     <div className="space-y-6 pr-6">
                                         <Card>
                                             <CardHeader>
-                                                <CardTitle className='flex items-center justify-between'>
+                                                <CardTitle className='flex items-center justify-between flex-wrap gap-2'>
                                                     <span>AI Match Score</span>
-                                                    <span className="font-bold text-primary text-2xl">{selectedApplicant.matchScore}%</span>
+                                                    <span className={`font-bold text-2xl ${selectedApplicant.hasEvaluation ? 'text-primary' : 'text-muted-foreground'}`}>
+                                                        {formatMatchScoreLabel(
+                                                            !!selectedApplicant.hasEvaluation,
+                                                            selectedApplicant.hasEvaluation ? selectedApplicant.matchScore : null,
+                                                        )}
+                                                    </span>
                                                 </CardTitle>
-                                                <CardDescription>Based on resume and job description.</CardDescription>
+                                                <CardDescription>
+                                                    {selectedApplicant.hasEvaluation
+                                                        ? 'Based on resume and job description.'
+                                                        : 'Run AI evaluation to generate a match score and breakdown.'}
+                                                </CardDescription>
                                             </CardHeader>
                                             <CardContent>
-                                                <Progress value={selectedApplicant.matchScore} className="h-3" indicatorClassName={getScoreColor(selectedApplicant.matchScore)} />
+                                                {selectedApplicant.hasEvaluation && (
+                                                    <Progress
+                                                        value={getMatchScoreProgress(true, selectedApplicant.matchScore)}
+                                                        className="h-3"
+                                                        indicatorClassName={getScoreColor(selectedApplicant.matchScore)}
+                                                    />
+                                                )}
                                                 <Separator className="my-4" />
                                                 <h4 className="text-sm font-semibold mb-3">Score Breakdown</h4>
                                                 <div className="space-y-3 text-sm">
@@ -1276,7 +1475,13 @@ export default function JobApplicantsPage() {
                                                         <span className="text-muted-foreground">Risk Flags</span>
                                                         <div className="font-semibold text-yellow-600 flex items-center gap-1">
                                                             <ShieldAlert className="h-4 w-4" />
-                                                            <span>{selectedApplicant.matchScore > 0 && selectedApplicant.matchScore < 60 ? 'Identified' : 'Low'}</span>
+                                                            <span>
+                                                                {selectedApplicant.riskFlags
+                                                                    ? 'See details below'
+                                                                    : selectedApplicant.hasEvaluation
+                                                                      ? 'None noted'
+                                                                      : '--'}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1326,27 +1531,26 @@ export default function JobApplicantsPage() {
                                         </Card>
                                         <Card>
                                             <CardHeader>
-                                                <div className="flex items-center justify-between">
-                                                    <CardTitle className="flex items-center gap-2">
-                                                        <MessageSquareQuote className="h-5 w-5 text-primary" />
-                                                        <span>Suggested Interview Questions</span>
-                                                    </CardTitle>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleRegenerateQuestions()}>
-                                                        <RefreshCw className="h-4 w-4" />
-                                                        <span className="sr-only">Regenerate Questions</span>
-                                                    </Button>
-                                                </div>
-                                                <CardDescription>AI-generated questions based on the candidate&apos;s profile. Click the refresh icon to get a new set.</CardDescription>
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <MessageSquareQuote className="h-5 w-5 text-primary" />
+                                                    <span>Suggested Interview Questions</span>
+                                                </CardTitle>
+                                                <CardDescription>
+                                                    AI-generated questions appear after evaluation.
+                                                </CardDescription>
                                             </CardHeader>
                                             <CardContent>
-                                                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 pl-2">
-                                                    {(selectedApplicant.interviewQuestions || interviewQuestions).map((q, i) => (
-                                                        <li key={i}>{q}</li>
-                                                    ))}
-                                                    {(!selectedApplicant.interviewQuestions && interviewQuestions.length === 0) && (
-                                                        <p className="text-center italic">No suggested questions available. Run AI evaluation first.</p>
-                                                    )}
-                                                </ul>
+                                                {selectedApplicant.interviewQuestions && selectedApplicant.interviewQuestions.length > 0 ? (
+                                                    <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 pl-2">
+                                                        {selectedApplicant.interviewQuestions.map((q, i) => (
+                                                            <li key={i}>{q}</li>
+                                                        ))}
+                                                    </ul>
+                                                ) : (
+                                                    <p className="text-sm text-muted-foreground italic text-center py-2">
+                                                        No suggested questions yet. Run AI evaluation first.
+                                                    </p>
+                                                )}
                                             </CardContent>
                                         </Card>
 
@@ -1489,13 +1693,23 @@ export default function JobApplicantsPage() {
                                     <TableCell className="font-semibold">Match Score</TableCell>
                                     {candidatesToCompare.map(candidate => (
                                         <TableCell key={candidate.id}>
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-bold text-lg">{candidate.matchScore}%</span>
-                                                <Progress
-                                                    value={candidate.matchScore}
-                                                    className="h-2 w-[100px] bg-slate-200"
-                                                    indicatorClassName={getScoreColor(candidate.matchScore)}
-                                                />
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className={`font-bold text-lg ${!candidate.hasEvaluation ? 'text-muted-foreground' : ''}`}>
+                                                    {formatMatchScoreLabel(
+                                                        !!candidate.hasEvaluation,
+                                                        candidate.hasEvaluation ? candidate.matchScore : null,
+                                                    )}
+                                                </span>
+                                                {candidate.evaluationRank != null && (
+                                                    <Badge variant="secondary" className="text-xs">Rank #{candidate.evaluationRank}</Badge>
+                                                )}
+                                                {candidate.hasEvaluation && (
+                                                    <Progress
+                                                        value={getMatchScoreProgress(true, candidate.matchScore)}
+                                                        className="h-2 w-[100px] bg-slate-200"
+                                                        indicatorClassName={getScoreColor(candidate.matchScore)}
+                                                    />
+                                                )}
                                             </div>
                                         </TableCell>
                                     ))}
