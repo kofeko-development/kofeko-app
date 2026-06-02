@@ -8,22 +8,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
 import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { ApiError } from "@/lib/api-client";
+import { useApiErrorToast } from "@/hooks/use-api-error-toast";
+import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
+  const { showError } = useApiErrorToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
     setIsLoading(true);
 
     try {
@@ -32,11 +35,7 @@ export default function LoginPage() {
         password,
       });
       if (user.status && user.status !== 'active') {
-        toast({
-          title: 'Account Not Active',
-          description: 'This account is currently pending or suspended. Please contact support.',
-          variant: 'destructive',
-        });
+        showError(new Error('This account is currently pending or suspended. Please contact support.'));
         return;
       }
 
@@ -47,84 +46,20 @@ export default function LoginPage() {
       }
     } catch (error) {
       if (error instanceof ApiError) {
-        // 409 — multiple accounts: show tenant slug field
-        if (error.status === 409 || error.errorCode === 'CONFLICT') {
-          toast({
-            title: 'Multiple Company Accounts',
-            description: 'Multiple accounts found for this email. Please enter your company slug to continue.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        // Pending approval — specific screen
         if (error.errorCode === 'APPROVAL_PENDING') {
-          toast({
-            title: 'Registration Pending',
-            description: 'Redirecting to your application tracking status page...',
-          });
+          showError(error);
           router.push('/signup-success?status=pending');
           return;
         }
-
-        // Rejected — specific message
         if (error.errorCode === 'APPROVAL_REJECTED') {
-          toast({
-            title: 'Registration Not Approved',
-            description: 'Redirecting to your application tracking status page...',
-            variant: 'destructive',
-          });
+          showError(error);
           router.push('/signup-success?status=rejected');
-          return;
-        }
-
-        // Tenant suspended
-        if (error.errorCode === 'TENANT_SUSPENDED') {
-          toast({
-            title: 'Account Suspended',
-            description: 'This company account has been suspended. Contact support@kofeko.ai.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        // Individual user suspended
-        if (error.errorCode === 'USER_SUSPENDED') {
-          toast({
-            title: 'Account Suspended',
-            description: 'Your account has been suspended. Contact your company admin.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        // Invited but not accepted
-        if (error.errorCode === 'ACCOUNT_INVITED_ONLY') {
-          toast({
-            title: 'Accept Your Invite First',
-            description: 'Please click the invite link in your email to activate your account.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        // Wrong portal (candidate trying staff login)
-        if (error.errorCode === 'WRONG_PORTAL') {
-          toast({
-            title: 'Wrong Login Page',
-            description: 'This email is a candidate account. Use the candidate login instead.',
-            variant: 'destructive',
-          });
           return;
         }
       }
 
-      // Default fallback
-      toast({
-        title: 'Login Failed',
-        description: error instanceof Error ? error.message : 'Invalid email or password. Please try again.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors(mapped);
     } finally {
       setIsLoading(false);
     }
@@ -149,10 +84,22 @@ export default function LoginPage() {
               placeholder="m@example.com"
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (fieldErrors.email) {
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.email;
+                    return next;
+                  });
+                }
+              }}
               disabled={isLoading}
-              className="h-10"
+              className={cn("h-10", fieldErrors.email && "border-destructive")}
             />
+            {fieldErrors.email ? (
+              <p className="text-sm text-destructive" role="alert">{fieldErrors.email}</p>
+            ) : null}
           </div>
           <div className="grid gap-2">
             <div className="flex items-center">
@@ -167,9 +114,18 @@ export default function LoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (fieldErrors.password) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.password;
+                      return next;
+                    });
+                  }
+                }}
                 disabled={isLoading}
-                className="pr-10 h-10"
+                className={cn("pr-10 h-10", fieldErrors.password && "border-destructive")}
               />
               <Button
                 type="button"
@@ -183,6 +139,9 @@ export default function LoginPage() {
                 <span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>
               </Button>
             </div>
+            {fieldErrors.password ? (
+              <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
+            ) : null}
           </div>
 
 

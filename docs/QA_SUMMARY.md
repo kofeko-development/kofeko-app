@@ -19,6 +19,34 @@
 | 8 — Super Admin | 14 | 14 | 0 | PASS |
 | **Total** | **134** | **134** | **0** | **PASS** |
 
+## 2026-06-01 Auth UX consistency
+
+Standardized auth error handling across company signup/login, candidate auth, OTP, invite, password reset, and superadmin login.
+
+| Area | Change |
+|------|--------|
+| Backend | Candidate OTP uses `OTP_RATE_LIMITED`, `OTP_EXPIRED`, `OTP_INVALID`, `OTP_MAX_ATTEMPTS`; staff/candidate refresh JWT failures return `401 UNAUTHORIZED` |
+| FE shared | `ApiError.details` typed; `mapFieldErrors()`; `useApiErrorToast` returns `{ display, fieldErrors }` + catalog action links in toast |
+| Auth screens | All auth pages use `showError` + inline field errors from backend validation |
+| Redirects | Open-position apply → `/candidate-auth`; apply questions → `/candidate-auth?mode=signup` |
+
+### Manual QA matrix (auth feedback)
+
+| Scenario | Expected UX |
+|----------|-------------|
+| Wrong password (staff / candidate / superadmin) | Toast: **Invalid Credentials** (`UNAUTHORIZED`); no misleading slug/company field message |
+| Suspended user / tenant | Catalog toast (`USER_SUSPENDED` / `TENANT_SUSPENDED`) |
+| Approval pending / rejected | Catalog toast + redirect to `/signup-success?status=pending\|rejected` |
+| Wrong portal (candidate on staff login) | Toast with **Go to Candidate Login** action → `/candidate-auth` |
+| Invited-only account | `ACCOUNT_INVITED_ONLY` catalog message |
+| Candidate no-password (recruiter-created) | `ACCOUNT_NO_PASSWORD` catalog message |
+| OTP wrong / expired / max attempts / rate limit | Matching `OTP_*` catalog toasts (company + candidate signup) |
+| Invite token expired / used / invalid | `INVITE_TOKEN_*` catalog; used → redirect login |
+| Reset token expired / used / invalid | `RESET_TOKEN_*` catalog; expired → redirect forgot-password |
+| Backend validation (Zod) | Toast **Validation Error** + inline message on mapped field (`body.email` → email, etc.) |
+| Unauthenticated job apply | Toast + redirect `/candidate-auth` (not staff `/login`) |
+| Expired refresh token (API) | `401 UNAUTHORIZED` from backend (not 500) |
+
 ## 2026-06-01 Evaluation regression
 
 | Check | Result |

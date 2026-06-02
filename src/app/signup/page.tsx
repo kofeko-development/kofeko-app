@@ -14,8 +14,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
-import { apiRequest, ApiError } from "@/lib/api-client";
+import { apiRequest } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
+import { useApiErrorToast } from "@/hooks/use-api-error-toast";
 import { useState } from "react";
 import { Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,6 +67,9 @@ export default function SignupPage() {
   const { registerAdmin } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { showError } = useApiErrorToast();
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [companyName, setCompanyName] = useState('');
   const [country, setCountry] = useState('');
@@ -147,21 +151,8 @@ export default function SignupPage() {
         description: 'Check your inbox for a 6-digit verification code.',
       });
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.errorCode === 'OTP_RATE_LIMITED') {
-          toast({
-            title: 'Wait Before Resending',
-            description: error.message,
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-      toast({
-        title: 'Could Not Send Code',
-        description: error instanceof Error ? error.message : 'Try again in a moment.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors((prev) => ({ ...prev, ...mapped }));
     } finally {
       setSendOtpLoading(false);
     }
@@ -188,37 +179,8 @@ export default function SignupPage() {
       setVerifiedAtEmail(normalizeEmail(raw));
       toast({ title: 'Email verified', description: 'You can continue to company details.' });
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.errorCode === 'OTP_EXPIRED') {
-          toast({
-            title: 'Code Expired',
-            description: 'Your verification code has expired. Request a new one.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (error.errorCode === 'OTP_MAX_ATTEMPTS') {
-          toast({
-            title: 'Too Many Attempts',
-            description: 'Too many incorrect attempts. Please request a new code.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (error.errorCode === 'OTP_INVALID') {
-          toast({
-            title: 'Incorrect Code',
-            description: 'That code is incorrect. Check your email and try again.',
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-      toast({
-        title: 'Verification Failed',
-        description: error instanceof Error ? error.message : 'Check the code and try again.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors((prev) => ({ ...prev, ...mapped }));
     } finally {
       setConfirmOtpLoading(false);
     }
@@ -297,6 +259,7 @@ export default function SignupPage() {
     }
 
     setIsLoading(true);
+    setFieldErrors({});
 
     try {
       const phoneNumber = buildE164Phone(phoneCountryIso, phoneNationalDigits);
@@ -343,11 +306,11 @@ export default function SignupPage() {
 
       router.push('/signup-success');
     } catch (error) {
-      toast({
-        title: 'Signup Failed',
-        description: error instanceof Error ? error.message : 'Failed to submit registration request',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors(mapped);
+      if (mapped.adminEmail || mapped.email || mapped.password) {
+        setStep(1);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -391,7 +354,7 @@ export default function SignupPage() {
                     onChange={(e) => handleAdminEmailChange(e.target.value)}
                     required
                     disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                    className="h-11 min-w-0 flex-1"
+                    className={cn("h-11 min-w-0 flex-1", (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive")}
                     placeholder="you@company.com"
                   />
                   <Button
@@ -412,6 +375,11 @@ export default function SignupPage() {
                 <p className="text-xs text-muted-foreground">
                   Tap Verify to receive a one-time code. You must confirm it before continuing.
                 </p>
+                {(fieldErrors.adminEmail || fieldErrors.email) ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    {fieldErrors.adminEmail ?? fieldErrors.email}
+                  </p>
+                ) : null}
                 {otpSent ? (
                   <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-end sm:gap-3">
                     <div className="grid gap-2">
@@ -463,7 +431,7 @@ export default function SignupPage() {
                       required
                       minLength={8}
                       disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                      className={cn("h-11 pr-10", showPasswordMismatch && "border-destructive focus-visible:ring-destructive")}
+                      className={cn("h-11 pr-10", (showPasswordMismatch || fieldErrors.password) && "border-destructive focus-visible:ring-destructive")}
                     />
                     <button
                       type="button"
@@ -509,6 +477,9 @@ export default function SignupPage() {
                   Passwords must match.
                 </p>
               ) : null}
+              {fieldErrors.password ? (
+                <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
+              ) : null}
               <Button
                 type="submit"
                 className="h-11 w-full"
@@ -536,7 +507,8 @@ export default function SignupPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="company-name">Company Name</Label>
-                  <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} />
+                  <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} className={fieldErrors.companyName ? "border-destructive" : undefined} />
+                  {fieldErrors.companyName ? <p className="text-sm text-destructive" role="alert">{fieldErrors.companyName}</p> : null}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="industry">Industry</Label>
@@ -669,11 +641,7 @@ export default function SignupPage() {
                               const res = await companyApi.uploadPublicLogo(file);
                               setCompanyLogo(res.url);
                             } catch (err) {
-                              toast({
-                                title: 'Upload failed',
-                                description: err instanceof Error ? err.message : 'Unable to upload logo.',
-                                variant: 'destructive',
-                              });
+                              showError(err);
                             }
                           }
                         }}

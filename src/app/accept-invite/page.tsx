@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { ApiError } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 
 const strongPassword = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 
@@ -17,13 +19,16 @@ function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { showError } = useApiErrorToast();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    setFieldErrors({});
 
     if (!token) {
       toast({ title: 'Missing invite token', description: 'Open this page from the invite email link.', variant: 'destructive' });
@@ -48,38 +53,13 @@ function AcceptInviteContent() {
       toast({ title: 'Invite accepted', description: 'Your account is active now. Please login.' });
       router.push('/login');
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.errorCode === 'INVITE_TOKEN_EXPIRED') {
-          toast({
-            title: 'Invite Link Expired',
-            description: 'This invite link has expired (72 hours). Ask your admin to send a new invitation.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (error.errorCode === 'INVITE_TOKEN_USED') {
-          toast({
-            title: 'Already Activated',
-            description: 'This invite link has already been used. Try logging in with your email.',
-            variant: 'destructive',
-          });
-          router.push('/login');
-          return;
-        }
-        if (error.errorCode === 'INVITE_TOKEN_INVALID') {
-          toast({
-            title: 'Invalid Invite Link',
-            description: 'This link is not valid. Ask your admin to resend the invitation.',
-            variant: 'destructive',
-          });
-          return;
-        }
+      if (error instanceof ApiError && error.errorCode === 'INVITE_TOKEN_USED') {
+        showError(error);
+        router.push('/login');
+        return;
       }
-      toast({
-        title: 'Could Not Activate Account',
-        description: error instanceof Error ? error.message : 'Please try again or contact support.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors(mapped);
     } finally {
       setIsSubmitting(false);
     }
@@ -96,11 +76,27 @@ function AcceptInviteContent() {
           <form className="grid gap-4" onSubmit={onSubmit}>
             <div className="grid gap-2">
               <Label htmlFor="password">New Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className={cn(fieldErrors.password && 'border-destructive')}
+              />
+              {fieldErrors.password ? (
+                <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
+              ) : null}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
             </div>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Activating...' : 'Activate Account'}</Button>
           </form>

@@ -12,6 +12,7 @@ import { Briefcase, MapPin, Loader2, Info } from "lucide-react";
 import PublicNavbar from "@/components/public-navbar";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import sanitizeHtml from 'sanitize-html';
 import AppFooter from '@/components/app-footer';
 import MainLayout from '@/app/(main)/layout';
@@ -256,6 +257,7 @@ export default function JobApplicationPage() {
     const router = useRouter();
     const { user } = useAuth();
     const { toast } = useToast();
+    const { showError } = useApiErrorToast();
     const id = params.id as string;
 
     const [name, setName] = useState('');
@@ -300,7 +302,7 @@ export default function JobApplicationPage() {
                 description: "Please login as a candidate to apply for this position.",
                 variant: "destructive",
             });
-            router.push('/login');
+            router.push('/candidate-auth');
             return;
         }
 
@@ -337,11 +339,7 @@ export default function JobApplicationPage() {
             }, 1500);
 
         } catch (error) {
-            toast({
-                title: "Application Failed",
-                description: error instanceof Error ? error.message : "Something went wrong while submitting your application.",
-                variant: "destructive",
-            });
+            showError(error);
         } finally {
             setIsLoading(false);
         }

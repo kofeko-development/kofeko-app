@@ -1,5 +1,5 @@
 // Maps backend errorCode → user-facing message + optional action hint
-type ErrorDisplay = {
+export type ErrorDisplay = {
   title: string;
   description: string;
   action?: string;          // e.g. "Request new invite", "Contact support"
@@ -135,6 +135,26 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
   FORBIDDEN: {
     title: 'Access Denied',
     description: 'You don\'t have permission to do that.',
+  },
+  UNAUTHORIZED: {
+    title: 'Invalid Credentials',
+    description: 'The email or password is incorrect. Please try again.',
+  },
+  INTERNAL_SERVER_ERROR: {
+    title: 'Something Went Wrong',
+    description: 'A server error occurred. Please try again in a moment.',
+  },
+  EMAIL_FAILED: {
+    title: 'Email Could Not Be Sent',
+    description: 'We could not send the email right now. Please try again later.',
+  },
+  TOKEN_EXPIRED: {
+    title: 'Link Expired',
+    description: 'This link has expired. Request a new one to continue.',
+  },
+  INVALID_TOKEN: {
+    title: 'Invalid Link',
+    description: 'This link is not valid. Open the original email or request a new one.',
   },
   VALIDATION_ERROR: {
     title: 'Validation Error',

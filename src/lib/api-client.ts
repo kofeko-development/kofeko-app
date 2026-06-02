@@ -91,13 +91,20 @@ export const clearAuthStorage = () => clearTokens();
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5000/api/v1';
 
+// ── Error details (Zod flatten from backend validation) ─────────────────────
+export type ApiErrorDetails = {
+  formErrors?: string[];
+  fieldErrors?: Record<string, string[] | undefined>;
+  [key: string]: unknown;
+};
+
 // ── Error class ───────────────────────────────────────────────────────────────
 export class ApiError extends Error {
   status: number;
   errorCode?: string;
-  details?: unknown;
+  details?: ApiErrorDetails;
 
-  constructor(message: string, status: number, errorCode?: string, details?: unknown) {
+  constructor(message: string, status: number, errorCode?: string, details?: ApiErrorDetails) {
     super(message);
     this.status = status;
     this.errorCode = errorCode;
@@ -141,19 +148,31 @@ async function refreshAccessToken(type: AuthType): Promise<boolean> {
 
 // ── Error parser ──────────────────────────────────────────────────────────────
 async function parseError(response: Response): Promise<ApiError> {
+  const status = response.status;
+  let bodyText = '';
   try {
-    const payload = (await response.json()) as Partial<ApiEnvelope<unknown>> & {
+    bodyText = await response.text();
+  } catch {
+    return new ApiError('Request failed', status);
+  }
+
+  if (!bodyText.trim()) {
+    return new ApiError('Request failed', status);
+  }
+
+  try {
+    const payload = JSON.parse(bodyText) as Partial<ApiEnvelope<unknown>> & {
       errorCode?: string;
-      details?: unknown;
+      details?: ApiErrorDetails;
     };
     return new ApiError(
       payload.message ?? 'Request failed',
-      response.status,
+      status,
       payload.errorCode,
       payload.details,
     );
   } catch {
-    return new ApiError('Request failed', response.status);
+    return new ApiError(bodyText.length > 200 ? `${bodyText.slice(0, 200)}…` : bodyText, status);
   }
 }
 

@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { ApiError } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+import { cn } from '@/lib/utils';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
 import { firebaseAuth, googleAuthProvider } from '@/lib/firebase-client';
@@ -21,7 +22,9 @@ const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(n
 function CandidateAuthContent() {
   const { loginCandidate, loginCandidateWithGoogle, registerCandidate } = useAuth();
   const { toast } = useToast();
+  const { showError } = useApiErrorToast();
   const router = useRouter();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const searchParams = useSearchParams();
   const mode = useMemo(() => (searchParams.get('mode') === 'signup' ? 'signup' : 'login'), [searchParams]);
 
@@ -78,11 +81,8 @@ function CandidateAuthContent() {
       setEmailVerificationToken(null);
       toast({ title: 'Code sent', description: 'Check your email for a 6-digit verification code.' });
     } catch (error) {
-      toast({
-        title: 'Could not send code',
-        description: error instanceof Error ? error.message : 'Try again in a moment.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors((prev) => ({ ...prev, ...mapped }));
     } finally {
       setSendOtpLoading(false);
     }
@@ -124,11 +124,8 @@ function CandidateAuthContent() {
         router.push('/find-jobs');
       }
     } catch (error) {
-      toast({
-        title: 'Verification failed',
-        description: error instanceof Error ? error.message : 'Check the code and try again.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors((prev) => ({ ...prev, ...mapped }));
       setIsLoading(false);
     } finally {
       setConfirmOtpLoading(false);
@@ -143,6 +140,7 @@ function CandidateAuthContent() {
     }
 
     setIsLoading(true);
+    setFieldErrors({});
     try {
       if (mode === 'signup') {
         if (password !== confirmPassword) {
@@ -176,45 +174,8 @@ function CandidateAuthContent() {
       }
       router.push('/find-jobs');
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.errorCode === 'ACCOUNT_NO_PASSWORD') {
-          toast({
-            title: 'Account Not Activated',
-            description: 'Your account was created by the recruiting team. Check your email for an invite link to set your password.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (error.errorCode === 'ACCOUNT_INVITED_ONLY') {
-          toast({
-            title: 'Invite Not Accepted',
-            description: 'Please accept your invitation first. Check your email.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (error.errorCode === 'USER_SUSPENDED') {
-          toast({
-            title: 'Account Suspended',
-            description: 'Your candidate account has been suspended.',
-            variant: 'destructive',
-          });
-          return;
-        }
-        if (error.errorCode === 'CONFLICT') {
-          toast({
-            title: 'Email Already Registered',
-            description: 'An account with this email already exists. Please sign in instead.',
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-      toast({
-        title: mode === 'signup' ? 'Sign Up Failed' : 'Login Failed',
-        description: error instanceof Error ? error.message : 'Please check your details and try again.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors(mapped);
     } finally {
       setIsLoading(false);
     }
@@ -229,11 +190,8 @@ function CandidateAuthContent() {
       toast({ title: 'Login successful', description: 'Signed in with Google.' });
       router.push('/find-jobs');
     } catch (error) {
-      toast({
-        title: 'Google sign-in failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      const { fieldErrors: mapped } = showError(error);
+      setFieldErrors(mapped);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -280,12 +238,20 @@ function CandidateAuthContent() {
                   onChange={(e) => handleEmailChange(e.target.value)}
                   required
                   disabled={isLoading || isGoogleLoading || emailLooksVerified}
-                  className={emailLooksVerified ? "pr-10 border-emerald-500/50 bg-emerald-50/30" : ""}
+                  className={cn(
+                    emailLooksVerified ? "pr-10 border-emerald-500/50 bg-emerald-50/30" : "",
+                    (fieldErrors.email || fieldErrors.adminEmail) && !emailLooksVerified && "border-destructive",
+                  )}
                 />
                 {emailLooksVerified && (
                   <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-emerald-500" />
                 )}
               </div>
+              {(fieldErrors.email || fieldErrors.adminEmail) ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {fieldErrors.email ?? fieldErrors.adminEmail}
+                </p>
+              ) : null}
             </div>
 
             <div className="grid gap-2">
@@ -299,7 +265,7 @@ function CandidateAuthContent() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isLoading || isGoogleLoading}
-                  className="pr-10"
+                  className={cn("pr-10", fieldErrors.password && "border-destructive")}
                 />
                 <Button
                   type="button"
@@ -312,6 +278,9 @@ function CandidateAuthContent() {
                   {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </Button>
               </div>
+              {fieldErrors.password ? (
+                <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
+              ) : null}
             </div>
 
             {mode === 'signup' && (

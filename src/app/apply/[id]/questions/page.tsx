@@ -35,7 +35,7 @@ function QuestionsForm() {
             fromApplication: 'true',
         }).toString();
 
-        router.push(`/signup?${query}`);
+        router.push(`/candidate-auth?mode=signup&${query}`);
     };
 
     return (
