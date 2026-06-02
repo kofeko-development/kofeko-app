@@ -138,7 +138,11 @@ export function CompanyPostedJobsDashboard({
               ) : (
                 postedJobs.map((job) => (
                   <TableRow key={job.id}>
-                    <TableCell className="font-medium">{job.title}</TableCell>
+                    <TableCell className="max-w-[min(100%,20rem)] font-medium">
+                      <span className="block truncate" title={job.title}>
+                        {job.title}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{job.location?.trim() || '—'}</TableCell>
                     <TableCell className="capitalize text-muted-foreground">{statusLabel(job.status)}</TableCell>
                     <TableCell className="text-muted-foreground">

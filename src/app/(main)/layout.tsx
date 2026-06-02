@@ -360,10 +360,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     if (isRecruiterExperience) {
         return (
             <TooltipProvider>
-                <SidebarProvider>
-                    <div className="flex h-screen flex-col bg-muted/40">
+                <SidebarProvider className="flex h-screen w-full flex-col overflow-hidden">
+                    <div className="flex h-full min-h-0 flex-col bg-muted/40">
                         <RecruiterHeader />
-                        <div className="flex flex-1 overflow-hidden">
+                        <div className="flex min-h-0 flex-1 overflow-hidden">
                             <Sidebar collapsible="icon">
                                 <SidebarRail />
                                 <SidebarContent>
@@ -398,7 +398,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                     </SidebarMenu>
                                 </SidebarContent>
                             </Sidebar>
-                            <main className="flex-1 p-6 overflow-auto">
+                            <main className="min-h-0 min-w-0 flex-1 overflow-auto p-6">
                                 {children}
                             </main>
                         </div>
