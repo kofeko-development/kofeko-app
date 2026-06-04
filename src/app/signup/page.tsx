@@ -14,10 +14,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
-import { apiRequest } from "@/lib/api-client";
+import { apiRequest, ApiError } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useApiErrorToast } from "@/hooks/use-api-error-toast";
-import { useState } from "react";
+import { hasFieldErrors, mapFieldErrors, resolveSignupFieldError } from "@/lib/validation-errors";
+import { ensureHttpsUrl } from "@/lib/url-utils";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { COMPANY_SIZE_OPTIONS, type CompanySizeValue } from "@/lib/company-size";
@@ -49,19 +51,43 @@ const PhoneInternationalField = dynamic(
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
-const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
-
-const normalizeUrlInput = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  if (trimmed.startsWith('https:/') && !trimmed.startsWith('https://')) {
-    return trimmed.replace('https:/', 'https://');
-  }
-  if (trimmed.startsWith('http:/') && !trimmed.startsWith('http://')) {
-    return trimmed.replace('http:/', 'http://');
-  }
-  return trimmed;
+/** Stricter than basic regex; aligned with backend z.email() expectations */
+const isValidSignupEmail = (value: string) => {
+  const email = normalizeEmail(value);
+  if (!email || email.length > 254 || email.includes('..')) return false;
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || !domain || !domain.includes('.')) return false;
+  const tld = domain.split('.').pop();
+  if (!tld || tld.length < 2) return false;
+  return /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/.test(email);
 };
+
+const STEP1_ERROR_FIELDS = new Set([
+  'adminEmail',
+  'email',
+  'password',
+  'code',
+  'emailVerificationToken',
+]);
+
+function mapOtpApiFieldErrors(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiError)) return {};
+  const mapped = mapFieldErrors(error.details);
+  if (Object.keys(mapped).length > 0) return mapped;
+  const code = error.errorCode;
+  if (code === 'OTP_INVALID' || code === 'OTP_EXPIRED' || code === 'OTP_MAX_ATTEMPTS') {
+    return { code: error.message };
+  }
+  if (code === 'OTP_RATE_LIMITED') {
+    return { adminEmail: error.message };
+  }
+  if (code === 'VALIDATION_ERROR') {
+    return { adminEmail: error.message };
+  }
+  return {};
+}
 
 export default function SignupPage() {
   const { registerAdmin } = useAuth();
@@ -104,8 +130,33 @@ export default function SignupPage() {
   const [verifiedAtEmail, setVerifiedAtEmail] = useState<string | null>(null);
   const [sendOtpLoading, setSendOtpLoading] = useState(false);
   const [confirmOtpLoading, setConfirmOtpLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoPreviewBlob, setLogoPreviewBlob] = useState<string | null>(null);
+  const [logoPreviewFailed, setLogoPreviewFailed] = useState(false);
 
   const passwordsMatch = password === confirmPassword;
+
+  const fieldErr = (field: string) => resolveSignupFieldError(fieldErrors, field);
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewBlob) URL.revokeObjectURL(logoPreviewBlob);
+    };
+  }, [logoPreviewBlob]);
+
+  const clearLogoPreview = () => {
+    if (logoPreviewBlob) URL.revokeObjectURL(logoPreviewBlob);
+    setLogoPreviewBlob(null);
+    setCompanyLogo('');
+    setLogoPreviewFailed(false);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.companyLogo;
+      return next;
+    });
+  };
+
+  const logoDisplaySrc = logoPreviewBlob || companyLogo || null;
   const showPasswordMismatch =
     confirmPassword.length > 0 && password.length > 0 && !passwordsMatch;
 
@@ -128,15 +179,21 @@ export default function SignupPage() {
 
   const handleSendEmailOtp = async () => {
     const raw = adminEmail.trim();
-    if (!isValidEmailShape(raw)) {
-      toast({
-        title: 'Invalid email',
-        description: 'Enter a valid email address, then tap Verify.',
-        variant: 'destructive',
-      });
+    if (!isValidSignupEmail(raw)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        adminEmail: 'Enter a valid email address, then tap Verify.',
+      }));
       return;
     }
     setSendOtpLoading(true);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.adminEmail;
+      delete next.email;
+      delete next.code;
+      return next;
+    });
     try {
       await apiRequest<{ sent: true }>('/auth/register-company-email-otp/send', {
         method: 'POST',
@@ -151,8 +208,8 @@ export default function SignupPage() {
         description: 'Check your inbox for a 6-digit verification code.',
       });
     } catch (error) {
-      const { fieldErrors: mapped } = showError(error);
-      setFieldErrors((prev) => ({ ...prev, ...mapped }));
+      showError(error);
+      setFieldErrors((prev) => ({ ...prev, ...mapOtpApiFieldErrors(error) }));
     } finally {
       setSendOtpLoading(false);
     }
@@ -161,15 +218,26 @@ export default function SignupPage() {
   const handleConfirmEmailOtp = async () => {
     const raw = adminEmail.trim();
     const code = otpCode.trim();
-    if (!isValidEmailShape(raw) || !/^\d{6}$/.test(code)) {
-      toast({
-        title: 'Invalid code',
-        description: 'Enter the 6-digit code from your email.',
-        variant: 'destructive',
-      });
+    if (!isValidSignupEmail(raw)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        adminEmail: 'Enter a valid email address.',
+      }));
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        code: 'Enter the 6-digit code from your email.',
+      }));
       return;
     }
     setConfirmOtpLoading(true);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.code;
+      return next;
+    });
     try {
       const { emailVerificationToken: token } = await apiRequest<{ emailVerificationToken: string }>(
         '/auth/register-company-email-otp/verify',
@@ -179,8 +247,8 @@ export default function SignupPage() {
       setVerifiedAtEmail(normalizeEmail(raw));
       toast({ title: 'Email verified', description: 'You can continue to company details.' });
     } catch (error) {
-      const { fieldErrors: mapped } = showError(error);
-      setFieldErrors((prev) => ({ ...prev, ...mapped }));
+      showError(error);
+      setFieldErrors((prev) => ({ ...prev, ...mapOtpApiFieldErrors(error) }));
     } finally {
       setConfirmOtpLoading(false);
     }
@@ -188,7 +256,7 @@ export default function SignupPage() {
 
   const validateStep1 = (): boolean => {
     const norm = normalizeEmail(adminEmail);
-    if (!norm || !isValidEmailShape(adminEmail)) {
+    if (!norm || !isValidSignupEmail(adminEmail)) {
       toast({
         title: 'Invalid email',
         description: 'Enter a valid email you will use to log in after approval.',
@@ -258,17 +326,27 @@ export default function SignupPage() {
       return;
     }
 
+    const website = ensureHttpsUrl(companyWebsite);
+    const linkedin = linkedinUrl.trim() ? ensureHttpsUrl(linkedinUrl) : '';
+    const twitter = twitterUrl.trim() ? ensureHttpsUrl(twitterUrl) : '';
+
+    if (!companyLogo.trim()) {
+      setFieldErrors({ companyLogo: 'Upload a company logo before submitting.' });
+      return;
+    }
+
+    if (logoUploading) {
+      setFieldErrors({ companyLogo: 'Please wait for the logo upload to finish.' });
+      return;
+    }
+
     setIsLoading(true);
     setFieldErrors({});
 
     try {
       const phoneNumber = buildE164Phone(phoneCountryIso, phoneNationalDigits);
       if (!phoneNumber) {
-        toast({
-          title: "Phone required",
-          description: "Select a country code and enter your phone number (digits only).",
-          variant: "destructive",
-        });
+        setFieldErrors({ phoneNumber: 'Select a country code and enter your phone number (digits only).' });
         setIsLoading(false);
         return;
       }
@@ -289,13 +367,13 @@ export default function SignupPage() {
         companySize: companySize as CompanySizeValue,
         companyType,
         foundedYear: Number(foundedYear),
-        companyWebsite,
+        companyWebsite: website,
         officialCompanyAddress: fullAddress.trim(),
         phoneNumber,
         companyLogo,
         shortDescription,
-        linkedinUrl: linkedinUrl || undefined,
-        twitterUrl: twitterUrl || undefined,
+        linkedinUrl: linkedin || undefined,
+        twitterUrl: twitter || undefined,
         termsAccepted: termsAccepted as true,
       });
 
@@ -308,7 +386,7 @@ export default function SignupPage() {
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors(mapped);
-      if (mapped.adminEmail || mapped.email || mapped.password) {
+      if (Object.keys(mapped).some((key) => STEP1_ERROR_FIELDS.has(key))) {
         setStep(1);
       }
     } finally {
@@ -341,6 +419,19 @@ export default function SignupPage() {
       </CardHeader>
       <CardContent className="px-6 pb-6 pt-6">
         <form onSubmit={handleSignup} className="grid gap-6">
+          {hasFieldErrors(fieldErrors) && (
+            <div
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+              role="alert"
+            >
+              <p className="font-medium">Please fix the following:</p>
+              <ul className="mt-1 list-inside list-disc">
+                {Object.entries(fieldErrors).map(([key, msg]) => (
+                  <li key={key}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {step === 1 ? (
             <div className="grid gap-5">
               <div className="grid gap-2">
@@ -354,7 +445,7 @@ export default function SignupPage() {
                     onChange={(e) => handleAdminEmailChange(e.target.value)}
                     required
                     disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                    className={cn("h-11 min-w-0 flex-1", (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive")}
+                    className={cn("h-11 min-w-0 flex-1", fieldErr('adminEmail') && "border-destructive")}
                     placeholder="you@company.com"
                   />
                   <Button
@@ -365,7 +456,8 @@ export default function SignupPage() {
                       isLoading ||
                       sendOtpLoading ||
                       confirmOtpLoading ||
-                      !isValidEmailShape(adminEmail)
+                      !isValidSignupEmail(adminEmail) ||
+                      emailLooksVerified
                     }
                     onClick={() => void handleSendEmailOtp()}
                   >
@@ -375,9 +467,9 @@ export default function SignupPage() {
                 <p className="text-xs text-muted-foreground">
                   Tap Verify to receive a one-time code. You must confirm it before continuing.
                 </p>
-                {(fieldErrors.adminEmail || fieldErrors.email) ? (
+                {fieldErr('adminEmail') ? (
                   <p className="text-sm text-destructive" role="alert">
-                    {fieldErrors.adminEmail ?? fieldErrors.email}
+                    {fieldErr('adminEmail')}
                   </p>
                 ) : null}
                 {otpSent ? (
@@ -394,8 +486,11 @@ export default function SignupPage() {
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         disabled={isLoading || confirmOtpLoading || emailLooksVerified}
-                        className="h-11 font-mono tracking-widest"
+                        className={cn("h-11 font-mono tracking-widest", fieldErr('code') && "border-destructive")}
                       />
+                      {fieldErr('code') ? (
+                        <p className="text-sm text-destructive" role="alert">{fieldErr('code')}</p>
+                      ) : null}
                     </div>
                     <Button
                       type="button"
@@ -404,7 +499,8 @@ export default function SignupPage() {
                         isLoading ||
                         confirmOtpLoading ||
                         otpCode.trim().length !== 6 ||
-                        emailLooksVerified
+                        emailLooksVerified ||
+                        !isValidSignupEmail(adminEmail)
                       }
                       onClick={() => void handleConfirmEmailOtp()}
                     >
@@ -431,7 +527,7 @@ export default function SignupPage() {
                       required
                       minLength={8}
                       disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                      className={cn("h-11 pr-10", (showPasswordMismatch || fieldErrors.password) && "border-destructive focus-visible:ring-destructive")}
+                      className={cn("h-11 pr-10", (showPasswordMismatch || fieldErr('password')) && "border-destructive focus-visible:ring-destructive")}
                     />
                     <button
                       type="button"
@@ -477,8 +573,8 @@ export default function SignupPage() {
                   Passwords must match.
                 </p>
               ) : null}
-              {fieldErrors.password ? (
-                <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
+              {fieldErr('password') ? (
+                <p className="text-sm text-destructive" role="alert">{fieldErr('password')}</p>
               ) : null}
               <Button
                 type="submit"
@@ -507,12 +603,13 @@ export default function SignupPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="company-name">Company Name</Label>
-                  <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} className={fieldErrors.companyName ? "border-destructive" : undefined} />
-                  {fieldErrors.companyName ? <p className="text-sm text-destructive" role="alert">{fieldErrors.companyName}</p> : null}
+                  <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} className={fieldErr('companyName') ? "border-destructive" : undefined} />
+                  {fieldErr('companyName') ? <p className="text-sm text-destructive" role="alert">{fieldErr('companyName')}</p> : null}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="industry">Industry</Label>
-                  <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} />
+                  <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} className={fieldErr('industry') ? "border-destructive" : undefined} />
+                  {fieldErr('industry') ? <p className="text-sm text-destructive" role="alert">{fieldErr('industry')}</p> : null}
                 </div>
               </div>
 
@@ -526,11 +623,13 @@ export default function SignupPage() {
                 setCity={setCity}
                 setZipCode={setZipCode}
                 disabled={isLoading}
+                fieldErrors={fieldErrors}
               />
 
               <div className="grid gap-2">
                 <Label htmlFor="full-address">Company Address (Full Address)</Label>
-                <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} />
+                <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} className={fieldErr('fullAddress') ? "border-destructive" : undefined} />
+                {fieldErr('fullAddress') ? <p className="text-sm text-destructive" role="alert">{fieldErr('fullAddress')}</p> : null}
               </div>
 
               <div className="grid gap-x-4 gap-y-3 md:grid-cols-2 md:items-start">
@@ -542,7 +641,7 @@ export default function SignupPage() {
                     id="company-size"
                     value={companySize}
                     onChange={(e) => setCompanySize(e.target.value)}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={cn("h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", fieldErr('companySize') && "border-destructive")}
                     required
                     disabled={isLoading}
                   >
@@ -553,6 +652,7 @@ export default function SignupPage() {
                       </option>
                     ))}
                   </select>
+                  {fieldErr('companySize') ? <p className="text-sm text-destructive" role="alert">{fieldErr('companySize')}</p> : null}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="company-type" className="mb-0">
@@ -562,7 +662,7 @@ export default function SignupPage() {
                     id="company-type"
                     value={companyType}
                     onChange={(e) => setCompanyType(e.target.value as 'startup' | 'enterprise' | 'agency' | 'non_profit')}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={cn("h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", fieldErr('companyType') && "border-destructive")}
                     required
                     disabled={isLoading}
                   >
@@ -571,6 +671,7 @@ export default function SignupPage() {
                     <option value="agency">Agency</option>
                     <option value="non_profit">Non-profit</option>
                   </select>
+                  {fieldErr('companyType') ? <p className="text-sm text-destructive" role="alert">{fieldErr('companyType')}</p> : null}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="founded-year" className="mb-0">
@@ -583,17 +684,24 @@ export default function SignupPage() {
                     onChange={(e) => setFoundedYear(e.target.value)}
                     required
                     disabled={isLoading}
+                    className={fieldErr('foundedYear') ? "border-destructive" : undefined}
                   />
+                  {fieldErr('foundedYear') ? <p className="text-sm text-destructive" role="alert">{fieldErr('foundedYear')}</p> : null}
                 </div>
-                <PhoneInternationalField
-                  className="min-w-0"
-                  phoneCountryIso={phoneCountryIso}
-                  phoneNationalDigits={phoneNationalDigits}
-                  setPhoneCountryIso={setPhoneCountryIso}
-                  setPhoneNationalDigits={setPhoneNationalDigits}
-                  addressCountryName={country}
-                  disabled={isLoading}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <PhoneInternationalField
+                    className="min-w-0"
+                    phoneCountryIso={phoneCountryIso}
+                    phoneNationalDigits={phoneNationalDigits}
+                    setPhoneCountryIso={setPhoneCountryIso}
+                    setPhoneNationalDigits={setPhoneNationalDigits}
+                    addressCountryName={country}
+                    disabled={isLoading}
+                  />
+                  {fieldErr('phoneNumber') ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErr('phoneNumber')}</p>
+                  ) : null}
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -604,21 +712,33 @@ export default function SignupPage() {
                     type="url"
                     value={companyWebsite}
                     onChange={e => setCompanyWebsite(e.target.value)}
-                    onBlur={() => setCompanyWebsite((prev) => normalizeUrlInput(prev))}
-                    placeholder="https://example.com"
+                    onBlur={() => setCompanyWebsite((prev) => ensureHttpsUrl(prev))}
+                    placeholder="www.example.com"
                     required
                     disabled={isLoading}
+                    className={fieldErr('companyWebsite') ? "border-destructive" : undefined}
                   />
+                  {fieldErr('companyWebsite') ? <p className="text-sm text-destructive" role="alert">{fieldErr('companyWebsite')}</p> : null}
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-2 md:col-span-2">
                   <Label htmlFor="company-logo">Company Logo (Image or SVG)</Label>
                   <div className="flex items-center gap-4">
-                    {companyLogo ? (
+                    {logoDisplaySrc ? (
                       <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
-                        <img src={companyLogo} alt="Logo preview" className="h-full w-full object-contain" />
+                        <img
+                          src={logoDisplaySrc}
+                          alt="Logo preview"
+                          className="h-full w-full object-contain"
+                          onError={() => setLogoPreviewFailed(true)}
+                        />
+                        {logoUploading ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          </div>
+                        ) : null}
                         <button
                           type="button"
-                          onClick={() => setCompanyLogo('')}
+                          onClick={clearLogoPreview}
                           className="absolute right-0 top-0 rounded-bl-md bg-destructive p-1 text-white hover:bg-destructive/90"
                         >
                           <X className="h-3 w-3" />
@@ -626,7 +746,7 @@ export default function SignupPage() {
                       </div>
                     ) : (
                       <div className="h-16 w-16 rounded-md border border-dashed flex items-center justify-center text-muted-foreground bg-muted/30">
-                        <Upload className="h-6 w-6 opacity-20" />
+                        {logoUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6 opacity-20" />}
                       </div>
                     )}
                     <div className="flex-1">
@@ -636,19 +756,45 @@ export default function SignupPage() {
                         accept="image/*,.svg"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            try {
-                              const res = await companyApi.uploadPublicLogo(file);
-                              setCompanyLogo(res.url);
-                            } catch (err) {
-                              showError(err);
-                            }
+                          if (!file) return;
+                          if (logoPreviewBlob) URL.revokeObjectURL(logoPreviewBlob);
+                          const blobUrl = URL.createObjectURL(file);
+                          setLogoPreviewBlob(blobUrl);
+                          setLogoPreviewFailed(false);
+                          setCompanyLogo('');
+                          setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.companyLogo;
+                            return next;
+                          });
+                          setLogoUploading(true);
+                          try {
+                            const res = await companyApi.uploadPublicLogo(file);
+                            setCompanyLogo(res.url);
+                            setLogoPreviewFailed(false);
+                          } catch (err) {
+                            showError(err);
+                            const mapped = err instanceof ApiError ? mapFieldErrors(err.details) : {};
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              companyLogo: mapped.companyLogo ?? (err instanceof Error ? err.message : 'Upload failed'),
+                            }));
+                          } finally {
+                            setLogoUploading(false);
                           }
                         }}
-                        disabled={isLoading}
+                        disabled={isLoading || logoUploading}
                         className="cursor-pointer h-auto file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                       />
                       <p className="mt-1 text-xs text-muted-foreground">JPG, PNG or SVG. Max 5MB.</p>
+                      {logoPreviewFailed && companyLogo ? (
+                        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                          Saved logo URL could not be previewed (check storage access). You can still submit if upload succeeded.
+                        </p>
+                      ) : null}
+                      {fieldErr('companyLogo') ? (
+                        <p className="mt-1 text-sm text-destructive" role="alert">{fieldErr('companyLogo')}</p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -659,10 +805,12 @@ export default function SignupPage() {
                     type="url"
                     value={linkedinUrl}
                     onChange={e => setLinkedinUrl(e.target.value)}
-                    onBlur={() => setLinkedinUrl((prev) => normalizeUrlInput(prev))}
-                    placeholder="https://linkedin.com/company/..."
+                    onBlur={() => setLinkedinUrl((prev) => ensureHttpsUrl(prev))}
+                    placeholder="www.linkedin.com/company/..."
                     disabled={isLoading}
+                    className={fieldErr('linkedinUrl') ? "border-destructive" : undefined}
                   />
+                  {fieldErr('linkedinUrl') ? <p className="text-sm text-destructive" role="alert">{fieldErr('linkedinUrl')}</p> : null}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="twitter-url">Twitter/X URL (Optional)</Label>
@@ -671,10 +819,12 @@ export default function SignupPage() {
                     type="url"
                     value={twitterUrl}
                     onChange={e => setTwitterUrl(e.target.value)}
-                    onBlur={() => setTwitterUrl((prev) => normalizeUrlInput(prev))}
-                    placeholder="https://x.com/..."
+                    onBlur={() => setTwitterUrl((prev) => ensureHttpsUrl(prev))}
+                    placeholder="x.com/..."
                     disabled={isLoading}
+                    className={fieldErr('twitterUrl') ? "border-destructive" : undefined}
                   />
+                  {fieldErr('twitterUrl') ? <p className="text-sm text-destructive" role="alert">{fieldErr('twitterUrl')}</p> : null}
                 </div>
               </div>
 
@@ -687,10 +837,14 @@ export default function SignupPage() {
                   minLength={20}
                   required
                   disabled={isLoading}
+                  className={fieldErr('shortDescription') ? "border-destructive" : undefined}
                 />
                 <p className="text-xs text-muted-foreground">
                   Minimum 20 characters ({shortDescription.trim().length}/20)
                 </p>
+                {fieldErr('shortDescription') ? (
+                  <p className="text-sm text-destructive" role="alert">{fieldErr('shortDescription')}</p>
+                ) : null}
               </div>
 
               <label className="flex items-start gap-2 text-sm">

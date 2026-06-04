@@ -141,6 +141,7 @@ export type LocationAddressFieldsProps = {
   setCity: (v: string) => void;
   setZipCode: (v: string) => void;
   disabled?: boolean;
+  fieldErrors?: Record<string, string>;
 };
 
 export function LocationAddressFields({
@@ -153,7 +154,9 @@ export function LocationAddressFields({
   setCity,
   setZipCode,
   disabled,
+  fieldErrors = {},
 }: LocationAddressFieldsProps) {
+  const err = (key: string) => fieldErrors[key];
   const countries = React.useMemo(() => Country.getAllCountries() as ICountry[], []);
   const sortedCountries = React.useMemo(
     () => [...countries].sort((a, b) => a.name.localeCompare(b.name)),
@@ -223,26 +226,32 @@ export function LocationAddressFields({
   return (
     <div className="space-y-2">
       <div className="grid gap-x-4 gap-y-3 md:grid-cols-2 md:items-start">
-        <SearchableDropdown
-          id="country"
-          label="Country"
-          options={countryOptions}
-          valueId={selectedCountryIso}
-          onSelect={onCountryPick}
-          placeholder="Select country"
-          disabled={disabled}
-        />
+        <div className="flex flex-col gap-1.5">
+          <SearchableDropdown
+            id="country"
+            label="Country"
+            options={countryOptions}
+            valueId={selectedCountryIso}
+            onSelect={onCountryPick}
+            placeholder="Select country"
+            disabled={disabled}
+          />
+          {err('country') ? <p className="text-sm text-destructive" role="alert">{err('country')}</p> : null}
+        </div>
 
         {stateOptions.length > 0 ? (
-          <SearchableDropdown
-            id="state"
-            label="State / Province"
-            options={stateOptions}
-            valueId={selectedStateIso}
-            onSelect={onStatePick}
-            placeholder={selectedCountryIso ? "Select state or province" : "Select country first"}
-            disabled={disabled || !selectedCountryIso}
-          />
+          <div className="flex flex-col gap-1.5">
+            <SearchableDropdown
+              id="state"
+              label="State / Province"
+              options={stateOptions}
+              valueId={selectedStateIso}
+              onSelect={onStatePick}
+              placeholder={selectedCountryIso ? "Select state or province" : "Select country first"}
+              disabled={disabled || !selectedCountryIso}
+            />
+            {err('state') ? <p className="text-sm text-destructive" role="alert">{err('state')}</p> : null}
+          </div>
         ) : (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="state-text" className="mb-0">
@@ -255,20 +264,25 @@ export function LocationAddressFields({
               required
               disabled={disabled || !selectedCountryIso}
               placeholder={selectedCountryIso ? "Enter state or region" : "Select country first"}
+              className={err('state') ? 'border-destructive' : undefined}
             />
+            {err('state') ? <p className="text-sm text-destructive" role="alert">{err('state')}</p> : null}
           </div>
         )}
 
         {cityOptions.length > 0 ? (
-          <SearchableDropdown
-            id="city"
-            label="City"
-            options={cityOptions}
-            valueId={city}
-            onSelect={onCityPick}
-            placeholder={selectedStateIso ? "Select city" : "Select state first"}
-            disabled={disabled || !selectedStateIso}
-          />
+          <div className="flex flex-col gap-1.5">
+            <SearchableDropdown
+              id="city"
+              label="City"
+              options={cityOptions}
+              valueId={city}
+              onSelect={onCityPick}
+              placeholder={selectedStateIso ? "Select city" : "Select state first"}
+              disabled={disabled || !selectedStateIso}
+            />
+            {err('city') ? <p className="text-sm text-destructive" role="alert">{err('city')}</p> : null}
+          </div>
         ) : (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="city-text" className="mb-0">
@@ -285,7 +299,9 @@ export function LocationAddressFields({
               required
               disabled={disabled || !selectedStateIso}
               placeholder={selectedStateIso ? "Enter city" : "Select state first"}
+              className={err('city') ? 'border-destructive' : undefined}
             />
+            {err('city') ? <p className="text-sm text-destructive" role="alert">{err('city')}</p> : null}
           </div>
         )}
 
@@ -302,7 +318,9 @@ export function LocationAddressFields({
             required
             disabled={disabled}
             placeholder="Digits only (e.g. 382481)"
+            className={err('zipCode') ? 'border-destructive' : undefined}
           />
+          {err('zipCode') ? <p className="text-sm text-destructive" role="alert">{err('zipCode')}</p> : null}
         </div>
       </div>
       <p className="text-xs text-muted-foreground">

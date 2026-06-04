@@ -147,7 +147,7 @@ async function refreshAccessToken(type: AuthType): Promise<boolean> {
 }
 
 // ── Error parser ──────────────────────────────────────────────────────────────
-async function parseError(response: Response): Promise<ApiError> {
+export async function parseApiError(response: Response): Promise<ApiError> {
   const status = response.status;
   let bodyText = '';
   try {
@@ -224,7 +224,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!response.ok) {
-    throw await parseError(response);
+    throw await parseApiError(response);
   }
 
   if (response.status === 204) {
