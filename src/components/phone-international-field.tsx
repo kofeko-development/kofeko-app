@@ -11,7 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { digitsOnly } from "@/lib/phone-e164";
+import {
+  digitsOnly,
+  getMaxNationalPhoneDigits,
+  getNationalNumberHint,
+  getNationalNumberPlaceholder,
+  validateNationalPhone,
+} from "@/lib/phone-e164";
 
 type DialOption = {
   iso: string;
@@ -136,6 +142,8 @@ export function PhoneInternationalField({
   hideLabel,
   showRequiredIndicator = false,
 }: PhoneInternationalFieldProps) {
+  const [touched, setTouched] = React.useState(false);
+
   const dialOptions = React.useMemo(() => {
     const list = Country.getAllCountries() as ICountry[];
 
@@ -169,6 +177,24 @@ export function PhoneInternationalField({
     if (found) setPhoneCountryIso(found.isoCode);
   }, [addressCountryName, setPhoneCountryIso]);
 
+  const maxDigits = React.useMemo(
+    () => getMaxNationalPhoneDigits(phoneCountryIso),
+    [phoneCountryIso],
+  );
+  const placeholder = React.useMemo(
+    () => getNationalNumberPlaceholder(phoneCountryIso),
+    [phoneCountryIso],
+  );
+  const hint = React.useMemo(
+    () => getNationalNumberHint(phoneCountryIso),
+    [phoneCountryIso],
+  );
+  const validation = React.useMemo(
+    () => validateNationalPhone(phoneCountryIso, phoneNationalDigits),
+    [phoneCountryIso, phoneNationalDigits],
+  );
+  const showError = touched && phoneNationalDigits.length > 0 && !validation.ok;
+
   return (
     <div className={cn("flex min-w-0 w-full flex-col gap-1.5", className)}>
       {!hideLabel && (
@@ -179,7 +205,10 @@ export function PhoneInternationalField({
           id="phone-dial"
           valueIso={phoneCountryIso}
           options={dialOptions}
-          onSelect={setPhoneCountryIso}
+          onSelect={(iso) => {
+            setTouched(false);
+            setPhoneCountryIso(iso);
+          }}
           placeholder="+91"
           disabled={disabled}
         />
@@ -189,16 +218,23 @@ export function PhoneInternationalField({
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
-            placeholder="10-digit mobile"
+            placeholder={placeholder}
             value={phoneNationalDigits}
-            onChange={(e) => setPhoneNationalDigits(digitsOnly(e.target.value).slice(0, 15))}
+            onChange={(e) => {
+              setTouched(false);
+              setPhoneNationalDigits(digitsOnly(e.target.value).slice(0, maxDigits));
+            }}
+            onBlur={() => setTouched(true)}
             required
             disabled={disabled}
-            className="h-10 w-full min-w-0"
+            aria-invalid={showError}
+            className={cn("h-10 w-full min-w-0", showError && "border-destructive focus-visible:ring-destructive")}
           />
         </div>
       </div>
-
+      <p className={cn("text-xs", showError ? "text-destructive" : "text-muted-foreground")}>
+        {showError ? validation.error : `Required: ${hint}.`}
+      </p>
     </div>
   );
 }

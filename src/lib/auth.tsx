@@ -49,13 +49,13 @@ type RegisterAdminInput = {
   companyWebsite: string;
   officialCompanyAddress: string;
   phoneNumber: string;
-  companyLogo: string;
+  companyLogo?: string;
   shortDescription: string;
   linkedinUrl?: string;
   twitterUrl?: string;
   termsAccepted: true;
   /** From POST /auth/register-company-email-otp/verify after confirming the email code. */
-  emailVerificationToken: string;
+  emailVerificationToken?: string;
 };
 
 type RegisterCandidateInput = {

@@ -16,7 +16,7 @@ import { companyApi } from '@/lib/stage1-2-api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { COMPANY_SIZE_OPTIONS } from '@/lib/company-size';
 import dynamic from 'next/dynamic';
-import { buildE164Phone } from '@/lib/phone-e164';
+import { composeE164Phone, validateNationalPhone } from '@/lib/phone-e164';
 import { apiRequest, getAccessToken } from '@/lib/api-client';
 import Script from 'next/script';
 import { Country } from 'country-state-city';
@@ -172,8 +172,10 @@ export default function ProfilePage() {
     return JSON.stringify(companyProfile) !== JSON.stringify(initialCompanyProfile);
   }, [companyProfile, initialCompanyProfile]);
 
-  const currentFullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
-  const isPhoneChanged = currentFullPhone.replace(/\D/g, '') !== (user?.phone || '').replace(/\D/g, '');
+  const composedPhone = composeE164Phone(phoneCountryIso, phoneNationalDigits) || '';
+  const phoneValidation = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
+  const currentFullPhone = phoneValidation.ok ? phoneValidation.e164 : '';
+  const isPhoneChanged = composedPhone.replace(/\D/g, '') !== (user?.phone || '').replace(/\D/g, '');
   const isPhoneVerified = !isPhoneChanged || (verifiedPhone?.replace(/\D/g, '') === currentFullPhone.replace(/\D/g, ''));
 
   const hasChanges = useMemo(() => {
@@ -198,8 +200,8 @@ export default function ProfilePage() {
   }, [user, name, isPhoneChanged, coverLetter, linkedinUrl, skills, hobbies, workExperience, education, projects]);
 
   const handleVerifyPhoneWithMsg91 = () => {
-    if (!currentFullPhone) {
-      toast({ title: 'Invalid phone', description: 'Enter a valid phone number.', variant: 'destructive' });
+    if (!phoneValidation.ok) {
+      toast({ title: 'Invalid phone', description: phoneValidation.error, variant: 'destructive' });
       return;
     }
 
@@ -436,7 +438,20 @@ export default function ProfilePage() {
     (async () => {
       try {
         if (user) {
-          const fullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
+          let fullPhone = user.phone || '';
+          if (isPhoneChanged) {
+            const phoneCheck = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
+            if (!phoneCheck.ok) {
+              toast({
+                title: 'Invalid phone',
+                description: phoneCheck.error,
+                variant: 'destructive',
+              });
+              setIsSaving(false);
+              return;
+            }
+            fullPhone = phoneCheck.e164;
+          }
 
           if (user.role === 'candidate') {
             // Save to backend

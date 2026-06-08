@@ -17,13 +17,27 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useApiErrorToast } from "@/hooks/use-api-error-toast";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { COMPANY_SIZE_OPTIONS, type CompanySizeValue } from "@/lib/company-size";
-import { buildE164Phone } from "@/lib/phone-e164";
+import { validateNationalPhone } from "@/lib/phone-e164";
 import { cn } from "@/lib/utils";
+import { hasFieldErrors } from "@/lib/validation-errors";
 import { companyApi } from "@/lib/stage1-2-api";
+import { isValidWebsiteUrl, normalizeWebsiteUrl } from "@/lib/website-url";
+import {
+  applyCompanySignupDraft,
+  clearCompanySignupDraft,
+  clearEmailVerification,
+  getEmailVerificationTokenForSubmit,
+  isEmailVerifiedFor,
+  mergeCompanySignupDraft,
+  readCompanySignupDraft,
+  readEmailVerification,
+  saveEmailVerification,
+  writeCompanySignupDraft,
+} from "@/lib/company-signup-draft";
 
 const LocationAddressFields = dynamic(
   () => import("@/components/location-address-fields").then((m) => m.LocationAddressFields),
@@ -51,18 +65,6 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
-const normalizeUrlInput = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  if (trimmed.startsWith('https:/') && !trimmed.startsWith('https://')) {
-    return trimmed.replace('https:/', 'https://');
-  }
-  if (trimmed.startsWith('http:/') && !trimmed.startsWith('http://')) {
-    return trimmed.replace('http:/', 'http://');
-  }
-  return trimmed;
-};
-
 export default function SignupPage() {
   const { registerAdmin } = useAuth();
   const router = useRouter();
@@ -70,6 +72,7 @@ export default function SignupPage() {
   const { showError } = useApiErrorToast();
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [draftReady, setDraftReady] = useState(false);
 
   const [companyName, setCompanyName] = useState('');
   const [country, setCountry] = useState('');
@@ -78,7 +81,7 @@ export default function SignupPage() {
   const [zipCode, setZipCode] = useState('');
   const [fullAddress, setFullAddress] = useState('');
   const [industry, setIndustry] = useState('');
-  const [companySize, setCompanySize] = useState('');
+  const [companySize, setCompanySize] = useState<CompanySizeValue | ''>('');
   const [companyType, setCompanyType] = useState<'startup' | 'enterprise' | 'agency' | 'non_profit'>('startup');
   const [foundedYear, setFoundedYear] = useState(String(new Date().getFullYear()));
   const [companyWebsite, setCompanyWebsite] = useState('');
@@ -104,15 +107,121 @@ export default function SignupPage() {
   const [verifiedAtEmail, setVerifiedAtEmail] = useState<string | null>(null);
   const [sendOtpLoading, setSendOtpLoading] = useState(false);
   const [confirmOtpLoading, setConfirmOtpLoading] = useState(false);
+  const skipNextPersistRef = useRef(true);
+
+  useEffect(() => {
+    const draft = readCompanySignupDraft();
+    const verification = readEmailVerification();
+    if (draft) {
+      applyCompanySignupDraft(draft, {
+        setStep,
+        setAdminEmail,
+        setPassword,
+        setConfirmPassword,
+        setOtpSent,
+        setEmailVerificationToken,
+        setVerifiedAtEmail,
+        setCompanyName,
+        setCountry,
+        setState,
+        setCity,
+        setZipCode,
+        setFullAddress,
+        setIndustry,
+        setCompanySize,
+        setCompanyType,
+        setFoundedYear,
+        setCompanyWebsite,
+        setPhoneCountryIso,
+        setPhoneNationalDigits,
+        setCompanyLogo,
+        setShortDescription,
+        setLinkedinUrl,
+        setTwitterUrl,
+        setTermsAccepted,
+      });
+    }
+    if (verification) {
+      setAdminEmail((current) => current || verification.adminEmail);
+      setEmailVerificationToken(verification.emailVerificationToken);
+      setVerifiedAtEmail(verification.verifiedAtEmail);
+      setOtpSent(true);
+    }
+    setDraftReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
+      return;
+    }
+
+    writeCompanySignupDraft({
+      step,
+      adminEmail,
+      password,
+      confirmPassword,
+      otpSent,
+      emailVerificationToken,
+      verifiedAtEmail,
+      companyName,
+      country,
+      state,
+      city,
+      zipCode,
+      fullAddress,
+      industry,
+      companySize,
+      companyType,
+      foundedYear,
+      companyWebsite,
+      phoneCountryIso,
+      phoneNationalDigits,
+      companyLogo,
+      shortDescription,
+      linkedinUrl,
+      twitterUrl,
+      termsAccepted,
+    });
+  }, [
+    draftReady,
+    step,
+    adminEmail,
+    password,
+    confirmPassword,
+    otpSent,
+    emailVerificationToken,
+    verifiedAtEmail,
+    companyName,
+    country,
+    state,
+    city,
+    zipCode,
+    fullAddress,
+    industry,
+    companySize,
+    companyType,
+    foundedYear,
+    companyWebsite,
+    phoneCountryIso,
+    phoneNationalDigits,
+    companyLogo,
+    shortDescription,
+    linkedinUrl,
+    twitterUrl,
+    termsAccepted,
+  ]);
 
   const passwordsMatch = password === confirmPassword;
   const showPasswordMismatch =
     confirmPassword.length > 0 && password.length > 0 && !passwordsMatch;
 
   const emailLooksVerified =
-    Boolean(emailVerificationToken) &&
-    verifiedAtEmail !== null &&
-    verifiedAtEmail === normalizeEmail(adminEmail);
+    isEmailVerifiedFor(adminEmail) ||
+    (Boolean(emailVerificationToken) &&
+      verifiedAtEmail !== null &&
+      verifiedAtEmail === normalizeEmail(adminEmail));
 
   const handleAdminEmailChange = (value: string) => {
     const prevNorm = normalizeEmail(adminEmail);
@@ -123,6 +232,13 @@ export default function SignupPage() {
       setEmailVerificationToken(null);
       setOtpCode('');
       setOtpSent(false);
+      clearEmailVerification();
+      mergeCompanySignupDraft({
+        adminEmail: value,
+        otpSent: false,
+        emailVerificationToken: null,
+        verifiedAtEmail: null,
+      });
     }
   };
 
@@ -146,6 +262,13 @@ export default function SignupPage() {
       setOtpCode('');
       setVerifiedAtEmail(null);
       setEmailVerificationToken(null);
+      clearEmailVerification();
+      mergeCompanySignupDraft({
+        adminEmail: raw,
+        otpSent: true,
+        emailVerificationToken: null,
+        verifiedAtEmail: null,
+      });
       toast({
         title: 'Code sent',
         description: 'Check your inbox for a 6-digit verification code.',
@@ -175,8 +298,20 @@ export default function SignupPage() {
         '/auth/register-company-email-otp/verify',
         { method: 'POST', body: { email: raw, code } },
       );
+      const normalized = normalizeEmail(raw);
       setEmailVerificationToken(token);
-      setVerifiedAtEmail(normalizeEmail(raw));
+      setVerifiedAtEmail(normalized);
+      saveEmailVerification({
+        adminEmail: raw,
+        emailVerificationToken: token,
+        verifiedAtEmail: normalized,
+      });
+      mergeCompanySignupDraft({
+        adminEmail: raw,
+        otpSent: true,
+        emailVerificationToken: token,
+        verifiedAtEmail: normalized,
+      });
       toast({ title: 'Email verified', description: 'You can continue to company details.' });
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
@@ -238,7 +373,7 @@ export default function SignupPage() {
       return;
     }
 
-    if (!emailVerificationToken || verifiedAtEmail !== normalizeEmail(adminEmail)) {
+    if (!isEmailVerifiedFor(adminEmail)) {
       toast({
         title: 'Email not verified',
         description: 'Go back to step 1 and verify your email with the code we sent.',
@@ -247,6 +382,8 @@ export default function SignupPage() {
       setStep(1);
       return;
     }
+
+    const verificationToken = getEmailVerificationTokenForSubmit(adminEmail.trim()) ?? emailVerificationToken ?? undefined;
 
     if (password !== confirmPassword) {
       toast({
@@ -258,25 +395,56 @@ export default function SignupPage() {
       return;
     }
 
+    const normalizedWebsite = normalizeWebsiteUrl(companyWebsite);
+    if (!isValidWebsiteUrl(normalizedWebsite)) {
+      toast({
+        title: 'Invalid company website',
+        description: 'Enter a valid website such as www.example.com or https://example.com.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const normalizedLinkedin = linkedinUrl.trim() ? normalizeWebsiteUrl(linkedinUrl) : '';
+    if (normalizedLinkedin && !isValidWebsiteUrl(normalizedLinkedin)) {
+      toast({
+        title: 'Invalid LinkedIn URL',
+        description: 'Enter a valid URL such as linkedin.com/company/... or https://linkedin.com/...',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const normalizedTwitter = twitterUrl.trim() ? normalizeWebsiteUrl(twitterUrl) : '';
+    if (normalizedTwitter && !isValidWebsiteUrl(normalizedTwitter)) {
+      toast({
+        title: 'Invalid Twitter/X URL',
+        description: 'Enter a valid URL such as x.com/... or https://x.com/...',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     setFieldErrors({});
 
     try {
-      const phoneNumber = buildE164Phone(phoneCountryIso, phoneNationalDigits);
-      if (!phoneNumber) {
+      const phoneCheck = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
+      if (!phoneCheck.ok) {
         toast({
-          title: "Phone required",
-          description: "Select a country code and enter your phone number (digits only).",
+          title: "Invalid phone number",
+          description: phoneCheck.error,
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
+      const phoneNumber = phoneCheck.e164;
 
       await registerAdmin({
         adminEmail: adminEmail.trim(),
         password,
-        emailVerificationToken: emailVerificationToken as string,
+        emailVerificationToken: verificationToken,
         companyName,
         companyAddress: {
           country,
@@ -289,13 +457,13 @@ export default function SignupPage() {
         companySize: companySize as CompanySizeValue,
         companyType,
         foundedYear: Number(foundedYear),
-        companyWebsite,
+        companyWebsite: normalizedWebsite,
         officialCompanyAddress: fullAddress.trim(),
         phoneNumber,
-        companyLogo,
+        companyLogo: companyLogo.trim() || undefined,
         shortDescription,
-        linkedinUrl: linkedinUrl || undefined,
-        twitterUrl: twitterUrl || undefined,
+        linkedinUrl: normalizedLinkedin || undefined,
+        twitterUrl: normalizedTwitter || undefined,
         termsAccepted: termsAccepted as true,
       });
 
@@ -304,6 +472,7 @@ export default function SignupPage() {
         description: "Your company registration is pending super admin approval.",
       });
 
+      clearCompanySignupDraft();
       router.push('/signup-success');
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
@@ -505,6 +674,20 @@ export default function SignupPage() {
                 </Button>
               </div>
 
+              {hasFieldErrors(fieldErrors) ? (
+                <div
+                  className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+                  role="alert"
+                >
+                  <p className="font-medium">Please fix the following:</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {Object.entries(fieldErrors).map(([field, message]) => (
+                      <li key={field}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               <p className="text-xs text-muted-foreground">Fields marked with * are required.</p>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -599,6 +782,9 @@ export default function SignupPage() {
                   disabled={isLoading}
                   showRequiredIndicator
                 />
+                {fieldErrors.phoneNumber ? (
+                  <p className="text-sm text-destructive md:col-span-2" role="alert">{fieldErrors.phoneNumber}</p>
+                ) : null}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -606,18 +792,24 @@ export default function SignupPage() {
                   <Label htmlFor="company-website">Company Website *</Label>
                   <Input
                     id="company-website"
-                    type="url"
+                    type="text"
+                    inputMode="url"
+                    autoComplete="url"
                     value={companyWebsite}
                     onChange={e => setCompanyWebsite(e.target.value)}
-                    onBlur={() => setCompanyWebsite((prev) => normalizeUrlInput(prev))}
-                    placeholder="https://example.com"
+                    onBlur={() => setCompanyWebsite((prev) => normalizeWebsiteUrl(prev))}
+                    placeholder="www.example.com"
                     required
                     disabled={isLoading}
+                    className={fieldErrors.companyWebsite ? "border-destructive" : undefined}
                   />
+                  {fieldErrors.companyWebsite ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErrors.companyWebsite}</p>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="company-logo">Company Logo (Image or SVG) *</Label>
-                  <div className="flex items-center gap-4">
+                  <Label htmlFor="company-logo">Company Logo (Optional)</Label>
+                  <div className={cn("flex items-center gap-4", fieldErrors.companyLogo && "rounded-lg ring-1 ring-destructive/50 p-2")}>
                     {companyLogo ? (
                       <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
                         <img src={companyLogo} alt="Logo preview" className="h-full w-full object-contain" />
@@ -653,19 +845,23 @@ export default function SignupPage() {
                         disabled={isLoading}
                         className="cursor-pointer h-auto file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                       />
-                      <p className="mt-1 text-xs text-muted-foreground">JPG, PNG or SVG. Max 5MB.</p>
+                      <p className="mt-1 text-xs text-muted-foreground">JPG, PNG or SVG. Max 5MB. You can add this later in your company profile.</p>
                     </div>
                   </div>
+                  {fieldErrors.companyLogo ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErrors.companyLogo}</p>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="linkedin-url">LinkedIn URL (Optional)</Label>
                   <Input
                     id="linkedin-url"
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     value={linkedinUrl}
                     onChange={e => setLinkedinUrl(e.target.value)}
-                    onBlur={() => setLinkedinUrl((prev) => normalizeUrlInput(prev))}
-                    placeholder="https://linkedin.com/company/..."
+                    onBlur={() => setLinkedinUrl((prev) => (prev.trim() ? normalizeWebsiteUrl(prev) : ''))}
+                    placeholder="linkedin.com/company/..."
                     disabled={isLoading}
                   />
                 </div>
@@ -673,11 +869,12 @@ export default function SignupPage() {
                   <Label htmlFor="twitter-url">Twitter/X URL (Optional)</Label>
                   <Input
                     id="twitter-url"
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     value={twitterUrl}
                     onChange={e => setTwitterUrl(e.target.value)}
-                    onBlur={() => setTwitterUrl((prev) => normalizeUrlInput(prev))}
-                    placeholder="https://x.com/..."
+                    onBlur={() => setTwitterUrl((prev) => (prev.trim() ? normalizeWebsiteUrl(prev) : ''))}
+                    placeholder="x.com/..."
                     disabled={isLoading}
                   />
                 </div>
@@ -692,10 +889,15 @@ export default function SignupPage() {
                   minLength={20}
                   required
                   disabled={isLoading}
+                  className={fieldErrors.shortDescription ? "border-destructive" : undefined}
                 />
+                {fieldErrors.shortDescription ? (
+                  <p className="text-sm text-destructive" role="alert">{fieldErrors.shortDescription}</p>
+                ) : (
                 <p className="text-xs text-muted-foreground">
                   Minimum 20 characters ({shortDescription.trim().length}/20)
                 </p>
+                )}
               </div>
 
               <label className="flex items-start gap-2 text-sm">

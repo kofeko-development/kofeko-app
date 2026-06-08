@@ -6,6 +6,13 @@ import { getErrorDisplay, type ErrorDisplay } from '@/lib/error-messages';
 import { mapFieldErrors } from '@/lib/validation-errors';
 import { ToastAction } from '@/components/ui/toast';
 
+function validationToastDescription(fieldErrors: Record<string, string>): string | null {
+  const messages = Object.values(fieldErrors).filter(Boolean);
+  if (messages.length === 0) return null;
+  if (messages.length === 1) return messages[0];
+  return messages.join(' · ');
+}
+
 export type ApiErrorToastResult = {
   display: ErrorDisplay | null;
   fieldErrors: Record<string, string>;
@@ -36,9 +43,15 @@ export function useApiErrorToast() {
     if (error instanceof ApiError) {
       const display = getErrorDisplay(error.errorCode, error.message);
       const fieldErrors = mapFieldErrors(error.details);
+      const validationDescription = validationToastDescription(fieldErrors);
+      const title =
+        error.errorCode === 'VALIDATION_ERROR' && validationDescription
+          ? 'Could not submit'
+          : display.title;
+      const description = validationDescription ?? display.description;
       toast({
-        title: display.title,
-        description: display.description,
+        title,
+        description,
         variant: 'destructive',
         action: toastActionFor(display),
       });
