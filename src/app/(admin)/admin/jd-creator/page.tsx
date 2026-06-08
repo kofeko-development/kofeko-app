@@ -281,6 +281,7 @@ export default function AdminJdCreatorPage() {
                       <SelectItem value="Full-time">Full-time</SelectItem>
                       <SelectItem value="Part-time">Part-time</SelectItem>
                       <SelectItem value="Contract">Contract</SelectItem>
+                      <SelectItem value="Internship">Internship</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

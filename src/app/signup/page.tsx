@@ -343,8 +343,9 @@ export default function SignupPage() {
         <form onSubmit={handleSignup} className="grid gap-6">
           {step === 1 ? (
             <div className="grid gap-5">
+              <p className="text-xs text-muted-foreground">Fields marked with * are required.</p>
               <div className="grid gap-2">
-                <Label htmlFor="admin-email">Company admin email</Label>
+                <Label htmlFor="admin-email">Company admin email *</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                   <Input
                     id="admin-email"
@@ -383,7 +384,7 @@ export default function SignupPage() {
                 {otpSent ? (
                   <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-end sm:gap-3">
                     <div className="grid gap-2">
-                      <Label htmlFor="email-otp">Email code</Label>
+                      <Label htmlFor="email-otp">Email code *</Label>
                       <Input
                         id="email-otp"
                         inputMode="numeric"
@@ -420,7 +421,7 @@ export default function SignupPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="admin-password">Password</Label>
+                  <Label htmlFor="admin-password">Password *</Label>
                   <div className="relative">
                     <Input
                       id="admin-password"
@@ -446,7 +447,7 @@ export default function SignupPage() {
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="admin-password-confirm">Confirm password</Label>
+                  <Label htmlFor="admin-password-confirm">Confirm password *</Label>
                   <div className="relative">
                     <Input
                       id="admin-password-confirm"
@@ -504,14 +505,16 @@ export default function SignupPage() {
                 </Button>
               </div>
 
+              <p className="text-xs text-muted-foreground">Fields marked with * are required.</p>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="company-name">Company Name</Label>
+                  <Label htmlFor="company-name">Company Name *</Label>
                   <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} className={fieldErrors.companyName ? "border-destructive" : undefined} />
                   {fieldErrors.companyName ? <p className="text-sm text-destructive" role="alert">{fieldErrors.companyName}</p> : null}
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="industry">Industry</Label>
+                  <Label htmlFor="industry">Industry *</Label>
                   <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} />
                 </div>
               </div>
@@ -526,17 +529,18 @@ export default function SignupPage() {
                 setCity={setCity}
                 setZipCode={setZipCode}
                 disabled={isLoading}
+                showRequiredIndicator
               />
 
               <div className="grid gap-2">
-                <Label htmlFor="full-address">Company Address (Full Address)</Label>
+                <Label htmlFor="full-address">Company Address (Full Address) *</Label>
                 <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} />
               </div>
 
               <div className="grid gap-x-4 gap-y-3 md:grid-cols-2 md:items-start">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="company-size" className="mb-0">
-                    Company size (employees)
+                    Company size (employees) *
                   </Label>
                   <select
                     id="company-size"
@@ -556,7 +560,7 @@ export default function SignupPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="company-type" className="mb-0">
-                    Company Type
+                    Company Type *
                   </Label>
                   <select
                     id="company-type"
@@ -574,7 +578,7 @@ export default function SignupPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="founded-year" className="mb-0">
-                    Founded Year
+                    Founded Year *
                   </Label>
                   <Input
                     id="founded-year"
@@ -593,12 +597,13 @@ export default function SignupPage() {
                   setPhoneNationalDigits={setPhoneNationalDigits}
                   addressCountryName={country}
                   disabled={isLoading}
+                  showRequiredIndicator
                 />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="company-website">Company Website</Label>
+                  <Label htmlFor="company-website">Company Website *</Label>
                   <Input
                     id="company-website"
                     type="url"
@@ -611,7 +616,7 @@ export default function SignupPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="company-logo">Company Logo (Image or SVG)</Label>
+                  <Label htmlFor="company-logo">Company Logo (Image or SVG) *</Label>
                   <div className="flex items-center gap-4">
                     {companyLogo ? (
                       <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
@@ -679,7 +684,7 @@ export default function SignupPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="short-description">Short Company Description</Label>
+                <Label htmlFor="short-description">Short Company Description *</Label>
                 <Textarea
                   id="short-description"
                   value={shortDescription}
@@ -702,7 +707,7 @@ export default function SignupPage() {
                   required
                   className="mt-1"
                 />
-                <span>I agree to the terms and conditions.</span>
+                <span>I agree to the terms and conditions. *</span>
               </label>
 
               <Button type="submit" className="w-full" disabled={isLoading}>

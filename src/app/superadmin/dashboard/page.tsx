@@ -35,6 +35,65 @@ const generateTenantSlug = () => {
   return slug;
 };
 
+type CompanyAddressFields = {
+  country?: string;
+  state?: string;
+  city?: string;
+  zipCode?: string;
+  fullAddress?: string;
+};
+
+const ADDRESS_FIELD_LABELS: { key: keyof CompanyAddressFields; label: string }[] = [
+  { key: 'country', label: 'Country' },
+  { key: 'state', label: 'State / Province' },
+  { key: 'city', label: 'City' },
+  { key: 'zipCode', label: 'ZIP / Postal code' },
+  { key: 'fullAddress', label: 'Full address' },
+];
+
+function parseCompanyAddress(value: Record<string, string> | string | null): CompanyAddressFields | null {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as CompanyAddressFields;
+      return typeof parsed === 'object' && parsed !== null ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return value;
+}
+
+function StructuredAddressBlock({ address }: { address: Record<string, string> | string | null }) {
+  const parsed = parseCompanyAddress(address);
+  if (!parsed) {
+    return <p className="mt-1 text-muted-foreground">—</p>;
+  }
+
+  const fields = ADDRESS_FIELD_LABELS.map(({ key, label }) => ({
+    key,
+    label,
+    value: parsed[key]?.trim() ?? '',
+  })).filter((field) => field.value);
+
+  if (fields.length === 0) {
+    return <p className="mt-1 text-muted-foreground">—</p>;
+  }
+
+  return (
+    <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {fields.map(({ key, label, value }) => (
+        <div key={key} className={key === 'fullAddress' ? 'sm:col-span-2' : undefined}>
+          <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">
+            {label}
+          </span>
+          <p className="mt-1 font-medium">{value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5000/api/v1';
 const SUPERADMIN_TOKEN_KEY = 'kofeko_superadmin_token';
 
@@ -531,12 +590,8 @@ export default function SuperAdminDashboardPage() {
                 </div>
 
                 <div className="sm:col-span-2 border-t pt-3">
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Structured Address</span> 
-                  <p className="mt-1 text-muted-foreground">
-                    {typeof selectedRequest.companyAddress === 'object' && selectedRequest.companyAddress !== null ? (
-                      Object.entries(selectedRequest.companyAddress).map(([k, v]) => v ? `${k}: ${v}` : null).filter(Boolean).join(', ')
-                    ) : String(selectedRequest.companyAddress || '—')}
-                  </p>
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Structured Address</span>
+                  <StructuredAddressBlock address={selectedRequest.companyAddress} />
                 </div>
 
                 <div className="sm:col-span-2 border-t pt-3 grid grid-cols-2 gap-4">

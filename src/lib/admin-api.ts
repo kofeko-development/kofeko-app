@@ -18,6 +18,7 @@ type ApiStaffUser = {
   lastName: string;
   email: string;
   status: 'active' | 'invited' | 'suspended';
+  roles?: string[];
 };
 
 type ApiCandidate = {
@@ -29,6 +30,23 @@ type ApiCandidate = {
   status: string;
 };
 
+function mapBackendRolesToUser(roles: string[] | undefined): Pick<User, 'role' | 'companyRole' | 'backendRoles'> {
+  const backendRoles = roles ?? [];
+  const isOperator = backendRoles.includes('company_admin');
+
+  let companyRole: User['companyRole'];
+  if (backendRoles.includes('company_admin')) companyRole = 'HR Admin';
+  else if (backendRoles.includes('hr_manager')) companyRole = 'Hiring Manager';
+  else if (backendRoles.includes('recruiter')) companyRole = 'Recruiter';
+  else if (backendRoles.includes('interviewer')) companyRole = 'Interviewer';
+
+  return {
+    role: isOperator ? 'operator' : 'recruiter',
+    companyRole,
+    backendRoles,
+  };
+}
+
 export function mapStaffUserToDisplay(u: ApiStaffUser): User {
   const name = `${u.firstName} ${u.lastName}`.trim();
   const status: User['status'] =
@@ -37,9 +55,13 @@ export function mapStaffUserToDisplay(u: ApiStaffUser): User {
     uid: u.id,
     email: u.email,
     name: name || u.email,
-    role: 'recruiter',
     status,
+    ...mapBackendRolesToUser(u.roles),
   };
+}
+
+export function isRecruiterStaffUser(user: User): boolean {
+  return user.backendRoles?.includes('recruiter') ?? false;
 }
 
 function mapCandidateStatusToUserStatus(status: string): User['status'] {

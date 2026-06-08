@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import UserTable from '../users/_components/user-table';
-import { listStaffUsers, mapStaffUserToDisplay } from '@/lib/admin-api';
+import { listStaffUsers, mapStaffUserToDisplay, isRecruiterStaffUser } from '@/lib/admin-api';
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ export default function RecruitersPage() {
     setLoading(true);
     try {
       const res = await listStaffUsers(1, 100);
-      setUsers(res.items.map(mapStaffUserToDisplay));
+      setUsers(res.items.map(mapStaffUserToDisplay).filter(isRecruiterStaffUser));
     } catch (e) {
       setUsers([]);
       toast({
@@ -41,7 +41,7 @@ export default function RecruitersPage() {
         users={users}
         loading={loading}
         title="Recruiter Management"
-        description="Staff accounts for your organization (from the API)."
+        description="Recruiter accounts invited to your organization."
         allowStatusActions
         onStaffStatusUpdated={() => void load()}
         headerAction={

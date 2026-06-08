@@ -185,7 +185,7 @@ export default function UserTable({
                                     </TableCell>
                                      <TableCell>
                                         <Badge variant={roleVariantMap[user.role]} className="capitalize">
-                                            {user.role}
+                                            {user.companyRole ?? user.role}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
@@ -209,9 +209,11 @@ export default function UserTable({
                                                 <DropdownMenuItem onSelect={() => void handleStatusChange(user.uid, 'suspended')}>
                                                     <UserX className="mr-2 h-4 w-4" /> Suspend User
                                                 </DropdownMenuItem>
+                                                {user.status === 'pending' ? null : (
                                                 <DropdownMenuItem onSelect={() => void handleStatusChange(user.uid, 'pending')}>
                                                    <Clock className="mr-2 h-4 w-4" /> Move to Pending
                                                 </DropdownMenuItem>
+                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                         ) : (

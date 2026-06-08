@@ -37,7 +37,7 @@ export default function CandidatesPage() {
         users={users}
         loading={loading}
         title="Candidate Management"
-        description="Candidates in your tenant (from the API)."
+        description="View and manage candidates who have applied to your job postings."
         allowStatusActions={false}
        />
     );

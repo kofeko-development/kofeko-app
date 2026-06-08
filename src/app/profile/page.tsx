@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import type { WorkExperience, Education, Project, User } from '@/lib/types';
@@ -546,8 +546,22 @@ export default function ProfilePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Company details</CardTitle>
-            <CardDescription>The information entered during company signup.</CardDescription>
+            <div className="flex items-start gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(user.role === 'operator' ? '/admin/dashboard' : '/dashboard')}
+                className="shrink-0"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <div className="space-y-1.5">
+                <CardTitle>Company details</CardTitle>
+                <CardDescription>The information entered during company signup.</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {companyLoading ? (
@@ -785,20 +799,22 @@ export default function ProfilePage() {
                   <div className="space-y-2 md:col-span-2">
                     <Label>Company logo</Label>
                     <div className="flex gap-4 items-start">
-                      <div className="relative group flex-1">
-                        <div className={`flex items-center gap-3 pr-20 border transition-all rounded-lg h-11 px-3 ${editingField === 'companyLogo'
+                      <div className="relative group flex-1 min-w-0">
+                        <div className={`flex items-start gap-3 pr-20 border transition-all rounded-lg min-h-11 py-2 px-3 ${editingField === 'companyLogo'
                           ? 'bg-background border-primary shadow-sm'
                           : 'bg-muted/20 border-transparent hover:bg-muted/40'
                           }`}>
-                          <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <Upload className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                           {companyProfile.companyLogo ? (
-                            <span className="text-sm text-muted-foreground truncate flex-1">{companyProfile.companyLogo}</span>
+                            <span className="text-sm text-muted-foreground flex-1 min-w-0 break-all leading-snug">
+                              {companyProfile.companyLogo}
+                            </span>
                           ) : (
-                            <span className="text-sm text-muted-foreground italic flex-1">No logo uploaded</span>
+                            <span className="text-sm text-muted-foreground italic flex-1 min-w-0">No logo uploaded</span>
                           )}
 
                           {canEditCompany && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <div className="absolute right-3 top-2 flex items-center gap-1">
                               <input
                                 type="file"
                                 id="company-logo-upload"

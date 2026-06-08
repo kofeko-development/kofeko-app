@@ -27,6 +27,12 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
+
+    if (password.length < 8) {
+      setFieldErrors({ password: 'Password must be at least 8 characters.' });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -113,6 +119,7 @@ export default function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 required
+                minLength={8}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);

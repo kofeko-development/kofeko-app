@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,7 +18,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
@@ -50,6 +49,7 @@ import type { Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CreatedJob, SkillWeight } from '@/lib/stage1-2-api';
 import { jobsApi, aiApi } from '@/lib/stage1-2-api';
+import { resetModalLock } from '@/lib/reset-modal-lock';
 
 function mapApiJobToRow(j: CreatedJob): Job {
   const backend = j.status as Job['backendStatus'];
@@ -97,6 +97,7 @@ export default function JobPostingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [view, setView] = useState<'open' | 'draft' | 'closed'>('open');
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -110,6 +111,7 @@ export default function JobPostingsPage() {
     skillWeights: SkillWeight[];
   }>({ title: '', description: '', jobType: '', employmentType: '', skillWeights: [] });
   const [loadingJobDetail, setLoadingJobDetail] = useState(false);
+  const previousPathnameRef = useRef(pathname);
 
   const loadJobs = useCallback(async () => {
     setIsLoading(true);
@@ -203,16 +205,27 @@ export default function JobPostingsPage() {
     if (editId && jobs.length > 0) {
       const targetJob = jobs.find((j) => j.id === editId);
       if (targetJob) {
-        window.history.replaceState(null, '', '/job-postings');
-        handleOpenDialog(targetJob);
+        window.history.replaceState(null, '', `${routePrefix}/job-postings`);
+        window.setTimeout(() => handleOpenDialog(targetJob), 0);
       }
     }
-  }, [editId, jobs, handleOpenDialog]);
+  }, [editId, jobs, handleOpenDialog, routePrefix]);
+
+  useEffect(() => {
+    if (previousPathnameRef.current === pathname) return;
+    previousPathnameRef.current = pathname;
+    setIsManualDialogOpen(false);
+    setIsDeleteDialogOpen(false);
+    setEditingJob(null);
+    setJobToDelete(null);
+    resetModalLock();
+  }, [pathname]);
 
   const handleCloseDialog = (open?: boolean) => {
     if (open === true) return;
     setIsManualDialogOpen(false);
     setEditingJob(null);
+    window.setTimeout(resetModalLock, 0);
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -402,6 +415,8 @@ export default function JobPostingsPage() {
       });
     } finally {
       setJobToDelete(null);
+      setIsDeleteDialogOpen(false);
+      window.setTimeout(resetModalLock, 0);
     }
   };
 
@@ -425,17 +440,27 @@ export default function JobPostingsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button>
                 Create New Job <ChevronDown className="ml-2 h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-              <DropdownMenuItem onSelect={() => router.push(isAdmin ? '/admin/jd-creator' : '/jd-builder')}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  window.setTimeout(() => {
+                    router.push(isAdmin ? '/admin/jd-creator' : '/jd-builder');
+                  }, 0);
+                }}
+              >
                 <Bot className="mr-2 h-4 w-4" /> Use AI Assistant
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => handleOpenDialog(null)}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  window.setTimeout(() => handleOpenDialog(null), 0);
+                }}
+              >
                 <Pencil className="mr-2 h-4 w-4" /> Create Manually
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -476,7 +501,16 @@ export default function JobPostingsPage() {
         </Button>
       </div>
 
-      <AlertDialog>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            setJobToDelete(null);
+            window.setTimeout(resetModalLock, 0);
+          }
+        }}
+      >
         <Card>
           <CardContent className="p-0">
             <Table>
@@ -535,16 +569,17 @@ export default function JobPostingsPage() {
                               )}
                               Publish
                             </Button>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => setJobToDelete(job)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => {
+                                setJobToDelete(job);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         )}
                       </TableCell>
@@ -571,7 +606,7 @@ export default function JobPostingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setJobToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleDeleteDraft()} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
@@ -580,8 +615,8 @@ export default function JobPostingsPage() {
       </AlertDialog>
 
       <Dialog open={isManualDialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(90vh,100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[640px] flex-col gap-0 overflow-hidden p-0 sm:w-full">
+          <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-5">
             <DialogTitle>{editingJob ? 'Edit Job Draft' : 'Create Job Manually'}</DialogTitle>
             <DialogDescription>
               {editingJob
@@ -589,7 +624,8 @@ export default function JobPostingsPage() {
                 : 'Fill in the details below to post a new job.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-5 py-4 overflow-y-auto max-h-[70vh] pr-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4">
+            <div className="grid min-w-0 gap-5">
             <div className="grid gap-2">
               <Label htmlFor="title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Job Title
@@ -701,20 +737,23 @@ export default function JobPostingsPage() {
                   </div>
                 )}
                 {formState.skillWeights.map((row, index) => (
-                  <div key={index} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div
+                    key={index}
+                    className="grid min-w-0 gap-3 rounded-lg border p-3 animate-in fade-in slide-in-from-top-1 duration-200 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
+                  >
                     <Input
-                      className="flex-1 h-10"
+                      className="min-w-0 h-10"
                       placeholder="e.g. React"
                       value={row.skill}
                       onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
                     />
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium">Weight</span>
+                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Weight</span>
                       <Input
                         type="number"
                         min={0}
                         max={10}
-                        className="w-14 h-10 text-center"
+                        className="w-16 h-10 text-center"
                         value={row.weight}
                         onChange={(e) =>
                           updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
@@ -722,11 +761,11 @@ export default function JobPostingsPage() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium">Years</span>
+                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Years</span>
                       <Input
                         type="number"
                         min={0}
-                        className="w-14 h-10 text-center"
+                        className="w-16 h-10 text-center"
                         value={row.yearsOfExperience || ''}
                         onChange={(e) =>
                           updateSkillRow(index, { yearsOfExperience: Number.parseInt(e.target.value, 10) || 0 })
@@ -738,7 +777,7 @@ export default function JobPostingsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => removeSkillRow(index)}
-                      className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                      className="h-10 justify-self-start text-muted-foreground hover:text-destructive hover:bg-destructive/5 sm:justify-self-auto"
                     >
                       Remove
                     </Button>
@@ -746,9 +785,8 @@ export default function JobPostingsPage() {
                 ))}
               </div>
             </div>
-
           </div>
-          <DialogFooter className="mt-2">
+          <DialogFooter className="shrink-0 gap-2 border-t px-6 py-4 sm:justify-end">
             <Button type="button" variant="ghost" onClick={() => handleCloseDialog(false)}>
               Cancel
             </Button>

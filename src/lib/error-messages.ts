@@ -30,6 +30,10 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
     title: 'Invite Not Accepted Yet',
     description: 'Please accept your invitation first. Check your email for the invite link.',
   },
+  ACCOUNT_PENDING: {
+    title: 'Account Pending',
+    description: 'Your account is waiting for company admin approval. Ask your admin to activate your account — you do not need a new invite email.',
+  },
   USER_SUSPENDED: {
     title: 'Account Suspended',
     description: 'Your account has been suspended. Contact your company admin to restore access.',
@@ -161,8 +165,8 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
     description: 'Please check your input and try again.',
   },
   AI_EVALUATION_FAILED: {
-    title: 'AI Evaluation Failed',
-    description: 'The AI evaluation service encountered an error. Please try again in a moment.',
+    title: 'AI generation failed',
+    description: 'The AI service could not generate content. Confirm REPLICATE_API_TOKEN or OPEN_ROUTE is set on the server, then try again.',
   },
   STORAGE_ERROR: {
     title: 'Upload Failed',

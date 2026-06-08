@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
-  Users,
+  Contact,
+  UserCog,
   LogOut,
   Building,
   Briefcase,
@@ -23,7 +24,7 @@ import {
   Mic,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import Logo from '@/components/logo';
+import Logo, { getAppHomeHref } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -96,8 +97,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/interviews', label: 'Interviews', icon: Mic },
     { href: '/assessments', label: 'Assessments', icon: Sparkles },
     { href: '/inbox', label: 'Inbox', icon: Inbox },
-    { href: '/admin/recruiters', label: 'Recruiters', icon: Users },
-    { href: '/admin/candidates', label: 'Candidates', icon: Users },
+    { href: '/admin/recruiters', label: 'Recruiters', icon: UserCog },
+    { href: '/admin/candidates', label: 'Candidates', icon: Contact },
   ];
 
   const getInitials = (name: string) => {
@@ -112,10 +113,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <header className="flex h-16 items-center justify-between border-b bg-card px-6 shrink-0">
       <div className='flex items-center gap-4'>
         <SidebarTrigger />
-        <Logo variant="express" />
+        <Logo variant="express" href={getAppHomeHref(user.role)} />
       </div>
       <div className="flex items-center gap-4">
-        <span className="text-sm font-semibold text-muted-foreground border-r pr-4">Admin Panel</span>
+        <span className="text-sm font-semibold text-muted-foreground border-r pr-4">Company dashboard</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">

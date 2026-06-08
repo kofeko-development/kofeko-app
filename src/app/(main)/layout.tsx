@@ -19,6 +19,8 @@ import {
     Inbox,
     User as UserIcon,
     Users,
+    Contact,
+    UserCog,
     LogOut,
     Bell,
     Search,
@@ -29,7 +31,7 @@ import {
     Settings,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import Logo from '@/components/logo';
+import Logo, { getAppHomeHref } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -166,8 +168,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/interviews', label: 'Interviews', icon: Mic },
         { href: '/assessments', label: 'Assessments', icon: Sparkles },
         { href: '/inbox', label: 'Inbox', icon: Inbox },
-        { href: '/admin/recruiters', label: 'Recruiters', icon: Users },
-        { href: '/admin/candidates', label: 'Candidates', icon: Users },
+        { href: '/admin/recruiters', label: 'Recruiters', icon: UserCog },
+        { href: '/admin/candidates', label: 'Candidates', icon: Contact },
     ];
 
     const candidateNavLinks = [
@@ -189,12 +191,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <header className="flex h-16 items-center justify-between border-b bg-card px-6 shrink-0">
             <div className='flex items-center gap-4'>
                 <SidebarTrigger />
-                <Logo width={120} height={40} />
+                <Logo width={120} height={40} href={getAppHomeHref(user.role)} />
             </div>
             <div className="flex items-center gap-4">
                 {hasPermission('rbac:manage') && (
                     <Button variant="outline" size="sm" onClick={() => router.push('/admin/dashboard')}>
-                        Admin Panel
+                        Company dashboard
                     </Button>
                 )}
                 <DropdownMenu>

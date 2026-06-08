@@ -141,6 +141,8 @@ export type LocationAddressFieldsProps = {
   setCity: (v: string) => void;
   setZipCode: (v: string) => void;
   disabled?: boolean;
+  /** When true, appends * to field labels (onboarding forms). */
+  showRequiredIndicator?: boolean;
 };
 
 export function LocationAddressFields({
@@ -153,7 +155,9 @@ export function LocationAddressFields({
   setCity,
   setZipCode,
   disabled,
+  showRequiredIndicator = false,
 }: LocationAddressFieldsProps) {
+  const req = showRequiredIndicator ? " *" : "";
   const countries = React.useMemo(() => Country.getAllCountries() as ICountry[], []);
   const sortedCountries = React.useMemo(
     () => [...countries].sort((a, b) => a.name.localeCompare(b.name)),
@@ -225,7 +229,7 @@ export function LocationAddressFields({
       <div className="grid gap-x-4 gap-y-3 md:grid-cols-2 md:items-start">
         <SearchableDropdown
           id="country"
-          label="Country"
+          label={`Country${req}`}
           options={countryOptions}
           valueId={selectedCountryIso}
           onSelect={onCountryPick}
@@ -236,7 +240,7 @@ export function LocationAddressFields({
         {stateOptions.length > 0 ? (
           <SearchableDropdown
             id="state"
-            label="State / Province"
+            label={`State / Province${req}`}
             options={stateOptions}
             valueId={selectedStateIso}
             onSelect={onStatePick}
@@ -246,7 +250,7 @@ export function LocationAddressFields({
         ) : (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="state-text" className="mb-0">
-              State / Province
+              State / Province{req}
             </Label>
             <Input
               id="state-text"
@@ -262,7 +266,7 @@ export function LocationAddressFields({
         {cityOptions.length > 0 ? (
           <SearchableDropdown
             id="city"
-            label="City"
+            label={`City${req}`}
             options={cityOptions}
             valueId={city}
             onSelect={onCityPick}
@@ -272,7 +276,7 @@ export function LocationAddressFields({
         ) : (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="city-text" className="mb-0">
-              City
+              City{req}
             </Label>
             <Input
               id="city-text"
@@ -291,7 +295,7 @@ export function LocationAddressFields({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="zip-code" className="mb-0">
-            ZIP / Postal code
+            ZIP / Postal code{req}
           </Label>
           <Input
             id="zip-code"
