@@ -786,6 +786,7 @@ export default function JobPostingsPage() {
               </div>
             </div>
           </div>
+          </div>
           <DialogFooter className="shrink-0 gap-2 border-t px-6 py-4 sm:justify-end">
             <Button type="button" variant="ghost" onClick={() => handleCloseDialog(false)}>
               Cancel
