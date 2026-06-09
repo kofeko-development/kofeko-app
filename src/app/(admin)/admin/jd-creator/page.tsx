@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,56 @@ import { Loader2, Sparkles, Copy, Save, Plus, Trash2, Clock } from 'lucide-react
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import sanitizeHtml from 'sanitize-html';
-import { aiApi, jobsApi } from '@/lib/stage1-2-api';
+import { aiApi, jobsApi, type CreatedJob } from '@/lib/stage1-2-api';
+
+const MIN_MANUAL_SKILLS = 2;
+
+const defaultSkillRows = () => [
+  { skill: '', weight: 7, yearsOfExperience: 3 },
+  { skill: '', weight: 7, yearsOfExperience: 3 },
+];
+
+type JdFormErrors = {
+  jobTitle?: string;
+  jobType?: string;
+  employmentType?: string;
+  requirements?: string;
+  skills?: string;
+};
+
+function RequiredMark() {
+  return <span className="text-destructive ml-0.5" aria-hidden="true">*</span>;
+}
+
+function validateJdForm(input: {
+  jobTitle: string;
+  jobType: string;
+  employmentType: string;
+  requirements: string;
+  skillWeights: { skill: string; weight: number; yearsOfExperience?: number }[];
+}): JdFormErrors {
+  const errors: JdFormErrors = {};
+
+  if (!input.jobTitle.trim()) {
+    errors.jobTitle = 'Job title is required.';
+  }
+  if (!input.jobType.trim()) {
+    errors.jobType = 'Job type is required.';
+  }
+  if (!input.employmentType.trim()) {
+    errors.employmentType = 'Employment type is required.';
+  }
+  if (!input.requirements.trim()) {
+    errors.requirements = 'Key requirements & skills are required.';
+  }
+
+  const filledSkills = input.skillWeights.filter((row) => row.skill.trim());
+  if (filledSkills.length < MIN_MANUAL_SKILLS) {
+    errors.skills = `Add at least ${MIN_MANUAL_SKILLS} skills manually.`;
+  }
+
+  return errors;
+}
 
 function htmlToPlainText(html: string): string {
   return html
@@ -32,19 +82,73 @@ export default function AdminJdCreatorPage() {
   const [requirements, setRequirements] = useState('');
   const [jobType, setJobType] = useState('');
   const [employmentType, setEmploymentType] = useState('');
-  const [skillWeights, setSkillWeights] = useState<{ skill: string; weight: number; yearsOfExperience?: number }[]>([]);
+  const [skillWeights, setSkillWeights] = useState(defaultSkillRows);
 
   const [generatedJD, setGeneratedJD] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<'draft' | 'open' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<JdFormErrors>({});
   const [drafts, setDrafts] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editJobId = searchParams.get('edit');
+  const loadedEditIdRef = useRef<string | null>(null);
+
+  const loadJobIntoForm = useCallback((job: CreatedJob) => {
+    setEditingId(job.id);
+    setJobTitle(job.title ?? '');
+    setRequirements(job.requirements ?? job.description ?? '');
+    setJobType(job.department ?? '');
+    setEmploymentType(job.employmentType ?? '');
+    if (job.skillWeights?.length) {
+      const rows = job.skillWeights.map((sw) => ({
+        skill: sw.skill ?? '',
+        weight: sw.weight ?? 7,
+        yearsOfExperience: sw.yearsOfExperience ?? 3,
+      }));
+      while (rows.length < MIN_MANUAL_SKILLS) {
+        rows.push({ skill: '', weight: 7, yearsOfExperience: 3 });
+      }
+      setSkillWeights(rows);
+    } else {
+      setSkillWeights(defaultSkillRows());
+    }
+    setFieldErrors({});
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
     loadDrafts();
   }, []);
+
+  useEffect(() => {
+    if (!editJobId || loadedEditIdRef.current === editJobId) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const job = await jobsApi.get(editJobId);
+        if (cancelled) return;
+        loadedEditIdRef.current = editJobId;
+        loadJobIntoForm(job);
+        router.replace('/admin/jd-creator', { scroll: false });
+        toast({ title: 'Job loaded', description: `Editing: ${job.title}` });
+      } catch (error) {
+        toast({
+          title: 'Could not load job',
+          description: error instanceof Error ? error.message : 'Please try again.',
+          variant: 'destructive',
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editJobId, loadJobIntoForm, router, toast]);
 
   const loadDrafts = async () => {
     try {
@@ -55,16 +159,8 @@ export default function AdminJdCreatorPage() {
     }
   };
 
-  const loadDraft = (job: any) => {
-    setEditingId(job.id);
-    setJobTitle(job.title);
-    setRequirements(job.description);
-    setJobType(job.department || '');
-    setEmploymentType(job.employmentType || '');
-    if (job.skillWeights) {
-      setSkillWeights(job.skillWeights);
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const loadDraft = (job: CreatedJob) => {
+    loadJobIntoForm(job);
     toast({ title: 'Draft loaded', description: `Editing: ${job.title}` });
   };
 
@@ -77,15 +173,35 @@ export default function AdminJdCreatorPage() {
   };
 
   const removeSkillRow = (index: number) => {
+    if (skillWeights.length <= MIN_MANUAL_SKILLS) {
+      toast({
+        title: 'Minimum skills required',
+        description: `Keep at least ${MIN_MANUAL_SKILLS} skill rows.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     setSkillWeights(skillWeights.filter((_, i) => i !== index));
+  };
+
+  const runFormValidation = () => {
+    const errors = validateJdForm({
+      jobTitle,
+      jobType,
+      employmentType,
+      requirements,
+      skillWeights,
+    });
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!jobTitle || !requirements) {
+    if (!runFormValidation()) {
       toast({
-        title: 'Missing Information',
-        description: 'Please provide at least a Job Title and Key Requirements.',
+        title: 'Missing required fields',
+        description: 'Please complete all mandatory fields before generating.',
         variant: 'destructive',
       });
       return;
@@ -117,16 +233,16 @@ export default function AdminJdCreatorPage() {
   };
 
   const handleFinalSave = async (status: 'open' | 'draft') => {
-    if (!jobTitle.trim() || (!generatedJD && !requirements.trim())) {
+    if (!runFormValidation()) {
       toast({
-        title: 'Missing information',
-        description: 'Please provide a job title and description (either generated or manual).',
+        title: 'Missing required fields',
+        description: 'Please complete all mandatory fields before saving.',
         variant: 'destructive',
       });
       return;
     }
 
-    setIsSaving(true);
+    setSavingAction(status);
     try {
       let created;
       if (editingId) {
@@ -136,10 +252,13 @@ export default function AdminJdCreatorPage() {
           employmentType: employmentType.trim() || undefined,
           department: jobType.trim() || undefined,
           requirements: requirements.trim().slice(0, 5000),
-          skillWeights: skillWeights.length > 0 ? skillWeights.map(sw => ({
-            ...sw,
-            yearsOfExperience: Number(sw.yearsOfExperience) || 0
-          })) : undefined,
+          skillWeights: skillWeights
+            .filter((sw) => sw.skill.trim())
+            .map((sw) => ({
+              ...sw,
+              skill: sw.skill.trim(),
+              yearsOfExperience: Number(sw.yearsOfExperience) || 0,
+            })),
         });
       } else {
         created = await jobsApi.create({
@@ -149,10 +268,13 @@ export default function AdminJdCreatorPage() {
           department: jobType.trim() || undefined,
           requirements: requirements.trim().slice(0, 5000),
           openings: 1,
-          skillWeights: skillWeights.length > 0 ? skillWeights.map(sw => ({
-            ...sw,
-            yearsOfExperience: Number(sw.yearsOfExperience) || 0
-          })) : undefined,
+          skillWeights: skillWeights
+            .filter((sw) => sw.skill.trim())
+            .map((sw) => ({
+              ...sw,
+              skill: sw.skill.trim(),
+              yearsOfExperience: Number(sw.yearsOfExperience) || 0,
+            })),
         });
       }
 
@@ -169,7 +291,10 @@ export default function AdminJdCreatorPage() {
         setEditingId(null);
         setJobTitle('');
         setRequirements('');
-        setSkillWeights([]);
+        setJobType('');
+        setEmploymentType('');
+        setSkillWeights(defaultSkillRows());
+        setFieldErrors({});
       }
     } catch (error) {
       toast({
@@ -178,7 +303,7 @@ export default function AdminJdCreatorPage() {
         variant: 'destructive',
       });
     } finally {
-      setIsSaving(false);
+      setSavingAction(null);
     }
   };
 
@@ -227,10 +352,10 @@ export default function AdminJdCreatorPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold font-headline">JD Creator</h1>
-            <p className="text-muted-foreground">{editingId ? 'Editing existing draft' : 'Post your requirements and generate a job description with AI.'}</p>
+            <p className="text-muted-foreground">{editingId ? 'Update the job details below and save.' : 'Post your requirements and generate a job description with AI.'}</p>
           </div>
           {editingId && (
-            <Button variant="outline" size="sm" onClick={() => { setEditingId(null); setJobTitle(''); setRequirements(''); setSkillWeights([]); }}>
+            <Button variant="outline" size="sm" onClick={() => { setEditingId(null); loadedEditIdRef.current = null; setJobTitle(''); setRequirements(''); setJobType(''); setEmploymentType(''); setSkillWeights(defaultSkillRows()); setFieldErrors({}); }}>
               Create New Instead
             </Button>
           )}
@@ -245,23 +370,37 @@ export default function AdminJdCreatorPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="job-title">Job Title</Label>
+                  <Label htmlFor="job-title">Job Title<RequiredMark /></Label>
                   <Input
                     id="job-title"
                     placeholder="e.g., Senior Frontend Developer"
                     value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
+                    onChange={(e) => {
+                      setJobTitle(e.target.value);
+                      if (fieldErrors.jobTitle) setFieldErrors((prev) => ({ ...prev, jobTitle: undefined }));
+                    }}
                     disabled={isLoading}
+                    className={fieldErrors.jobTitle ? 'border-destructive' : undefined}
                     required
                   />
+                  {fieldErrors.jobTitle ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErrors.jobTitle}</p>
+                  ) : null}
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="job-type">Job Type</Label>
-                  <Select value={jobType} onValueChange={setJobType} disabled={isLoading}>
-                    <SelectTrigger id="job-type">
+                  <Label htmlFor="job-type">Job Type<RequiredMark /></Label>
+                  <Select
+                    value={jobType}
+                    onValueChange={(value) => {
+                      setJobType(value);
+                      if (fieldErrors.jobType) setFieldErrors((prev) => ({ ...prev, jobType: undefined }));
+                    }}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger id="job-type" className={fieldErrors.jobType ? 'border-destructive' : undefined}>
                       <SelectValue placeholder="Select job type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -270,11 +409,21 @@ export default function AdminJdCreatorPage() {
                       <SelectItem value="Hybrid">Hybrid</SelectItem>
                     </SelectContent>
                   </Select>
+                  {fieldErrors.jobType ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErrors.jobType}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="employment-type">Employment Type</Label>
-                  <Select value={employmentType} onValueChange={setEmploymentType} disabled={isLoading}>
-                    <SelectTrigger id="employment-type">
+                  <Label htmlFor="employment-type">Employment Type<RequiredMark /></Label>
+                  <Select
+                    value={employmentType}
+                    onValueChange={(value) => {
+                      setEmploymentType(value);
+                      if (fieldErrors.employmentType) setFieldErrors((prev) => ({ ...prev, employmentType: undefined }));
+                    }}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger id="employment-type" className={fieldErrors.employmentType ? 'border-destructive' : undefined}>
                       <SelectValue placeholder="Select employment type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -284,6 +433,9 @@ export default function AdminJdCreatorPage() {
                       <SelectItem value="Internship">Internship</SelectItem>
                     </SelectContent>
                   </Select>
+                  {fieldErrors.employmentType ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErrors.employmentType}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -291,7 +443,7 @@ export default function AdminJdCreatorPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="requirements">Key Requirements & Skills</Label>
+                  <Label htmlFor="requirements">Key Requirements & Skills<RequiredMark /></Label>
                   <Button
                     type="button"
                     variant="ghost"
@@ -312,11 +464,17 @@ export default function AdminJdCreatorPage() {
                   id="requirements"
                   placeholder="Write the requirements, responsibilities, must-haves, nice-to-haves..."
                   value={requirements}
-                  onChange={(e) => setRequirements(e.target.value)}
-                  className="min-h-[150px]"
+                  onChange={(e) => {
+                    setRequirements(e.target.value);
+                    if (fieldErrors.requirements) setFieldErrors((prev) => ({ ...prev, requirements: undefined }));
+                  }}
+                  className={`min-h-[150px] ${fieldErrors.requirements ? 'border-destructive' : ''}`}
                   disabled={isLoading || isGenerating}
                   required
                 />
+                {fieldErrors.requirements ? (
+                  <p className="text-sm text-destructive" role="alert">{fieldErrors.requirements}</p>
+                ) : null}
               </div>
 
               <Separator className="my-2" />
@@ -324,9 +482,9 @@ export default function AdminJdCreatorPage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <h3 className="text-sm font-semibold">Skill priorities</h3>
+                    <h3 className="text-sm font-semibold">Skill priorities<RequiredMark /></h3>
                     <p className="text-[11px] text-muted-foreground">
-                      Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
+                      Add at least {MIN_MANUAL_SKILLS} skills manually. Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
                     </p>
                   </div>
                   <Button
@@ -344,10 +502,13 @@ export default function AdminJdCreatorPage() {
                   {skillWeights.map((row, index) => (
                     <div key={index} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
                       <Input
-                        className="flex-1 h-10"
+                        className={`flex-1 h-10 ${fieldErrors.skills && !row.skill.trim() ? 'border-destructive' : ''}`}
                         placeholder="e.g. React"
                         value={row.skill}
-                        onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
+                        onChange={(e) => {
+                          updateSkillRow(index, { skill: e.target.value });
+                          if (fieldErrors.skills) setFieldErrors((prev) => ({ ...prev, skills: undefined }));
+                        }}
                       />
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground font-medium">Weight</span>
@@ -379,17 +540,16 @@ export default function AdminJdCreatorPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeSkillRow(index)}
-                        className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                        disabled={skillWeights.length <= MIN_MANUAL_SKILLS}
+                        className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5 disabled:opacity-40"
                       >
                         Remove
                       </Button>
                     </div>
                   ))}
-                  {skillWeights.length === 0 && (
-                    <p className="text-center py-2 text-xs text-muted-foreground border border-dashed rounded-md">
-                      No skill priorities added. Add skills to help AI matching.
-                    </p>
-                  )}
+                  {fieldErrors.skills ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErrors.skills}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -398,19 +558,19 @@ export default function AdminJdCreatorPage() {
                   type="button"
                   variant="outline"
                   className="flex-1 h-11"
-                  disabled={isSaving || isGenerating}
+                  disabled={savingAction !== null || isGenerating}
                   onClick={() => void handleFinalSave('draft')}
                 >
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {savingAction === 'draft' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Save as Draft
                 </Button>
                 <Button
                   type="button"
                   className="flex-1 h-11"
-                  disabled={isSaving || isGenerating}
+                  disabled={savingAction !== null || isGenerating}
                   onClick={() => void handleFinalSave('open')}
                 >
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  {savingAction === 'open' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                   Post Job
                 </Button>
               </div>

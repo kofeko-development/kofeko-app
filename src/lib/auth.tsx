@@ -97,6 +97,10 @@ export type BackendUser = {
   skills?: string[];
   linkedinUrl?: string;
   resumeMimeType?: string;
+  tenant?: {
+    name: string;
+    slug?: string;
+  };
 };
 
 interface AuthContextType {
@@ -144,8 +148,11 @@ export const mapBackendUser = (backendUser: BackendUser): User => {
     uid: backendUser.id,
     email: backendUser.email,
     name: fullName || backendUser.email,
+    firstName: backendUser.firstName,
+    lastName: backendUser.lastName,
     role,
     companyRole,
+    company: !isCandidate ? backendUser.tenant?.name?.trim() || undefined : undefined,
     permissions,
     backendRoles: roles,
     status: backendUser.status === 'invited' ? 'pending' : backendUser.status,
@@ -291,11 +298,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessToken: string;
       refreshToken: string;
       user: BackendUser;
+      tenant?: BackendUser['tenant'];
     }>('/auth/login', { method: 'POST', body: input });
 
     setTokens('staff', payload.accessToken, payload.refreshToken);
-    const mappedUser = mapBackendUser(payload.user);
+    const mappedUser = mapBackendUser({
+      ...payload.user,
+      tenant: payload.user.tenant ?? payload.tenant,
+    });
     setUser(mappedUser);
+    sessionStorage.setItem('kofeko_user_cache', JSON.stringify(mappedUser));
     return mappedUser;
   };
 

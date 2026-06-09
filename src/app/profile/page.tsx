@@ -7,12 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload, ArrowLeft } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload, ArrowLeft, Building2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import type { WorkExperience, Education, Project, User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { companyApi } from '@/lib/stage1-2-api';
+import { resolveUploadUrl } from '@/lib/storage-url';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { COMPANY_SIZE_OPTIONS } from '@/lib/company-size';
 import dynamic from 'next/dynamic';
@@ -35,6 +36,16 @@ const PhoneInternationalField = dynamic(
     loading: () => <div className="h-10 animate-pulse rounded-md bg-muted" aria-hidden />,
   }
 );
+
+function staffFieldClass(editingField: string | null, field: string, multiline = false): string {
+  const base = multiline
+    ? 'pr-10 transition-all rounded-lg min-h-[120px]'
+    : 'pr-10 transition-all rounded-lg h-11';
+  if (editingField === field) {
+    return `${base} border border-primary bg-background shadow-sm`;
+  }
+  return `${base} border border-border bg-muted/50 hover:bg-muted/60`;
+}
 
 export default function ProfilePage() {
   const { user, updateCurrentUser, loading } = useAuth();
@@ -62,6 +73,7 @@ export default function ProfilePage() {
   const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   const isNewUser = user && !user.resumeUrl;
 
@@ -521,8 +533,15 @@ export default function ProfilePage() {
     if (!companyProfile || !canEditCompany) return;
     setIsSaving(true);
     try {
-      await companyApi.update(companyProfile as any);
-      setInitialCompanyProfile(companyProfile);
+      const savedProfile = {
+        ...companyProfile,
+        companyName: companyProfile.companyName.trim(),
+        industry: companyProfile.industry.trim(),
+        shortDescription: companyProfile.shortDescription.trim(),
+      };
+      await companyApi.update(savedProfile);
+      setCompanyProfile(savedProfile);
+      setInitialCompanyProfile(savedProfile);
       toast({
         title: 'Company Profile Updated',
         description: 'Your company details have been saved successfully.',
@@ -553,7 +572,7 @@ export default function ProfilePage() {
   // Staff / Recruiter Profile UI (Company details)
   if (user.role !== 'candidate') {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-6 pb-24">
         <div>
           <h1 className="text-3xl font-bold font-headline">Company Profile</h1>
           <p className="text-muted-foreground">View and update your company details.</p>
@@ -573,7 +592,10 @@ export default function ProfilePage() {
                 Back
               </Button>
               <div className="space-y-1.5">
-                <CardTitle>Company details</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Company details
+                </CardTitle>
                 <CardDescription>The information entered during company signup.</CardDescription>
               </div>
             </div>
@@ -598,10 +620,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('companyName', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'companyName'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'companyName'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'companyName')}
                         readOnly={editingField !== 'companyName'}
                         disabled={!canEditCompany}
                       />
@@ -624,10 +643,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('industry', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'industry'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'industry'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'industry')}
                         readOnly={editingField !== 'industry'}
                         disabled={!canEditCompany}
                       />
@@ -666,7 +682,7 @@ export default function ProfilePage() {
                         </Select>
                       ) : (
                         <div
-                          className="pr-10 border-transparent bg-muted/20 hover:bg-muted/40 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
+                          className="pr-10 border border-border bg-muted/50 hover:bg-muted/60 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
                           onClick={() => canEditCompany && setEditingField('companySize')}
                         >
                           {COMPANY_SIZE_OPTIONS.find(opt => opt.value === companyProfile.companySize)?.label || companyProfile.companySize}
@@ -698,7 +714,7 @@ export default function ProfilePage() {
                         </Select>
                       ) : (
                         <div
-                          className="pr-10 border-transparent bg-muted/20 hover:bg-muted/40 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
+                          className="pr-10 border border-border bg-muted/50 hover:bg-muted/60 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
                           onClick={() => canEditCompany && setEditingField('companyType')}
                         >
                           {COMPANY_TYPE_OPTIONS.find(opt => opt.value === companyProfile.companyType)?.label || companyProfile.companyType}
@@ -715,10 +731,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('foundedYear', Number(e.target.value))}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'foundedYear'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'foundedYear'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'foundedYear')}
                         readOnly={editingField !== 'foundedYear'}
                         disabled={!canEditCompany}
                       />
@@ -741,10 +754,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('phoneNumber', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'phoneNumber'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'phoneNumber'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'phoneNumber')}
                         readOnly={editingField !== 'phoneNumber'}
                         disabled={!canEditCompany}
                       />
@@ -759,6 +769,16 @@ export default function ProfilePage() {
                       )}
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="account-email">Account email</Label>
+                    <Input
+                      id="account-email"
+                      type="email"
+                      value={user.email}
+                      readOnly
+                      className="border border-border bg-muted/50 h-11 cursor-not-allowed"
+                    />
+                  </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label>Website</Label>
                     <div className="relative group">
@@ -767,10 +787,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('companyWebsite', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'companyWebsite'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'companyWebsite'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'companyWebsite')}
                         readOnly={editingField !== 'companyWebsite'}
                         disabled={!canEditCompany}
                       />
@@ -793,10 +810,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('officialCompanyAddress', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'officialCompanyAddress'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'officialCompanyAddress'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'officialCompanyAddress')}
                         readOnly={editingField !== 'officialCompanyAddress'}
                         disabled={!canEditCompany}
                       />
@@ -813,74 +827,87 @@ export default function ProfilePage() {
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label>Company logo</Label>
-                    <div className="flex gap-4 items-start">
-                      <div className="relative group flex-1 min-w-0">
-                        <div className={`flex items-start gap-3 pr-20 border transition-all rounded-lg min-h-11 py-2 px-3 ${editingField === 'companyLogo'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 border-transparent hover:bg-muted/40'
-                          }`}>
-                          <Upload className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                          {companyProfile.companyLogo ? (
-                            <span className="text-sm text-muted-foreground flex-1 min-w-0 break-all leading-snug">
-                              {companyProfile.companyLogo}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground italic flex-1 min-w-0">No logo uploaded</span>
-                          )}
-
-                          {canEditCompany && (
-                            <div className="absolute right-3 top-2 flex items-center gap-1">
-                              <input
-                                type="file"
-                                id="company-logo-upload"
-                                className="hidden"
-                                accept="image/*,.svg"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    setEditingField('companyLogo');
-                                    try {
-                                      const res = await companyApi.uploadLogo(file);
-                                      updateCompanyField('companyLogo', res.url);
-                                    } catch (err) {
-                                      toast({
-                                        title: 'Upload failed',
-                                        description: err instanceof Error ? err.message : 'Unable to upload logo.',
-                                        variant: 'destructive',
-                                      });
-                                    } finally {
-                                      setEditingField(null);
-                                    }
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => document.getElementById('company-logo-upload')?.click()}
-                                className="p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                                title="Upload new logo"
-                              >
-                                <Pencil className="h-4 w-4 text-muted-foreground" />
-                              </button>
-                              {companyProfile.companyLogo && (
-                                <button
-                                  type="button"
-                                  onClick={() => updateCompanyField('companyLogo', '')}
-                                  className="p-1.5 hover:bg-destructive/10 rounded-md transition-all opacity-0 group-hover:opacity-100 text-destructive"
-                                  title="Remove logo"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                    <div className="flex flex-col sm:flex-row gap-4 items-start rounded-lg border border-border bg-muted/30 p-4">
+                      <div className="h-24 w-24 shrink-0 rounded-xl border border-border bg-white p-2 overflow-hidden shadow-sm flex items-center justify-center relative">
+                        {isUploadingLogo ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        ) : companyProfile.companyLogo ? (
+                          <img
+                            src={resolveUploadUrl(companyProfile.companyLogo)}
+                            alt="Company logo"
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <Building2 className="h-10 w-10 text-muted-foreground" />
+                        )}
                       </div>
-                      {companyProfile.companyLogo && (
-                        <div className="h-11 w-11 shrink-0 rounded-lg border bg-white p-1.5 overflow-hidden shadow-sm">
-                          <img src={companyProfile.companyLogo} alt="Logo Preview" className="h-full w-full object-contain" />
-                        </div>
-                      )}
+                      <div className="flex-1 space-y-3">
+                        {!companyProfile.companyLogo && (
+                          <p className="text-sm text-muted-foreground">
+                            No logo uploaded yet. PNG, JPG, or SVG recommended.
+                          </p>
+                        )}
+                        {canEditCompany && (
+                          <div className="flex flex-wrap gap-2">
+                            <input
+                              type="file"
+                              id="company-logo-upload"
+                              className="hidden"
+                              accept="image/*,.svg"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  setIsUploadingLogo(true);
+                                  try {
+                                    const res = await companyApi.uploadLogo(file);
+                                    updateCompanyField('companyLogo', res.url);
+                                  } catch (err) {
+                                    toast({
+                                      title: 'Upload failed',
+                                      description: err instanceof Error ? err.message : 'Unable to upload logo.',
+                                      variant: 'destructive',
+                                    });
+                                  } finally {
+                                    setIsUploadingLogo(false);
+                                    e.target.value = '';
+                                  }
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isUploadingLogo}
+                              onClick={() => document.getElementById('company-logo-upload')?.click()}
+                            >
+                              {isUploadingLogo ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Uploading…
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="mr-2 h-4 w-4" />
+                                  {companyProfile.companyLogo ? 'Change logo' : 'Upload logo'}
+                                </>
+                              )}
+                            </Button>
+                            {companyProfile.companyLogo && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                disabled={isUploadingLogo}
+                                onClick={() => updateCompanyField('companyLogo', '')}
+                              >
+                                Remove
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -891,10 +918,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('shortDescription', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'shortDescription'}
-                        className={`pr-10 border-transparent transition-all rounded-lg min-h-[120px] ${editingField === 'shortDescription'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'shortDescription', true)}
                         readOnly={editingField !== 'shortDescription'}
                         disabled={!canEditCompany}
                       />
@@ -917,10 +941,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('linkedinUrl', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'linkedinUrl'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'linkedinUrl'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'linkedinUrl')}
                         readOnly={editingField !== 'linkedinUrl'}
                         disabled={!canEditCompany}
                       />
@@ -943,10 +964,7 @@ export default function ProfilePage() {
                         onChange={(e) => updateCompanyField('twitterUrl', e.target.value)}
                         onBlur={() => setEditingField(null)}
                         autoFocus={editingField === 'twitterUrl'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'twitterUrl'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
+                        className={staffFieldClass(editingField, 'twitterUrl')}
                         readOnly={editingField !== 'twitterUrl'}
                         disabled={!canEditCompany}
                       />

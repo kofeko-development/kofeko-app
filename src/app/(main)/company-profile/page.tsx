@@ -29,6 +29,7 @@ import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { companyApi, CompanyProfilePayload } from '@/lib/stage1-2-api';
+import { resolveUploadUrl } from '@/lib/storage-url';
 import { COMPANY_SIZE_OPTIONS } from '@/lib/company-size';
 
 const COMPANY_TYPE_OPTIONS = [
@@ -195,7 +196,7 @@ export default function CompanyProfilePage() {
         <div className="absolute -bottom-6 left-8 flex items-end gap-6">
           <div className="relative h-24 w-24 rounded-2xl border-4 border-background bg-white shadow-xl overflow-hidden group/logo">
             {form.companyLogo ? (
-              <img src={form.companyLogo} alt="Logo" className="h-full w-full object-contain p-2" />
+              <img src={resolveUploadUrl(form.companyLogo)} alt="Logo" className="h-full w-full object-contain p-2" />
             ) : (
               <div className="h-full w-full flex items-center justify-center bg-muted">
                 <Building2 className="h-10 w-10 text-muted-foreground" />

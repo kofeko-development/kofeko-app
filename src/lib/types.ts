@@ -26,6 +26,8 @@ export interface User {
   uid: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: UserRole;
   permissions?: string[];
   backendRoles?: string[];

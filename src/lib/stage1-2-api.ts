@@ -1,4 +1,4 @@
-import { apiRequest } from './api-client';
+import { apiRequest, API_BASE_URL, getAccessToken } from './api-client';
 
 export type CompanyProfilePayload = {
   companyName: string;
@@ -20,6 +20,15 @@ export type CompanyProfileResponse = {
   tenant: { id: string; name: string; slug: string };
   company: CompanyProfilePayload & { id: string; createdAt: string; updatedAt: string };
 };
+
+function sanitizeCompanyPayload<T extends Record<string, unknown>>(payload: T): Partial<T> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === '' || value === null || value === undefined) continue;
+    result[key] = typeof value === 'string' ? value.trim() : value;
+  }
+  return result as Partial<T>;
+}
 
 export const stageOneApi = {
   inviteUser: (payload: {
@@ -44,15 +53,22 @@ export const stageOneApi = {
 export const companyApi = {
   get: () => apiRequest<CompanyProfileResponse>('/company', { auth: true }),
   create: (payload: CompanyProfilePayload) =>
-    apiRequest<CompanyProfileResponse>('/company', { method: 'POST', auth: true, body: payload }),
+    apiRequest<CompanyProfileResponse>('/company', {
+      method: 'POST',
+      auth: true,
+      body: sanitizeCompanyPayload(payload as Record<string, unknown>),
+    }),
   update: (payload: Partial<CompanyProfilePayload>) =>
-    apiRequest<CompanyProfileResponse>('/company', { method: 'PATCH', auth: true, body: payload }),
+    apiRequest<CompanyProfileResponse>('/company', {
+      method: 'PATCH',
+      auth: true,
+      body: sanitizeCompanyPayload(payload as Record<string, unknown>),
+    }),
   uploadLogo: async (file: File): Promise<{ url: string; mimeType: string; filename: string }> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kofeko_access_token') : null;
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+    const token = getAccessToken('staff');
     const formData = new FormData();
     formData.append('logo', file);
-    const res = await fetch(`${API_BASE}/company/upload-logo`, {
+    const res = await fetch(`${API_BASE_URL}/company/upload-logo`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
@@ -65,10 +81,9 @@ export const companyApi = {
     return payload.data;
   },
   uploadPublicLogo: async (file: File): Promise<{ url: string; mimeType: string; filename: string }> => {
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
     const formData = new FormData();
     formData.append('logo', file);
-    const res = await fetch(`${API_BASE}/auth/upload-logo`, {
+    const res = await fetch(`${API_BASE_URL}/auth/upload-logo`, {
       method: 'POST',
       body: formData,
     });
@@ -251,11 +266,10 @@ export const candidatesApi = {
     apiRequest<ApiCandidate>(`/candidates/${id}/status`, { method: 'PATCH', auth: true, body: { status } }),
 
   uploadResume: async (file: File): Promise<{ url: string; mimeType: string; filename: string }> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kofeko_access_token') : null;
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+    const token = getAccessToken('staff');
     const formData = new FormData();
     formData.append('resume', file);
-    const res = await fetch(`${API_BASE}/candidates/upload-resume`, {
+    const res = await fetch(`${API_BASE_URL}/candidates/upload-resume`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,

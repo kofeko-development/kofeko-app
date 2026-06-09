@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
+import { getUserDisplayName, getUserInitials } from '@/lib/user-display';
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -179,14 +180,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/inbox', label: 'Inbox', icon: Inbox }
     ];
 
-    const getInitials = (name: string) => {
-        const names = name.split(' ');
-        if (names.length > 1) {
-            return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`;
-        }
-        return names[0].charAt(0);
-    }
-
     const RecruiterHeader = () => (
         <header className="flex h-16 items-center justify-between border-b bg-card px-6 shrink-0">
             <div className='flex items-center gap-4'>
@@ -203,16 +196,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
                             <Avatar className="h-10 w-10">
-                                <AvatarFallback className="font-medium">{getInitials(user.name)}</AvatarFallback>
+                                <AvatarFallback className="font-medium">{getUserInitials(user)}</AvatarFallback>
                             </Avatar>
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-56" align="end" forceMount>
                         <DropdownMenuLabel className="font-normal">
                             <div className="flex flex-col space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium leading-none">{user.name}</p>
-                                    {user.backendRoles?.[0] && <Badge variant="outline">{user.backendRoles[0]}</Badge>}
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-sm font-medium leading-none">{getUserDisplayName(user)}</p>
+                                    {user.companyRole && <Badge variant="outline">{user.companyRole}</Badge>}
                                 </div>
                                 <p className="text-xs leading-none text-muted-foreground">
                                     {user.email}
@@ -323,14 +316,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
                                             <Avatar className="h-10 w-10">
-                                                <AvatarFallback className="font-medium">{getInitials(user.name)}</AvatarFallback>
+                                                <AvatarFallback className="font-medium">{getUserInitials(user)}</AvatarFallback>
                                             </Avatar>
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="w-56" align="end" forceMount>
                                         <DropdownMenuLabel className="font-normal">
                                             <div className="flex flex-col space-y-1">
-                                                <p className="text-sm font-medium leading-none">{user.name}</p>
+                                                <p className="text-sm font-medium leading-none">{getUserDisplayName(user)}</p>
                                                 <p className="text-xs leading-none text-muted-foreground">
                                                     {user.email}
                                                 </p>

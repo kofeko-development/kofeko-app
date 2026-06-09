@@ -25,6 +25,7 @@ import { validateNationalPhone } from "@/lib/phone-e164";
 import { cn } from "@/lib/utils";
 import { hasFieldErrors } from "@/lib/validation-errors";
 import { companyApi } from "@/lib/stage1-2-api";
+import { resolveUploadUrl } from "@/lib/storage-url";
 import { isValidWebsiteUrl, normalizeWebsiteUrl } from "@/lib/website-url";
 import {
   applyCompanySignupDraft,
@@ -812,7 +813,7 @@ export default function SignupPage() {
                   <div className={cn("flex items-center gap-4", fieldErrors.companyLogo && "rounded-lg ring-1 ring-destructive/50 p-2")}>
                     {companyLogo ? (
                       <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
-                        <img src={companyLogo} alt="Logo preview" className="h-full w-full object-contain" />
+                        <img src={resolveUploadUrl(companyLogo)} alt="Logo preview" className="h-full w-full object-contain" />
                         <button
                           type="button"
                           onClick={() => setCompanyLogo('')}

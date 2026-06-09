@@ -46,6 +46,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
 import { LinkedInShareModal } from '@/components/linkedin-share-modal';
+import { EditJobDialog } from '@/components/edit-job-dialog';
 import {
     parseHiringIntelligence,
     hasAiEvaluation,
@@ -173,6 +174,7 @@ export default function JobApplicantsPage() {
     ], []);
 
     const [isCustomizeFlowDialogOpen, setIsCustomizeFlowDialogOpen] = useState(false);
+    const [isEditJobDialogOpen, setIsEditJobDialogOpen] = useState(false);
     const [flowStages, setFlowStages] = useState<any[]>([]);
     const [isSavingFlow, setIsSavingFlow] = useState(false);
 
@@ -644,11 +646,11 @@ export default function JobApplicantsPage() {
 
     const handleShareJob = () => {
         if (!job) return;
-        const jobUrl = `${window.location.origin}/jobs/${job.id}`;
+        const jobUrl = `${window.location.origin}/open-positions/${job.id}`;
         navigator.clipboard.writeText(jobUrl);
         toast({
             title: 'Link Copied!',
-            description: 'The job link has been copied to your clipboard.',
+            description: 'Candidate job link copied. Share it so applicants can view and apply.',
         });
     };
 
@@ -885,11 +887,12 @@ export default function JobApplicantsPage() {
                                 <DropdownMenuContent align="end">
                                     {job.status !== 'closed' ? (
                                         <>
-                                            <DropdownMenuItem asChild>
-                                                <Link href={`${routePrefix}/job-postings?edit=${job.id}`}>
-                                                    <FileEdit className="mr-2 h-4 w-4" />
-                                                    Edit Job
-                                                </Link>
+                                            <DropdownMenuItem
+                                                className="cursor-pointer"
+                                                onClick={() => setIsEditJobDialogOpen(true)}
+                                            >
+                                                <FileEdit className="mr-2 h-4 w-4" />
+                                                Edit Job
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 className="cursor-pointer"
@@ -1158,6 +1161,13 @@ export default function JobApplicantsPage() {
             </div>
 
 
+            <EditJobDialog
+                open={isEditJobDialogOpen}
+                onOpenChange={setIsEditJobDialogOpen}
+                job={job}
+                onSaved={loadData}
+            />
+
             <Dialog open={isCustomizeFlowDialogOpen} onOpenChange={setIsCustomizeFlowDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6 overflow-hidden">
                     <DialogHeader className="pb-4 border-b">
@@ -1177,13 +1187,24 @@ export default function JobApplicantsPage() {
                             <div className=" ml-2">
                                 <h3 className="text-xs font-bold text-muted-foreground tracking-wider uppercase mb-5 ml-1">Active Pipeline Flow</h3>
                                 <div className="space-y-0 relative">
-                                    {flowStages.map((stageItem, index) => {
-                                        const isFirst = index === 0;
-                                        const isTerminal = index >= flowStages.length - 2;
-                                        const isLocked = isFirst || isTerminal;
-                                        const isLast = index === flowStages.length - 1;
+                                    {(() => {
+                                        const visibleCount = flowStages.filter((s) => s.stage !== 'rejected').length;
+                                        let displayNumber = 0;
 
-                                        return (
+                                        return flowStages.map((stageItem, index) => {
+                                            if (stageItem.stage === 'rejected') return null;
+
+                                            displayNumber += 1;
+                                            const rejectedStage = flowStages.find((s) => s.stage === 'rejected');
+                                            const isOutcomeStage = stageItem.stage === 'hired' && Boolean(rejectedStage);
+                                            const isFirst = index === 0;
+                                            const isLocked = isFirst || isOutcomeStage;
+                                            const isLastVisible = displayNumber === visibleCount;
+                                            const outcomeLabel = isOutcomeStage
+                                                ? `${stageItem.label} / ${rejectedStage!.label}`
+                                                : stageItem.label;
+
+                                            return (
                                             <div
                                                 key={stageItem.stage}
                                                 className="relative flex items-stretch gap-4 pb-6 group"
@@ -1191,9 +1212,9 @@ export default function JobApplicantsPage() {
                                                 {/* Left Side: Connecting Timeline & Circle */}
                                                 <div className="flex flex-col items-center w-9 shrink-0 relative mt-1">
                                                     <div className={`flex items-center justify-center h-9 w-9 rounded-full font-bold text-xs shadow-sm z-10 ${isLocked ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-primary text-primary-foreground'}`}>
-                                                        {index + 1}
+                                                        {displayNumber}
                                                     </div>
-                                                    {!isLast && (
+                                                    {!isLastVisible && (
                                                         <div className="absolute top-9 bottom-[-1.5rem] w-[2px] bg-slate-200 z-0" />
                                                     )}
                                                 </div>
@@ -1232,14 +1253,29 @@ export default function JobApplicantsPage() {
                                                     {/* Inputs */}
                                                     <div className="flex-1 grid gap-0.5 ml-1">
                                                         <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
-                                                            {stageItem.stage.startsWith('custom_') ? 'Custom Round' : `Original Round: ${stageItem.stage.replace('_', ' ')}`}
+                                                            {isOutcomeStage
+                                                                ? 'Final outcome: hired or rejected'
+                                                                : stageItem.stage.startsWith('custom_')
+                                                                  ? 'Custom Round'
+                                                                  : `Original Round: ${stageItem.stage.replace('_', ' ')}`}
                                                         </Label>
-                                                        <Input
-                                                            value={stageItem.label}
-                                                            onChange={(e) => handleRenameStage(index, e.target.value)}
-                                                            placeholder="Stage Name"
-                                                            className="h-8 font-semibold text-base border-transparent hover:border-input focus:border-primary bg-transparent px-2 -ml-2 shadow-none transition-colors"
-                                                        />
+                                                        {isOutcomeStage ? (
+                                                            <p className="px-2 -ml-2 text-base font-semibold text-foreground">
+                                                                {outcomeLabel}
+                                                            </p>
+                                                        ) : (
+                                                            <Input
+                                                                value={stageItem.label}
+                                                                onChange={(e) => handleRenameStage(index, e.target.value)}
+                                                                placeholder="Stage Name"
+                                                                className="h-8 font-semibold text-base border-transparent hover:border-input focus:border-primary bg-transparent px-2 -ml-2 shadow-none transition-colors"
+                                                            />
+                                                        )}
+                                                        {isOutcomeStage && (
+                                                            <p className="px-2 -ml-2 text-xs text-muted-foreground">
+                                                                Candidates end here as either hired or rejected — not as sequential steps.
+                                                            </p>
+                                                        )}
                                                     </div>
 
                                                     {/* Delete and Lock Action */}
@@ -1264,8 +1300,9 @@ export default function JobApplicantsPage() {
                                                     )}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                            );
+                                        });
+                                    })()}
                                 </div>
                             </div>
                         </div>

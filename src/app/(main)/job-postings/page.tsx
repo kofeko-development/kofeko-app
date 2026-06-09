@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Bot, Pencil, ChevronDown, Send, Trash2, Edit, Loader2, Plus, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Send, Trash2, Edit, Loader2, Plus, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -34,12 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -440,31 +434,9 @@ export default function JobPostingsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <Button>
-                Create New Job <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-              <DropdownMenuItem
-                onSelect={() => {
-                  window.setTimeout(() => {
-                    router.push(isAdmin ? '/admin/jd-creator' : '/jd-builder');
-                  }, 0);
-                }}
-              >
-                <Bot className="mr-2 h-4 w-4" /> Use AI Assistant
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  window.setTimeout(() => handleOpenDialog(null), 0);
-                }}
-              >
-                <Pencil className="mr-2 h-4 w-4" /> Create Manually
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button onClick={() => router.push(isAdmin ? '/admin/jd-creator' : '/jd-builder')}>
+            Create New Job
+          </Button>
         </div>
       </div>
 
