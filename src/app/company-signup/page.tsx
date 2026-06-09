@@ -922,7 +922,7 @@ export default function SignupPage() {
         </form>
         <div className="mt-4 text-center text-sm">
           Already approved and have credentials?{" "}
-          <Link href="/login" className="underline">
+          <Link href="/company-login" className="underline">
             Company Login
           </Link>
         </div>

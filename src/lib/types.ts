@@ -1,6 +1,6 @@
 
 export type UserRole = 'recruiter' | 'candidate' | 'operator';
-export type CompanyRole = 'HR Admin' | 'Hiring Manager' | 'Recruiter' | 'Interviewer';
+export type CompanyRole = 'Company Admin' | 'Hiring Manager' | 'Recruiter' | 'Interviewer';
 
 export interface WorkExperience {
   company: string;

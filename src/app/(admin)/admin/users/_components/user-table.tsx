@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@/lib/types';
-import { displayStatusToStaffStatus, updateStaffUserStatus } from '@/lib/admin-api';
+import { displayStatusToStaffStatus, staffInviteStatusLabel, updateStaffUserStatus } from '@/lib/admin-api';
 
 
 const getInitials = (name: string) => {
@@ -140,7 +140,7 @@ export default function UserTable({
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Statuses</SelectItem>
-                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="active">Accepted</SelectItem>
                                 <SelectItem value="pending">Pending</SelectItem>
                                 <SelectItem value="suspended">Suspended</SelectItem>
                             </SelectContent>
@@ -190,7 +190,7 @@ export default function UserTable({
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className={`${statusVariantMap[user.status ?? 'pending']} capitalize`}>
-                                            {user.status ?? 'pending'}
+                                            {staffInviteStatusLabel(user.status)}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">

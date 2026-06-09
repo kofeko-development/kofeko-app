@@ -363,8 +363,8 @@ export default function JobApplicantsPage() {
         }
     }, [applicants, selectedApplicant?.id]);
 
-    const canManageJob = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
-    const canChangeStatus = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
+    const canManageJob = user?.companyRole === 'Company Admin' || user?.companyRole === 'Hiring Manager';
+    const canChangeStatus = user?.companyRole === 'Company Admin' || user?.companyRole === 'Hiring Manager';
     const canShareLinkedIn = hasPermission('linkedin:post');
     const canRunAiEvaluation = hasPermission('evaluation:create');
     const hasJobSkillWeights =

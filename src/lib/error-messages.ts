@@ -60,7 +60,7 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
     title: 'Invite Already Accepted',
     description: 'This invite link has already been used. Try logging in instead.',
     action: 'Go to Login',
-    actionHref: '/login',
+    actionHref: '/company-login',
   },
   INVITE_TOKEN_INVALID: {
     title: 'Invalid Invite Link',
@@ -131,6 +131,10 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
   CONFLICT: {
     title: 'Already Exists',
     description: 'This item already exists. Check for duplicates.',
+  },
+  EMAIL_ALREADY_IN_USE: {
+    title: 'Email already in use',
+    description: 'This email address has already been used. Please use a different email.',
   },
   NOT_FOUND: {
     title: 'Not Found',

@@ -44,6 +44,20 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/login',
+        destination: '/company-login',
+        permanent: true,
+      },
+      {
+        source: '/signup',
+        destination: '/company-signup',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

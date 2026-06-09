@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { listStaffUsers, mapStaffUserToDisplay } from '@/lib/admin-api';
 import {
@@ -35,9 +36,12 @@ import {
     type InviteAccessChoice,
 } from '@/lib/rbac-templates';
 import { InvitePermissionCheckboxes } from '@/components/invite-permission-checkboxes';
+import { InviteRoleDetailsPanel } from '@/components/invite-role-details-panel';
 
 export default function TeamManagementPage() {
     const { toast } = useToast();
+    const pathname = usePathname();
+    const teamBasePath = pathname.startsWith('/admin/team') ? '/admin/team' : '/team';
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isInviting, setIsInviting] = useState(false);
     const [accessChoice, setAccessChoice] = useState<InviteAccessChoice>('recruiter');
@@ -66,9 +70,6 @@ export default function TeamManagementPage() {
     useEffect(() => {
         void loadTeam();
     }, [loadTeam]);
-
-    const accessSummary =
-        INVITE_ACCESS_MAIN_OPTIONS.find((o) => o.value === accessChoice)?.summary ?? '';
 
     const resetInviteForm = () => {
         setAccessChoice('recruiter');
@@ -156,7 +157,7 @@ export default function TeamManagementPage() {
                 </div>
                 <div className="flex gap-2">
                     <Button asChild variant="outline">
-                        <Link href="/team/roles">
+                        <Link href={`${teamBasePath}/roles`}>
                             <ShieldCheck className="mr-2 h-4 w-4" /> Manage Roles
                         </Link>
                     </Button>
@@ -169,100 +170,91 @@ export default function TeamManagementPage() {
                                 <PlusCircle className="mr-2 h-4 w-4" /> Invite Member
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="flex max-h-[92vh] max-w-lg flex-col gap-0 overflow-hidden sm:max-w-xl md:max-w-2xl">
-                            <DialogHeader>
-                                <DialogTitle>Invite a new team member</DialogTitle>
-                                <DialogDescription>
-                                    They will receive an email with instructions to set up their account. Access role controls what they can see and do.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <form onSubmit={handleInvite} className="flex min-h-0 flex-1 flex-col gap-0">
-                                <div className="grid gap-4 overflow-y-auto py-4 pr-1">
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="name" className="text-right">
-                                            Full Name
-                                        </Label>
-                                        <Input id="name" name="name" className="col-span-3" required />
-                                    </div>
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="email" className="text-right">
-                                            Email
-                                        </Label>
-                                        <Input id="email" name="email" type="email" className="col-span-3" required />
-                                    </div>
-                                    <div className="grid grid-cols-4 items-start gap-4">
-                                        <Label htmlFor="invite-access-main" className="pt-2 text-right">
-                                            Access role
-                                        </Label>
-                                        <div className="col-span-3 space-y-2">
-                                            <Select
-                                                value={accessChoice}
-                                                onValueChange={(v) => setAccessChoice(v as InviteAccessChoice)}
-                                                required
-                                            >
-                                                <SelectTrigger id="invite-access-main">
-                                                    <SelectValue placeholder="Select access" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {INVITE_ACCESS_MAIN_OPTIONS.map((opt) => (
-                                                        <SelectItem key={opt.value} value={opt.value}>
-                                                            {opt.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                                                {accessChoice === INVITE_ACCESS_OTHER ? (
-                                                    <>
-                                                        <span className="font-medium text-foreground">Other: </span>
-                                                        Add a position name and tick each permission. Use presets for quick bundles.
-                                                    </>
-                                                ) : (
-                                                    accessSummary
-                                                )}
+                        <DialogContent className="fixed inset-0 left-0 top-0 z-50 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 p-0 data-[state=closed]:slide-out-to-bottom-0 data-[state=open]:slide-in-from-bottom-0 data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100">
+                            <div className="flex h-full min-h-0 flex-col bg-background">
+                                <DialogHeader className="shrink-0 border-b px-6 py-5 text-left">
+                                    <DialogTitle className="text-2xl">Invite a new team member</DialogTitle>
+                                    <DialogDescription className="max-w-2xl">
+                                        They will receive an email with instructions to set up their account. Access role controls what they can see and do.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <form onSubmit={handleInvite} className="flex min-h-0 flex-1 flex-col">
+                                    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+                                        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+                                            <div className="grid gap-6 sm:grid-cols-2">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="name">Full Name</Label>
+                                                    <Input id="name" name="name" className="h-11" required />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="email">Email</Label>
+                                                    <Input id="email" name="email" type="email" className="h-11" required />
+                                                </div>
                                             </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="invite-access-main">Access role</Label>
+                                                <Select
+                                                    value={accessChoice}
+                                                    onValueChange={(v) => setAccessChoice(v as InviteAccessChoice)}
+                                                    required
+                                                >
+                                                    <SelectTrigger id="invite-access-main" className="h-11">
+                                                        <SelectValue placeholder="Select access" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {INVITE_ACCESS_MAIN_OPTIONS.map((opt) => (
+                                                            <SelectItem key={opt.value} value={opt.value}>
+                                                                {opt.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <InviteRoleDetailsPanel accessChoice={accessChoice} />
+
+                                            {accessChoice === INVITE_ACCESS_OTHER ? (
+                                                <div className="space-y-6 rounded-xl border bg-card p-5 shadow-sm">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="invite-other-title">Position / role name</Label>
+                                                        <Input
+                                                            id="invite-other-title"
+                                                            value={otherRoleTitle}
+                                                            onChange={(e) => setOtherRoleTitle(e.target.value)}
+                                                            placeholder="e.g. VP Talent, Campus Lead"
+                                                            maxLength={120}
+                                                            className="h-11"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <Label>Permissions</Label>
+                                                        <InvitePermissionCheckboxes
+                                                            value={otherPermissionKeys}
+                                                            onChange={setOtherPermissionKeys}
+                                                            disabled={isInviting}
+                                                            idPrefix="team-invite"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     </div>
-
-                                    {accessChoice === INVITE_ACCESS_OTHER ? (
-                                        <>
-                                            <div className="grid grid-cols-4 items-start gap-4">
-                                                <Label htmlFor="invite-other-title" className="pt-2 text-right">
-                                                    Position / role name
-                                                </Label>
-                                                <div className="col-span-3">
-                                                    <Input
-                                                        id="invite-other-title"
-                                                        value={otherRoleTitle}
-                                                        onChange={(e) => setOtherRoleTitle(e.target.value)}
-                                                        placeholder="e.g. VP Talent, Campus Lead"
-                                                        maxLength={120}
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-4 items-start gap-4">
-                                                <Label className="pt-2 text-right">
-                                                    Permissions
-                                                </Label>
-                                                <div className="col-span-3">
-                                                    <InvitePermissionCheckboxes
-                                                        value={otherPermissionKeys}
-                                                        onChange={setOtherPermissionKeys}
-                                                        disabled={isInviting}
-                                                        idPrefix="team-invite"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : null}
-                                </div>
-                                <DialogFooter className="border-t bg-background pt-4">
-                                    <Button type="submit" disabled={isInviting}>
-                                        {isInviting ? 'Sending...' : 'Send Invite'}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
+                                    <DialogFooter className="shrink-0 border-t bg-background px-6 py-4 sm:justify-end">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setIsDialogOpen(false)}
+                                            disabled={isInviting}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button type="submit" disabled={isInviting}>
+                                            {isInviting ? 'Sending...' : 'Send Invite'}
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </div>
                         </DialogContent>
                     </Dialog>
                 </div>

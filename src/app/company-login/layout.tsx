@@ -16,7 +16,7 @@ export default function AuthLayout({
             </Link>
         </div>
         <div className="mb-6">
-            <Link href="/login">
+            <Link href="/company-login">
                 <Logo />
             </Link>
         </div>

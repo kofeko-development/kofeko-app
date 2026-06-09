@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Sending...' : 'Send Reset Link'}</Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Back to <Link href="/login" className="underline">Login</Link>
+            Back to <Link href="/company-login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>

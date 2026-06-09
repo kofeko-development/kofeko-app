@@ -51,7 +51,7 @@ function ResetPasswordContent() {
       setIsSubmitting(true);
       await stageOneApi.resetPassword({ token, password });
       toast({ title: 'Password reset successful', description: 'Please login with your new password.' });
-      router.push('/login');
+      router.push('/company-login');
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errorCode === 'RESET_TOKEN_EXPIRED') {
@@ -103,7 +103,7 @@ function ResetPasswordContent() {
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Resetting...' : 'Reset Password'}</Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Back to <Link href="/login" className="underline">Login</Link>
+            Back to <Link href="/company-login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>

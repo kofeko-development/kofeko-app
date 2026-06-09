@@ -200,7 +200,7 @@ function CandidateAuthContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/20 px-4 relative">
       <div className="absolute top-6 right-6 text-sm">
-        Are you a company? <Link href="/login" className="underline font-medium">Login here</Link>
+        Are you a company? <Link href="/company-login" className="underline font-medium">Login here</Link>
       </div>
       <Card className="w-full max-w-md shadow-lg border-primary/10">
         <CardHeader className="space-y-1">

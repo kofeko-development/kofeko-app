@@ -20,7 +20,6 @@ import {
     User as UserIcon,
     Users,
     Contact,
-    UserCog,
     LogOut,
     Bell,
     Search,
@@ -33,6 +32,8 @@ import {
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
 import { getUserDisplayName, getUserInitials } from '@/lib/user-display';
+import { getStaffHeaderTitle } from '@/lib/staff-profile';
+import { HeaderInboxPopover } from '@/components/header-inbox-popover';
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -64,6 +65,7 @@ const routePermissions: RouteRule[] = [
     { route: '/interviews', permissions: ['pipeline:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/applicants', permissions: ['candidate:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/team', permissions: ['user:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+    { route: '/my-profile', permissions: [], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/company-profile', permissions: ['company:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/subscription', permissions: ['company:update'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/inbox', permissions: ['communication:read'] },
@@ -88,7 +90,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
         if (!user) {
             // Not logged in at all
-            router.push('/login');
+            router.push('/company-login');
             return;
         }
 
@@ -98,15 +100,27 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             return;
         }
 
+        if (hasPermission('rbac:manage') && pathname.startsWith('/company-profile')) {
+            router.replace('/admin/company-profile');
+            return;
+        }
+
+        if (hasPermission('rbac:manage') && pathname.startsWith('/subscription')) {
+            router.replace('/admin/subscription');
+            return;
+        }
+
+        if (hasPermission('rbac:manage') && pathname.startsWith('/team')) {
+            router.replace(`/admin${pathname}`);
+            return;
+        }
+
         // Operator/admin → redirect to admin layout, but spare shared pipeline pages
         const isSharedPage = 
             pathname.startsWith('/profile') ||
-            pathname.startsWith('/company-profile') ||
+            pathname.startsWith('/my-profile') ||
             pathname.startsWith('/interviews') ||
-            pathname.startsWith('/assessments') ||
-            pathname.startsWith('/inbox') ||
-            pathname.startsWith('/subscription') ||
-            pathname.startsWith('/team');
+            pathname.startsWith('/assessments');
 
         if (hasPermission('rbac:manage') && !isSharedPage) {
             router.push('/admin/dashboard');
@@ -168,8 +182,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
         { href: '/interviews', label: 'Interviews', icon: Mic },
         { href: '/assessments', label: 'Assessments', icon: Sparkles },
-        { href: '/inbox', label: 'Inbox', icon: Inbox },
-        { href: '/admin/recruiters', label: 'Recruiters', icon: UserCog },
         { href: '/admin/candidates', label: 'Candidates', icon: Contact },
     ];
 
@@ -186,12 +198,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <SidebarTrigger />
                 <Logo width={120} height={40} href={getAppHomeHref(user.role)} />
             </div>
-            <div className="flex items-center gap-4">
-                {hasPermission('rbac:manage') && (
-                    <Button variant="outline" size="sm" onClick={() => router.push('/admin/dashboard')}>
-                        Company dashboard
-                    </Button>
-                )}
+            <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-muted-foreground border-r pr-4">
+                    {getStaffHeaderTitle(user, pathname)}
+                </span>
+                <HeaderInboxPopover />
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
@@ -214,32 +225,34 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem asChild>
-                            <Link href="/profile">
+                            <Link href="/my-profile">
                                 <UserIcon className="mr-2 h-4 w-4" />
                                 <span>My Profile</span>
                             </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                            <Link href="/company-profile">
-                                <Building className="mr-2 h-4 w-4" />
-                                <span>Company Profile</span>
-                            </Link>
-                        </DropdownMenuItem>
+                        {hasPermission('company:read') && (
+                            <DropdownMenuItem asChild>
+                                <Link href={hasPermission('rbac:manage') ? '/admin/company-profile' : '/company-profile'}>
+                                    <Building className="mr-2 h-4 w-4" />
+                                    <span>Company Profile</span>
+                                </Link>
+                            </DropdownMenuItem>
+                        )}
                         {hasPermission('company:update') && (
-                            <>
-                                <DropdownMenuItem asChild>
-                                    <Link href="/subscription">
-                                        <CreditCard className="mr-2 h-4 w-4" />
-                                        <span>Subscription</span>
-                                    </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                    <Link href="/team">
-                                        <Users className="mr-2 h-4 w-4" />
-                                        <span>Team</span>
-                                    </Link>
-                                </DropdownMenuItem>
-                            </>
+                            <DropdownMenuItem asChild>
+                                <Link href={hasPermission('rbac:manage') ? '/admin/subscription' : '/subscription'}>
+                                    <CreditCard className="mr-2 h-4 w-4" />
+                                    <span>Subscription</span>
+                                </Link>
+                            </DropdownMenuItem>
+                        )}
+                        {hasPermission('user:read') && (
+                            <DropdownMenuItem asChild>
+                                <Link href={hasPermission('rbac:manage') ? '/admin/team' : '/team'}>
+                                    <Users className="mr-2 h-4 w-4" />
+                                    <span>Team</span>
+                                </Link>
+                            </DropdownMenuItem>
                         )}
                         <DropdownMenuItem onClick={logout}>
                             <LogOut className="mr-2 h-4 w-4" />

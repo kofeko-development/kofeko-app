@@ -139,7 +139,7 @@ export const mapBackendUser = (backendUser: BackendUser): User => {
   const role: User['role'] = isOperator ? 'operator' : isCandidate ? 'candidate' : 'recruiter';
 
   let companyRole: User['companyRole'] = undefined;
-  if (roles.includes('company_admin')) companyRole = 'HR Admin';
+  if (roles.includes('company_admin')) companyRole = 'Company Admin';
   else if (roles.includes('hr_manager')) companyRole = 'Hiring Manager';
   else if (roles.includes('recruiter')) companyRole = 'Recruiter';
   else if (roles.includes('interviewer')) companyRole = 'Interviewer';
@@ -409,7 +409,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearTokens(authType);
     setUser(null);
     setSuperAdmin(null);
-    window.location.href = authType === 'candidate' ? '/candidate-auth' : authType === 'super_admin' ? '/superadmin/login' : '/login';
+    window.location.href = authType === 'candidate' ? '/candidate-auth' : authType === 'super_admin' ? '/superadmin/login' : '/company-login';
   };
 
   const value = {

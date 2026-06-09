@@ -10,7 +10,7 @@ export default function AuthLayout({
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-50/70 to-orange-50/70 py-12">
         <div className="mb-6">
-            <Link href="/login">
+            <Link href="/company-login">
                 <Logo />
             </Link>
         </div>

@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import type { User, CompanyRole } from '@/lib/types';
-import { updateStaffUserRole, removeStaffUser, updateStaffUserStatus } from '@/lib/admin-api';
+import { removeStaffUser, staffInviteStatusLabel, updateStaffUserRole, updateStaffUserStatus } from '@/lib/admin-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +32,7 @@ const getInitials = (name: string) => {
 }
 
 const roleVariantMap: { [key: string]: "default" | "secondary" | "destructive" } = {
-    'HR Admin': 'default',
+    'Company Admin': 'default',
     'Hiring Manager': 'secondary',
     'Interviewer': 'secondary'
 };
@@ -56,7 +56,7 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
         try {
             // Map CompanyRole to backend role names
             let backendRole = 'recruiter';
-            if (newRole === 'HR Admin') backendRole = 'hr_manager';
+            if (newRole === 'Company Admin') backendRole = 'hr_manager';
             else if (newRole === 'Interviewer') backendRole = 'interviewer';
             
             await updateStaffUserRole(userId, backendRole);
@@ -152,14 +152,23 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="secondary" className={`${user.status === 'active' ? 'bg-green-500/20 text-green-700' : 'bg-yellow-500/20 text-yellow-700'} capitalize`}>
-                                            {user.status}
+                                        <Badge
+                                            variant="secondary"
+                                            className={`${
+                                                user.status === 'active'
+                                                    ? 'bg-green-500/20 text-green-700'
+                                                    : user.status === 'suspended'
+                                                      ? 'bg-red-500/20 text-red-700'
+                                                      : 'bg-yellow-500/20 text-yellow-700'
+                                            } capitalize`}
+                                        >
+                                            {staffInviteStatusLabel(user.status)}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
                                          <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="outline" size="sm" disabled={user.companyRole === 'HR Admin'}>
+                                                <Button variant="outline" size="sm" disabled={user.companyRole === 'Company Admin'}>
                                                     Manage
                                                     <ChevronDown className="ml-2 h-4 w-4" />
                                                 </Button>

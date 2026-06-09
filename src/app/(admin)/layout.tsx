@@ -14,18 +14,19 @@ import {
 import {
   LayoutDashboard,
   Contact,
-  UserCog,
   LogOut,
   Building,
   Briefcase,
   FilePlus2,
   Sparkles,
-  Inbox,
   Mic,
+  CreditCard,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
 import { getUserDisplayName, getUserInitials } from '@/lib/user-display';
+import { HeaderInboxPopover } from '@/components/header-inbox-popover';
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -40,14 +41,21 @@ const adminRoutes = [
   '/admin/candidates', 
   '/admin/jd-creator', 
   '/admin/job-postings',
+  '/admin/company-profile',
+  '/admin/subscription',
+  '/admin/team',
   '/interviews',
   '/assessments',
-  '/inbox',
-  '/company-profile',
+  '/my-profile',
   '/profile',
-  '/subscription',
-  '/team'
 ];
+
+function getAdminHeaderTitle(pathname: string): string {
+  if (pathname.startsWith('/admin/company-profile')) return 'Company Profile';
+  if (pathname.startsWith('/admin/subscription')) return 'Subscription';
+  if (pathname.startsWith('/admin/team')) return 'Team';
+  return 'Company dashboard';
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, hasPermission, logout, loading } = useAuth();
@@ -58,7 +66,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (loading) return;
 
     if (!user) {
-      router.push('/login');
+      router.push('/company-login');
       return;
     }
 
@@ -97,8 +105,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
     { href: '/interviews', label: 'Interviews', icon: Mic },
     { href: '/assessments', label: 'Assessments', icon: Sparkles },
-    { href: '/inbox', label: 'Inbox', icon: Inbox },
-    { href: '/admin/recruiters', label: 'Recruiters', icon: UserCog },
     { href: '/admin/candidates', label: 'Candidates', icon: Contact },
   ];
 
@@ -108,8 +114,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <SidebarTrigger />
         <Logo variant="express" href={getAppHomeHref(user.role)} />
       </div>
-      <div className="flex items-center gap-4">
-        <span className="text-sm font-semibold text-muted-foreground border-r pr-4">Company dashboard</span>
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-semibold text-muted-foreground border-r pr-4">
+          {getAdminHeaderTitle(pathname)}
+        </span>
+        <HeaderInboxPopover />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
@@ -128,10 +137,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/profile')}>
+            <DropdownMenuItem onClick={() => router.push('/admin/company-profile')}>
               <Building className="mr-2 h-4 w-4" />
-              <span>Profile</span>
+              <span>Company Profile</span>
             </DropdownMenuItem>
+            {hasPermission('company:update') && (
+              <DropdownMenuItem onClick={() => router.push('/admin/subscription')}>
+                <CreditCard className="mr-2 h-4 w-4" />
+                <span>Subscription</span>
+              </DropdownMenuItem>
+            )}
+            {hasPermission('user:read') && (
+              <DropdownMenuItem onClick={() => router.push('/admin/team')}>
+                <Users className="mr-2 h-4 w-4" />
+                <span>Team</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={logout}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>

@@ -168,7 +168,7 @@ export default function LoginPage() {
         </form>
         <div className="mt-4 text-center text-sm">
           Don&apos;t have a company account?{" "}
-          <Link href="/signup" className="underline">
+          <Link href="/company-signup" className="underline">
             Company Sign Up
           </Link>
         </div>

@@ -54,11 +54,11 @@ function AcceptInviteContent() {
       setIsSubmitting(true);
       await stageOneApi.acceptInvite({ token, password });
       toast({ title: 'Invite accepted', description: 'Your account is active now. Please login.' });
-      router.push('/login');
+      router.push('/company-login');
     } catch (error) {
       if (error instanceof ApiError && error.errorCode === 'INVITE_TOKEN_USED') {
         showError(error);
-        router.push('/login');
+        router.push('/company-login');
         return;
       }
       const { fieldErrors: mapped } = showError(error);
@@ -133,7 +133,7 @@ function AcceptInviteContent() {
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Activating...' : 'Activate Account'}</Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Already active? <Link href="/login" className="underline">Login</Link>
+            Already active? <Link href="/company-login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>
