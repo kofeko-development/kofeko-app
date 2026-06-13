@@ -53,12 +53,10 @@ export default function LoginPage() {
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errorCode === 'APPROVAL_PENDING') {
-          showError(error);
           router.push('/signup-success?status=pending');
           return;
         }
         if (error.errorCode === 'APPROVAL_REJECTED') {
-          showError(error);
           router.push('/signup-success?status=rejected');
           return;
         }
