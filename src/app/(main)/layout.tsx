@@ -61,8 +61,8 @@ const routePermissions: RouteRule[] = [
     // Staff-only routes
     { route: '/job-postings', permissions: ['job:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/jd-builder', permissions: ['job:create'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
-    { route: '/assessments', permissions: ['evaluation:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
-    { route: '/interviews', permissions: ['pipeline:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+    { route: '/assessments', permissions: ['evaluation:read'], blockedRoles: ['candidate'], redirectTo: '/dashboard' },
+    { route: '/interviews', permissions: ['pipeline:read'], blockedRoles: ['candidate'], redirectTo: '/dashboard' },
     { route: '/applicants', permissions: ['candidate:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/team', permissions: ['user:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/my-profile', permissions: [], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
@@ -118,9 +118,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         // Operator/admin → redirect to admin layout, but spare shared pipeline pages
         const isSharedPage = 
             pathname.startsWith('/profile') ||
-            pathname.startsWith('/my-profile') ||
-            pathname.startsWith('/interviews') ||
-            pathname.startsWith('/assessments');
+            pathname.startsWith('/my-profile');
+
+        if (pathname.startsWith('/interviews') || pathname.startsWith('/assessments')) {
+            router.push(hasPermission('rbac:manage') ? '/admin/dashboard' : '/dashboard');
+            return;
+        }
 
         if (hasPermission('rbac:manage') && !isSharedPage) {
             router.push('/admin/dashboard');
@@ -169,8 +172,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['job:read', 'candidate:read'] },
         { href: '/jd-builder', label: 'JD Creator', icon: FilePlus2, permissions: ['job:create'] },
         { href: '/job-postings', label: 'Job Postings', icon: Briefcase, permissions: ['job:read'] },
-        { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'] },
-        { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'] },
+        { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'], comingSoon: true },
+        { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'], comingSoon: true },
+        { href: '/team', label: 'Team', icon: Users, permissions: ['user:read'] },
         { href: '/settings/integrations', label: 'Integrations', icon: Settings, permissions: ['linkedin:read', 'linkedin:connect', 'linkedin:post'] },
     ];
 
@@ -180,9 +184,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
         { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
-        { href: '/interviews', label: 'Interviews', icon: Mic },
-        { href: '/assessments', label: 'Assessments', icon: Sparkles },
+        { href: '/interviews', label: 'Interviews', icon: Mic, comingSoon: true },
+        { href: '/assessments', label: 'Assessments', icon: Sparkles, comingSoon: true },
         { href: '/admin/candidates', label: 'Candidates', icon: Contact },
+        ...(hasPermission('user:read')
+            ? [{ href: '/admin/team', label: 'Team', icon: Users }]
+            : []),
     ];
 
     const candidateNavLinks = [
@@ -243,14 +250,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 <Link href={hasPermission('rbac:manage') ? '/admin/subscription' : '/subscription'}>
                                     <CreditCard className="mr-2 h-4 w-4" />
                                     <span>Subscription</span>
-                                </Link>
-                            </DropdownMenuItem>
-                        )}
-                        {hasPermission('user:read') && (
-                            <DropdownMenuItem asChild>
-                                <Link href={hasPermission('rbac:manage') ? '/admin/team' : '/team'}>
-                                    <Users className="mr-2 h-4 w-4" />
-                                    <span>Team</span>
                                 </Link>
                             </DropdownMenuItem>
                         )}
@@ -378,6 +377,31 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                     <SidebarMenu>
                                         {(hasPermission('rbac:manage') ? adminNav : recruiterNav).map((item) => (
                                             <SidebarMenuItem key={item.href}>
+                                                {item.comingSoon ? (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div
+                                                                aria-disabled="true"
+                                                                className={cn(
+                                                                    'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
+                                                                    'cursor-not-allowed text-muted-foreground opacity-60',
+                                                                    "group-data-[state=collapsed]:justify-center"
+                                                                )}
+                                                            >
+                                                                <item.icon className="shrink-0" />
+                                                                <span className="group-data-[state=collapsed]:hidden flex-1">
+                                                                    {item.label}
+                                                                </span>
+                                                                <Badge variant="secondary" className="group-data-[state=collapsed]:hidden text-[10px] px-1.5 py-0 h-5 font-normal shrink-0">
+                                                                    Coming soon
+                                                                </Badge>
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="right" align="center">
+                                                            Coming soon
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                ) : (
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
                                                         <Link
@@ -401,6 +425,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                                         {item.label}
                                                     </TooltipContent>
                                                 </Tooltip>
+                                                )}
                                             </SidebarMenuItem>
                                         ))}
                                     </SidebarMenu>

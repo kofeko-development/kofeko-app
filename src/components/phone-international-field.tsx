@@ -129,6 +129,8 @@ export type PhoneInternationalFieldProps = {
   hideLabel?: boolean;
   /** When true, appends * to the field label (onboarding forms). */
   showRequiredIndicator?: boolean;
+  /** When true, hides the default hint under the field (errors still show). */
+  hideHint?: boolean;
 };
 
 export function PhoneInternationalField({
@@ -141,6 +143,7 @@ export function PhoneInternationalField({
   className,
   hideLabel,
   showRequiredIndicator = false,
+  hideHint = false,
 }: PhoneInternationalFieldProps) {
   const [touched, setTouched] = React.useState(false);
 
@@ -232,9 +235,11 @@ export function PhoneInternationalField({
           />
         </div>
       </div>
-      <p className={cn("text-xs", showError ? "text-destructive" : "text-muted-foreground")}>
-        {showError ? validation.error : `Required: ${hint}.`}
-      </p>
+      {(showError || !hideHint) && (
+        <p className={cn("text-xs", showError ? "text-destructive" : "text-muted-foreground")}>
+          {showError ? validation.error : `Required: ${hint}.`}
+        </p>
+      )}
     </div>
   );
 }

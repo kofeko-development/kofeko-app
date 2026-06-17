@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import sanitizeHtml from 'sanitize-html';
 import { z } from 'zod';
 import { aiApi, jobsApi, type SkillWeight } from '@/lib/stage1-2-api';
+import { useAuth } from '@/lib/auth';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -119,10 +121,13 @@ export default function JdBuilderPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<any>(null);
   const { toast } = useToast();
+  const { showError } = useApiErrorToast();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    if (authLoading || !user) return;
     loadDrafts();
-  }, []);
+  }, [authLoading, user]);
 
   const loadDrafts = async () => {
     try {
@@ -272,11 +277,7 @@ export default function JdBuilderPage() {
         description: 'Description and skills have been populated.',
       });
     } catch (error) {
-      toast({
-        title: 'Generation failed',
-        description: error instanceof Error ? error.message : 'AI could not generate the JD.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsGenerating(false);
     }

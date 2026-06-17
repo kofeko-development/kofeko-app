@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { resolveHiringStageLabel } from '@/lib/hiring-stages';
 import { portalApi } from '@/lib/portal-api';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -49,9 +50,9 @@ export default function MyApplicationsPage() {
         const customStages = app.job?.customStages;
         if (customStages && Array.isArray(customStages)) {
             const stageObj = customStages.find((s: any) => s.stage === stageKey);
-            if (stageObj) return stageObj.label;
+            if (stageObj) return resolveHiringStageLabel(stageObj);
         }
-        return stageKey.replace('_', ' ');
+        return resolveHiringStageLabel({ stage: stageKey, label: null });
     };
 
     return (

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Briefcase, MapPin, ArrowUpRight, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { portalApi, type PortalJobListItem } from "@/lib/portal-api";
+import { resolveJobEmploymentType, resolveJobWorkMode } from "@/lib/job-display";
 
 const locationValue = (raw: string | null | undefined) => (raw ?? '').trim();
 
@@ -70,19 +71,19 @@ export default function FindJobsPage() {
             const matchesLocation =
                 locationFilter === 'all' || jobLocation.includes(locationFilter.toLowerCase());
 
-            const dept = (job.department ?? '').toLowerCase();
-            let workMode: 'remote' | 'hybrid' | 'onsite' = 'onsite';
-            if (dept.includes('remote') || jobLocation === 'remote' || jobLocation.includes('remote')) {
-                workMode = 'remote';
-            } else if (dept.includes('hybrid') || jobLocation.includes('hybrid')) {
-                workMode = 'hybrid';
+            const workMode = resolveJobWorkMode(job.department);
+            let workModeFilter: 'remote' | 'hybrid' | 'onsite' = 'onsite';
+            if (workMode?.toLowerCase() === 'remote' || jobLocation === 'remote' || jobLocation.includes('remote')) {
+                workModeFilter = 'remote';
+            } else if (workMode?.toLowerCase() === 'hybrid' || jobLocation.includes('hybrid')) {
+                workModeFilter = 'hybrid';
             }
 
             const matchesType =
                 typeFilter === 'all' ||
-                (typeFilter === 'remote' && workMode === 'remote') ||
-                (typeFilter === 'hybrid' && workMode === 'hybrid') ||
-                (typeFilter === 'onsite' && workMode === 'onsite');
+                (typeFilter === 'remote' && workModeFilter === 'remote') ||
+                (typeFilter === 'hybrid' && workModeFilter === 'hybrid') ||
+                (typeFilter === 'onsite' && workModeFilter === 'onsite');
 
             return matchesSearch && matchesLocation && matchesType;
         });
@@ -124,10 +125,10 @@ export default function FindJobsPage() {
                         </Select>
                         <Select value={typeFilter} onValueChange={setTypeFilter}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Filter by job type" />
+                                <SelectValue placeholder="Filter by work mode" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Job Types</SelectItem>
+                                <SelectItem value="all">All Work Modes</SelectItem>
                                 <SelectItem value="remote">Remote</SelectItem>
                                 <SelectItem value="onsite">Onsite</SelectItem>
                                 <SelectItem value="hybrid">Hybrid</SelectItem>
@@ -138,7 +139,10 @@ export default function FindJobsPage() {
             </Card>
 
             <div className="flex flex-col gap-4">
-                {filteredJobs.length > 0 ? filteredJobs.map(job => (
+                {filteredJobs.length > 0 ? filteredJobs.map(job => {
+                    const workMode = resolveJobWorkMode(job.department);
+                    const employmentType = resolveJobEmploymentType(job.employmentType, job.department);
+                    return (
                     <Card key={job.id} className="hover:bg-muted/50 transition-colors">
                         <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                             <div className="flex-1">
@@ -148,6 +152,8 @@ export default function FindJobsPage() {
                                 <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
                                     <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.tenant.name}</span>
                                     <span className="flex items-center gap-2"><MapPin className="size-4" /> {locationValue(job.location) || '—'}</span>
+                                    {workMode ? <span>{workMode}</span> : null}
+                                    {employmentType ? <span>{employmentType}</span> : null}
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.description}</p>
                             </div>
@@ -164,7 +170,8 @@ export default function FindJobsPage() {
                             )}
                         </CardContent>
                     </Card>
-                )) : (
+                    );
+                }) : (
                      <Card>
                         <CardContent className="p-12 text-center text-muted-foreground">
                             <p className="font-semibold">{isLoading ? 'Loading jobs...' : 'No jobs available'}</p>

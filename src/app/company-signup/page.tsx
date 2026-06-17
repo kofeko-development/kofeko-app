@@ -18,7 +18,7 @@ import { apiRequest } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useApiErrorToast } from "@/hooks/use-api-error-toast";
 import { useEffect, useRef, useState } from "react";
-import { Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { COMPANY_SIZE_OPTIONS, type CompanySizeValue } from "@/lib/company-size";
 import { validateNationalPhone } from "@/lib/phone-e164";
@@ -31,6 +31,8 @@ import {
   applyCompanySignupDraft,
   clearCompanySignupDraft,
   clearEmailVerification,
+  COMPANY_SIGNUP_OTP_TTL_SECONDS,
+  formatOtpCountdown,
   getEmailVerificationTokenForSubmit,
   isEmailVerifiedFor,
   mergeCompanySignupDraft,
@@ -89,6 +91,9 @@ export default function SignupPage() {
   const [phoneCountryIso, setPhoneCountryIso] = useState('IN');
   const [phoneNationalDigits, setPhoneNationalDigits] = useState('');
   const [companyLogo, setCompanyLogo] = useState('');
+  const [logoFileName, setLogoFileName] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [shortDescription, setShortDescription] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [twitterUrl, setTwitterUrl] = useState('');
@@ -104,6 +109,8 @@ export default function SignupPage() {
 
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [otpExpiresAt, setOtpExpiresAt] = useState<number | null>(null);
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
   const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
   const [verifiedAtEmail, setVerifiedAtEmail] = useState<string | null>(null);
   const [sendOtpLoading, setSendOtpLoading] = useState(false);
@@ -120,6 +127,7 @@ export default function SignupPage() {
         setPassword,
         setConfirmPassword,
         setOtpSent,
+        setOtpExpiresAt,
         setEmailVerificationToken,
         setVerifiedAtEmail,
         setCompanyName,
@@ -146,8 +154,28 @@ export default function SignupPage() {
       setAdminEmail((current) => current || verification.adminEmail);
       setEmailVerificationToken(verification.emailVerificationToken);
       setVerifiedAtEmail(verification.verifiedAtEmail);
-      setOtpSent(true);
+      setOtpSent(false);
+      setOtpExpiresAt(null);
+      setOtpSecondsLeft(0);
+      setOtpCode('');
+    } else if (draft?.otpExpiresAt) {
+      const left = Math.max(0, Math.ceil((draft.otpExpiresAt - Date.now()) / 1000));
+      setOtpSecondsLeft(left);
     }
+
+    const restoredEmail = verification?.adminEmail ?? draft?.adminEmail ?? '';
+    const restoredVerified =
+      isEmailVerifiedFor(restoredEmail) ||
+      (Boolean(draft?.emailVerificationToken) &&
+        Boolean(draft?.verifiedAtEmail) &&
+        draft.verifiedAtEmail === normalizeEmail(restoredEmail));
+    if (restoredVerified) {
+      setOtpSent(false);
+      setOtpExpiresAt(null);
+      setOtpSecondsLeft(0);
+      setOtpCode('');
+    }
+
     setDraftReady(true);
   }, []);
 
@@ -164,6 +192,7 @@ export default function SignupPage() {
       password,
       confirmPassword,
       otpSent,
+      otpExpiresAt,
       emailVerificationToken,
       verifiedAtEmail,
       companyName,
@@ -192,6 +221,7 @@ export default function SignupPage() {
     password,
     confirmPassword,
     otpSent,
+    otpExpiresAt,
     emailVerificationToken,
     verifiedAtEmail,
     companyName,
@@ -224,6 +254,22 @@ export default function SignupPage() {
       verifiedAtEmail !== null &&
       verifiedAtEmail === normalizeEmail(adminEmail));
 
+  const otpExpired = otpSent && !emailLooksVerified && otpSecondsLeft <= 0;
+  const otpPending = otpSent && !emailLooksVerified && !otpExpired;
+
+  useEffect(() => {
+    if (!otpExpiresAt || emailLooksVerified) return;
+
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000));
+      setOtpSecondsLeft(left);
+    };
+
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [otpExpiresAt, emailLooksVerified]);
+
   const handleAdminEmailChange = (value: string) => {
     const prevNorm = normalizeEmail(adminEmail);
     setAdminEmail(value);
@@ -233,10 +279,13 @@ export default function SignupPage() {
       setEmailVerificationToken(null);
       setOtpCode('');
       setOtpSent(false);
+      setOtpExpiresAt(null);
+      setOtpSecondsLeft(0);
       clearEmailVerification();
       mergeCompanySignupDraft({
         adminEmail: value,
         otpSent: false,
+        otpExpiresAt: null,
         emailVerificationToken: null,
         verifiedAtEmail: null,
       });
@@ -259,20 +308,24 @@ export default function SignupPage() {
         method: 'POST',
         body: { email: raw },
       });
+      const expiresAt = Date.now() + COMPANY_SIGNUP_OTP_TTL_SECONDS * 1000;
       setOtpSent(true);
       setOtpCode('');
+      setOtpExpiresAt(expiresAt);
+      setOtpSecondsLeft(COMPANY_SIGNUP_OTP_TTL_SECONDS);
       setVerifiedAtEmail(null);
       setEmailVerificationToken(null);
       clearEmailVerification();
       mergeCompanySignupDraft({
         adminEmail: raw,
         otpSent: true,
+        otpExpiresAt: expiresAt,
         emailVerificationToken: null,
         verifiedAtEmail: null,
       });
       toast({
         title: 'Code sent',
-        description: 'Check your inbox for a 6-digit verification code.',
+        description: `Enter the 6-digit code within ${formatOtpCountdown(COMPANY_SIGNUP_OTP_TTL_SECONDS)}.`,
       });
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
@@ -285,6 +338,14 @@ export default function SignupPage() {
   const handleConfirmEmailOtp = async () => {
     const raw = adminEmail.trim();
     const code = otpCode.trim();
+    if (otpExpired) {
+      toast({
+        title: 'Code expired',
+        description: 'Your verification code has expired. Tap Resend to get a new one.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (!isValidEmailShape(raw) || !/^\d{6}$/.test(code)) {
       toast({
         title: 'Invalid code',
@@ -302,6 +363,10 @@ export default function SignupPage() {
       const normalized = normalizeEmail(raw);
       setEmailVerificationToken(token);
       setVerifiedAtEmail(normalized);
+      setOtpSent(false);
+      setOtpExpiresAt(null);
+      setOtpSecondsLeft(0);
+      setOtpCode('');
       saveEmailVerification({
         adminEmail: raw,
         emailVerificationToken: token,
@@ -309,7 +374,8 @@ export default function SignupPage() {
       });
       mergeCompanySignupDraft({
         adminEmail: raw,
-        otpSent: true,
+        otpSent: false,
+        otpExpiresAt: null,
         emailVerificationToken: token,
         verifiedAtEmail: normalized,
       });
@@ -487,7 +553,20 @@ export default function SignupPage() {
   };
 
   return (
-    <Card className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border bg-card shadow-md">
+    <div className="mx-auto w-full max-w-4xl">
+      {step === 2 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="mb-3 -ml-2 gap-1.5 px-2 text-foreground hover:bg-white/70 hover:text-foreground"
+          onClick={() => setStep(1)}
+          disabled={isLoading}
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Back
+        </Button>
+      ) : null}
+    <Card className="w-full overflow-hidden rounded-2xl border bg-card shadow-md">
       <CardHeader className="border-b bg-card px-6 pb-6 pt-6">
         <span className="sr-only">{step === 1 ? "Step 1 of 2" : "Step 2 of 2"}</span>
         <div className="mb-5 flex gap-2" aria-hidden>
@@ -513,7 +592,7 @@ export default function SignupPage() {
         <form onSubmit={handleSignup} className="grid gap-6">
           {step === 1 ? (
             <div className="grid gap-5">
-              <p className="text-xs text-muted-foreground">Fields marked with * are required.</p>
+
               <div className="grid gap-2">
                 <Label htmlFor="admin-email">Company admin email *</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
@@ -524,35 +603,48 @@ export default function SignupPage() {
                     value={adminEmail}
                     onChange={(e) => handleAdminEmailChange(e.target.value)}
                     required
-                    disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                    className={cn("h-11 min-w-0 flex-1", (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive")}
+                    readOnly={emailLooksVerified}
+                    disabled={isLoading || sendOtpLoading || confirmOtpLoading || emailLooksVerified}
+                    className={cn(
+                      "h-11 min-w-0 flex-1",
+                      emailLooksVerified && "bg-muted/50",
+                      (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive",
+                    )}
                     placeholder="you@company.com"
                   />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="h-11 shrink-0 sm:w-36"
-                    disabled={
-                      isLoading ||
-                      sendOtpLoading ||
-                      confirmOtpLoading ||
-                      !isValidEmailShape(adminEmail)
-                    }
-                    onClick={() => void handleSendEmailOtp()}
-                  >
-                    {sendOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Verify'}
-                  </Button>
+                  {emailLooksVerified ? (
+                    <div
+                      className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 sm:w-36 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                      role="status"
+                      aria-label="Email verified"
+                    >
+                      Verified
+                      <ArrowRight className="h-4 w-4" aria-hidden />
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="h-11 shrink-0 sm:w-36"
+                      disabled={
+                        isLoading ||
+                        sendOtpLoading ||
+                        confirmOtpLoading ||
+                        !isValidEmailShape(adminEmail) ||
+                        (otpSent && !emailLooksVerified)
+                      }
+                      onClick={() => void handleSendEmailOtp()}
+                    >
+                      {sendOtpLoading && !otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Verify'}
+                    </Button>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Tap Verify to receive a one-time code. You must confirm it before continuing.
-                </p>
                 {(fieldErrors.adminEmail || fieldErrors.email) ? (
                   <p className="text-sm text-destructive" role="alert">
                     {fieldErrors.adminEmail ?? fieldErrors.email}
                   </p>
                 ) : null}
-                {otpSent ? (
-                  <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-end sm:gap-3">
+                {otpSent && !emailLooksVerified ? (
+                  <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-3">
                     <div className="grid gap-2">
                       <Label htmlFor="email-otp">Email code *</Label>
                       <Input
@@ -564,29 +656,48 @@ export default function SignupPage() {
                         placeholder="000000"
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        disabled={isLoading || confirmOtpLoading || emailLooksVerified}
+                        disabled={isLoading || confirmOtpLoading || emailLooksVerified || otpExpired}
                         className="h-11 font-mono tracking-widest"
                       />
+                      {otpPending ? (
+                        <p className="text-xs text-muted-foreground" aria-live="polite" role="timer">
+                          Enter the 6-digit code from your email.{' '}
+                          <span className="font-semibold tabular-nums text-primary">
+                            Time remaining: {formatOtpCountdown(otpSecondsLeft)}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-destructive" role="status">
+                          Your verification code has expired. Tap Resend to get a new code.
+                        </p>
+                      )}
                     </div>
-                    <Button
-                      type="button"
-                      className="h-11"
-                      disabled={
-                        isLoading ||
-                        confirmOtpLoading ||
-                        otpCode.trim().length !== 6 ||
-                        emailLooksVerified
-                      }
-                      onClick={() => void handleConfirmEmailOtp()}
-                    >
-                      {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Confirm'}
-                    </Button>
+                    {otpExpired ? (
+                      <Button
+                        type="button"
+                        className="h-11 sm:mt-7"
+                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                        onClick={() => void handleSendEmailOtp()}
+                      >
+                        {sendOtpLoading && otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Resend'}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        className="h-11 sm:mt-7"
+                        disabled={
+                          isLoading ||
+                          confirmOtpLoading ||
+                          otpCode.trim().length !== 6 ||
+                          emailLooksVerified ||
+                          otpExpired
+                        }
+                        onClick={() => void handleConfirmEmailOtp()}
+                      >
+                        {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Confirm'}
+                      </Button>
+                    )}
                   </div>
-                ) : null}
-                {emailLooksVerified ? (
-                  <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400" role="status">
-                    This email is verified.
-                  </p>
                 ) : null}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -612,7 +723,7 @@ export default function SignupPage() {
                       aria-pressed={showPassword}
                       disabled={isLoading || sendOtpLoading || confirmOtpLoading}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+                      {showPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
                     </button>
                   </div>
                 </div>
@@ -638,7 +749,7 @@ export default function SignupPage() {
                       aria-pressed={showConfirmPassword}
                       disabled={isLoading || sendOtpLoading || confirmOtpLoading}
                     >
-                      {showConfirmPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+                      {showConfirmPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
                     </button>
                   </div>
                 </div>
@@ -669,12 +780,6 @@ export default function SignupPage() {
 
           {step === 2 ? (
             <>
-              <div className="flex items-center gap-3">
-                <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)} disabled={isLoading}>
-                  Back
-                </Button>
-              </div>
-
               {hasFieldErrors(fieldErrors) ? (
                 <div
                   className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
@@ -689,7 +794,6 @@ export default function SignupPage() {
                 </div>
               ) : null}
 
-              <p className="text-xs text-muted-foreground">Fields marked with * are required.</p>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
@@ -782,13 +886,11 @@ export default function SignupPage() {
                   addressCountryName={country}
                   disabled={isLoading}
                   showRequiredIndicator
+                  hideHint
                 />
                 {fieldErrors.phoneNumber ? (
                   <p className="text-sm text-destructive md:col-span-2" role="alert">{fieldErrors.phoneNumber}</p>
                 ) : null}
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="company-website">Company Website *</Label>
                   <Input
@@ -809,52 +911,88 @@ export default function SignupPage() {
                   ) : null}
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="company-logo">Company Logo (Optional)</Label>
-                  <div className={cn("flex items-center gap-4", fieldErrors.companyLogo && "rounded-lg ring-1 ring-destructive/50 p-2")}>
+                  <Label htmlFor="company-logo">Company Logo </Label>
+                  <div className={cn("flex items-start gap-3", fieldErrors.companyLogo && "rounded-lg ring-1 ring-destructive/50 p-2")}>
                     {companyLogo ? (
-                      <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
+                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border bg-muted">
                         <img src={resolveUploadUrl(companyLogo)} alt="Logo preview" className="h-full w-full object-contain" />
                         <button
                           type="button"
-                          onClick={() => setCompanyLogo('')}
-                          className="absolute right-0 top-0 rounded-bl-md bg-destructive p-1 text-white hover:bg-destructive/90"
+                          onClick={() => {
+                            setCompanyLogo('');
+                            setLogoFileName('');
+                            if (logoFileInputRef.current) {
+                              logoFileInputRef.current.value = '';
+                            }
+                          }}
+                          className="absolute right-0 top-0 rounded-bl-md bg-destructive p-0.5 text-white hover:bg-destructive/90"
                         >
                           <X className="h-3 w-3" />
                         </button>
                       </div>
                     ) : (
-                      <div className="h-16 w-16 rounded-md border border-dashed flex items-center justify-center text-muted-foreground bg-muted/30">
-                        <Upload className="h-6 w-6 opacity-20" />
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted/30 text-muted-foreground">
+                        <Upload className="h-4 w-4 opacity-40" aria-hidden />
                       </div>
                     )}
-                    <div className="flex-1">
-                      <Input
+                    <div className="min-w-0 flex-1">
+                      <input
+                        ref={logoFileInputRef}
                         id="company-logo"
                         type="file"
                         accept="image/*,.svg"
+                        className="sr-only"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            try {
-                              const res = await companyApi.uploadPublicLogo(file);
-                              setCompanyLogo(res.url);
-                            } catch (err) {
-                              showError(err);
+                          if (!file) return;
+                          setLogoFileName(file.name);
+                          setLogoUploading(true);
+                          try {
+                            const res = await companyApi.uploadPublicLogo(file);
+                            setCompanyLogo(res.url);
+                          } catch (err) {
+                            setLogoFileName('');
+                            if (logoFileInputRef.current) {
+                              logoFileInputRef.current.value = '';
                             }
+                            showError(err);
+                          } finally {
+                            setLogoUploading(false);
                           }
                         }}
-                        disabled={isLoading}
-                        className="cursor-pointer h-auto file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                        disabled={isLoading || logoUploading}
                       />
-                      <p className="mt-1 text-xs text-muted-foreground">JPG, PNG or SVG. Max 5MB. You can add this later in your company profile.</p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 shrink-0"
+                          disabled={isLoading || logoUploading}
+                          onClick={() => logoFileInputRef.current?.click()}
+                        >
+                          {logoUploading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          ) : (
+                            'Choose file'
+                          )}
+                        </Button>
+                        <span className="truncate text-sm text-muted-foreground">
+                          {logoFileName || (companyLogo ? 'Logo uploaded' : 'No file chosen')}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs text-muted-foreground">JPG, PNG or SVG. Max 5MB.</p>
                     </div>
                   </div>
                   {fieldErrors.companyLogo ? (
                     <p className="text-sm text-destructive" role="alert">{fieldErrors.companyLogo}</p>
                   ) : null}
                 </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 md:items-start">
                 <div className="grid gap-2">
-                  <Label htmlFor="linkedin-url">LinkedIn URL (Optional)</Label>
+                  <Label htmlFor="linkedin-url">LinkedIn URL</Label>
                   <Input
                     id="linkedin-url"
                     type="text"
@@ -867,7 +1005,7 @@ export default function SignupPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="twitter-url">Twitter/X URL (Optional)</Label>
+                  <Label htmlFor="twitter-url">Twitter/X URL</Label>
                   <Input
                     id="twitter-url"
                     type="text"
@@ -926,10 +1064,8 @@ export default function SignupPage() {
             Company Login
           </Link>
         </div>
-        <div className="mt-2 text-center text-sm">
-          Looking for candidate access? <Link href="/candidate-auth?mode=signup" className="underline">Candidate Sign Up</Link>
-        </div>
       </CardContent>
     </Card>
+    </div>
   );
 }

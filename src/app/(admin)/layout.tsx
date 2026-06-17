@@ -32,6 +32,7 @@ import { useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 
 const adminRoutes = [
@@ -44,8 +45,6 @@ const adminRoutes = [
   '/admin/company-profile',
   '/admin/subscription',
   '/admin/team',
-  '/interviews',
-  '/assessments',
   '/my-profile',
   '/profile',
 ];
@@ -80,6 +79,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
+    if (pathname.startsWith('/interviews') || pathname.startsWith('/assessments')) {
+      router.push('/admin/dashboard');
+      return;
+    }
+
     const isAdminRoute = adminRoutes.some((r) => pathname.startsWith(r));
 
     if (!isAdminRoute) {
@@ -103,9 +107,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
     { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
-    { href: '/interviews', label: 'Interviews', icon: Mic },
-    { href: '/assessments', label: 'Assessments', icon: Sparkles },
+    { href: '/interviews', label: 'Interviews', icon: Mic, comingSoon: true },
+    { href: '/assessments', label: 'Assessments', icon: Sparkles, comingSoon: true },
     { href: '/admin/candidates', label: 'Candidates', icon: Contact },
+    ...(hasPermission('user:read')
+      ? [{ href: '/admin/team', label: 'Team', icon: Users }]
+      : []),
   ];
 
   const AdminHeader = () => (
@@ -147,12 +154,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span>Subscription</span>
               </DropdownMenuItem>
             )}
-            {hasPermission('user:read') && (
-              <DropdownMenuItem onClick={() => router.push('/admin/team')}>
-                <Users className="mr-2 h-4 w-4" />
-                <span>Team</span>
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem onClick={logout}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
@@ -174,6 +175,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <SidebarMenu>
                 {navItems.map((item) => (
                   <SidebarMenuItem key={item.href}>
+                    {item.comingSoon ? (
+                      <div
+                        aria-disabled="true"
+                        className={cn(
+                          'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
+                          'cursor-not-allowed text-muted-foreground opacity-60',
+                          "group-data-[state=collapsed]:justify-center"
+                        )}
+                      >
+                        <item.icon className="shrink-0" />
+                        <span className="group-data-[state=collapsed]:hidden flex-1">
+                          {item.label}
+                        </span>
+                        <Badge variant="secondary" className="group-data-[state=collapsed]:hidden text-[10px] px-1.5 py-0 h-5 font-normal shrink-0">
+                          Coming soon
+                        </Badge>
+                      </div>
+                    ) : (
                     <Link
                       href={item.href}
                       className={cn(
@@ -187,6 +206,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         {item.label}
                       </span>
                     </Link>
+                    )}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

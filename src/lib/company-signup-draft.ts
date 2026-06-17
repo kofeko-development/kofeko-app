@@ -1,11 +1,20 @@
 import type { CompanySizeValue } from '@/lib/company-size';
 
+export const COMPANY_SIGNUP_OTP_TTL_SECONDS = 60;
+
+export function formatOtpCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export type CompanySignupDraft = {
   step?: 1 | 2;
   adminEmail?: string;
   password?: string;
   confirmPassword?: string;
   otpSent?: boolean;
+  otpExpiresAt?: number | null;
   emailVerificationToken?: string | null;
   verifiedAtEmail?: string | null;
   companyName?: string;
@@ -161,6 +170,7 @@ export type CompanySignupDraftSetters = {
   setPassword: (value: string) => void;
   setConfirmPassword: (value: string) => void;
   setOtpSent: (value: boolean) => void;
+  setOtpExpiresAt?: (value: number | null) => void;
   setEmailVerificationToken: (value: string | null) => void;
   setVerifiedAtEmail: (value: string | null) => void;
   setCompanyName: (value: string) => void;
@@ -191,6 +201,9 @@ export function applyCompanySignupDraft(
   if (draft.password !== undefined) setters.setPassword(draft.password);
   if (draft.confirmPassword !== undefined) setters.setConfirmPassword(draft.confirmPassword);
   if (draft.otpSent !== undefined) setters.setOtpSent(draft.otpSent);
+  if (draft.otpExpiresAt !== undefined && setters.setOtpExpiresAt) {
+    setters.setOtpExpiresAt(draft.otpExpiresAt);
+  }
   if (draft.emailVerificationToken !== undefined) {
     setters.setEmailVerificationToken(draft.emailVerificationToken);
   }

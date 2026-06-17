@@ -45,6 +45,7 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
+import { resolveHiringStageLabel } from '@/lib/hiring-stages';
 import { LinkedInShareModal } from '@/components/linkedin-share-modal';
 import { EditJobDialog } from '@/components/edit-job-dialog';
 import {
@@ -193,7 +194,7 @@ export default function JobApplicantsPage() {
     const getStageLabel = useCallback((stageKey: string | null) => {
         if (!stageKey) return '';
         const stageObj = customStagesConfig.find(s => s.stage === stageKey);
-        return stageObj ? stageObj.label : stageKey;
+        return stageObj ? resolveHiringStageLabel(stageObj) : resolveHiringStageLabel({ stage: stageKey, label: null });
     }, [customStagesConfig]);
 
     const openCustomizeFlowDialog = () => {
@@ -1252,13 +1253,11 @@ export default function JobApplicantsPage() {
 
                                                     {/* Inputs */}
                                                     <div className="flex-1 grid gap-0.5 ml-1">
-                                                        <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
-                                                            {isOutcomeStage
-                                                                ? 'Final outcome: hired or rejected'
-                                                                : stageItem.stage.startsWith('custom_')
-                                                                  ? 'Custom Round'
-                                                                  : `Original Round: ${stageItem.stage.replace('_', ' ')}`}
-                                                        </Label>
+                                                        {isOutcomeStage && (
+                                                            <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
+                                                                Final outcome: hired or rejected
+                                                            </Label>
+                                                        )}
                                                         {isOutcomeStage ? (
                                                             <p className="px-2 -ml-2 text-base font-semibold text-foreground">
                                                                 {outcomeLabel}

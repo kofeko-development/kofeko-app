@@ -2,6 +2,7 @@
 
 // ── Storage keys — one set per user type ─────────────────────────────────────
 export const AUTH_TYPE_KEY        = 'kofeko_auth_type';          // 'staff' | 'candidate' | 'super_admin'
+export const SESSION_EXPIRED_EVENT = 'kofeko:session-expired';
 export const STAFF_TOKEN_KEY      = 'kofeko_staff_token';
 export const STAFF_REFRESH_KEY    = 'kofeko_staff_refresh';
 export const CANDIDATE_TOKEN_KEY  = 'kofeko_candidate_token';
@@ -197,9 +198,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (auth) {
     const token = getAccessToken(tokenType);
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    if (!token) {
+      throw new ApiError(
+        'Your session has expired. Please log in again.',
+        401,
+        'UNAUTHORIZED',
+      );
     }
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -214,13 +220,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (refreshed) {
       return apiRequest<T>(path, { ...options, retryOnUnauthorized: false });
     }
-    // Refresh also failed — clear tokens and signal logout needed
     clearTokens(tokenType);
-    // Dispatch storage event so AuthContext can react
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: AUTH_TYPE_KEY,
-      newValue: null,
-    }));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: AUTH_TYPE_KEY,
+        newValue: null,
+      }));
+    }
   }
 
   if (!response.ok) {

@@ -13,6 +13,8 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import sanitizeHtml from 'sanitize-html';
 import { aiApi, jobsApi, type CreatedJob } from '@/lib/stage1-2-api';
+import { useAuth } from '@/lib/auth';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 
 const MIN_MANUAL_SKILLS = 2;
 
@@ -92,6 +94,8 @@ export default function AdminJdCreatorPage() {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { showError } = useApiErrorToast();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editJobId = searchParams.get('edit');
@@ -121,11 +125,12 @@ export default function AdminJdCreatorPage() {
   }, []);
 
   useEffect(() => {
+    if (authLoading || !user) return;
     loadDrafts();
-  }, []);
+  }, [authLoading, user]);
 
   useEffect(() => {
-    if (!editJobId || loadedEditIdRef.current === editJobId) return;
+    if (authLoading || !user || !editJobId || loadedEditIdRef.current === editJobId) return;
 
     let cancelled = false;
     void (async () => {
@@ -148,7 +153,7 @@ export default function AdminJdCreatorPage() {
     return () => {
       cancelled = true;
     };
-  }, [editJobId, loadJobIntoForm, router, toast]);
+  }, [authLoading, user, editJobId, loadJobIntoForm, router, toast]);
 
   const loadDrafts = async () => {
     try {
@@ -222,11 +227,7 @@ export default function AdminJdCreatorPage() {
         description: 'Your job description has been created.',
       });
     } catch (error) {
-      toast({
-        title: 'Error Generating Description',
-        description: error instanceof Error ? error.message : 'Could not generate a description. Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsLoading(false);
     }

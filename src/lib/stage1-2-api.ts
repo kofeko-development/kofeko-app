@@ -103,7 +103,7 @@ export const aiApi = {
     location?: string;
     jobType?: string;
     employmentType?: string;
-  }) => apiRequest<{ html: string; plainText: string; suggestedSkills: SkillWeight[] }>('/ai/jd', { method: 'POST', auth: true, body: payload }),
+  }) => apiRequest<{ html: string; plainText: string; suggestedSkills: SkillWeight[] }>('/ai/jd', { method: 'POST', auth: true, authType: 'staff', body: payload }),
 };
 
 /** Matches backend `skillWeights` JSON — weights are integers 0–10. */
@@ -153,7 +153,7 @@ export const jobsApi = {
     if (params?.status) qs.set('status', params.status);
     if (params?.department) qs.set('department', params.department);
     const q = qs.toString();
-    return apiRequest<PaginatedJobsResponse>(`/jobs${q ? `?${q}` : ''}`, { auth: true });
+    return apiRequest<PaginatedJobsResponse>(`/jobs${q ? `?${q}` : ''}`, { auth: true, authType: 'staff' });
   },
 
   create: (payload: {

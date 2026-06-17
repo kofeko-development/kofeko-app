@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Briefcase, MapPin, Loader2, Info } from "lucide-react";
+import { Briefcase, Loader2, Info } from "lucide-react";
 import PublicNavbar from "@/components/public-navbar";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,8 @@ import sanitizeHtml from 'sanitize-html';
 import AppFooter from '@/components/app-footer';
 import MainLayout from '@/app/(main)/layout';
 import { portalApi, type PortalJobDetail } from '@/lib/portal-api';
+import { resolveJobEmploymentType, resolveJobWorkMode } from '@/lib/job-display';
+import { getActiveHiringStages } from '@/lib/hiring-stages';
 
 function PageContent({
     job,
@@ -48,6 +50,14 @@ function PageContent({
     });
 
     const company = job.tenant?.company;
+    const workMode = resolveJobWorkMode(job.department);
+    const employmentType = resolveJobEmploymentType(job.employmentType, job.department);
+    const jobDetailItems = [
+        { label: 'Address', value: job.location?.trim() || null },
+        { label: 'Job Type', value: workMode },
+        { label: 'Employment Type', value: employmentType },
+        { label: 'Industry', value: company?.industry?.trim() || null },
+    ].filter((item) => Boolean(item.value));
 
     return (
         <>
@@ -62,34 +72,24 @@ function PageContent({
                                     <Briefcase className="size-12 text-primary" />
                                 )}
                             </div>
-                            <div>
+                            <div className="min-w-0 flex-1">
                                 <h1 className="text-4xl font-bold font-headline tracking-tight">{job.title}</h1>
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-muted-foreground">
-                                    <span className="font-semibold text-foreground">{job.tenant.name}</span>
-                                    <span className="flex items-center gap-1.5"><MapPin className="size-4" /> {job.location || 'Remote'}</span>
-                                    {job.employmentType && <span className="flex items-center gap-1.5"><Briefcase className="size-4" /> {job.employmentType}</span>}
-                                </div>
+                                <p className="mt-2 text-lg font-semibold text-foreground">{job.tenant.name}</p>
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-4 border-y py-6">
-                            <div className="flex-1 min-w-[140px] space-y-1">
-                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Company Size</p>
-                                <p className="font-medium">{company?.companySize || '—'}</p>
+                        {jobDetailItems.length > 0 ? (
+                            <div className="flex flex-wrap gap-4 border-y py-6">
+                                {jobDetailItems.map((item) => (
+                                    <div key={item.label} className="min-w-[140px] flex-1 space-y-1">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                            {item.label}
+                                        </p>
+                                        <p className="font-medium">{item.value}</p>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="flex-1 min-w-[140px] space-y-1">
-                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Industry</p>
-                                <p className="font-medium">{company?.industry || '—'}</p>
-                            </div>
-                            <div className="flex-1 min-w-[140px] space-y-1">
-                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Location</p>
-                                <p className="font-medium">{job.location || 'Remote'}</p>
-                            </div>
-                            <div className="flex-1 min-w-[140px] space-y-1">
-                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Job Mode</p>
-                                <p className="font-medium">{job.department || 'On-site'}</p>
-                            </div>
-                        </div>
+                        ) : null}
 
                         <div className="prose prose-stone dark:prose-invert max-w-none">
                             <h2 className="text-2xl font-bold">About the Role</h2>
@@ -98,19 +98,7 @@ function PageContent({
 
                         {/* Dynamic Hiring Process Roadmap */}
                         {(() => {
-                            const defaultFlowStages = [
-                                { stage: 'applied', label: 'Applied', order: 1, enabled: true },
-                                { stage: 'screening', label: 'Screening', order: 2, enabled: true },
-                                { stage: 'technical_interview', label: 'Technical Interview', order: 3, enabled: true },
-                                { stage: 'hr_interview', label: 'HR Interview', order: 4, enabled: true },
-                                { stage: 'offer', label: 'Offer', order: 5, enabled: true },
-                                { stage: 'hired', label: 'Hired', order: 6, enabled: true },
-                                { stage: 'rejected', label: 'Rejected', order: 7, enabled: true },
-                            ];
-                            const customStages = job.customStages || defaultFlowStages;
-                            const activeStages = [...customStages]
-                                .sort((a: any, b: any) => a.order - b.order)
-                                .filter((s: any) => s.enabled && s.stage !== 'rejected');
+                            const activeStages = getActiveHiringStages(job.customStages);
 
                             return (
                                 <div className="bg-card rounded-xl p-6 border shadow-sm space-y-6">
@@ -120,38 +108,42 @@ function PageContent({
                                     </div>
                                     
                                     <div className="relative">
-                                        {/* Desktop Horizontal Timeline */}
-                                        <div className="hidden md:flex items-start justify-between relative">
-                                            <div className="absolute top-5 left-8 right-8 h-0.5 bg-slate-100 -z-10" />
-                                            
-                                            {activeStages.map((stage: any, index: number) => {
-                                                return (
-                                                    <div key={stage.stage} className="flex flex-col items-center text-center flex-1 px-2 relative group">
-                                                        <div className="size-10 rounded-full bg-primary/10 border-2 border-primary text-primary flex items-center justify-center font-bold text-sm shadow-sm transition-transform group-hover:scale-110 duration-200">
+                                        {/* Desktop horizontal timeline with connectors */}
+                                        <div className="hidden md:flex w-full items-start">
+                                            {activeStages.map((stage: any, index: number) => (
+                                                <Fragment key={stage.stage}>
+                                                    {index > 0 ? (
+                                                        <div
+                                                            className="mt-5 h-0.5 w-6 shrink-0 bg-primary/35 sm:min-w-4 sm:flex-1"
+                                                            aria-hidden
+                                                        />
+                                                    ) : null}
+                                                    <div className="flex min-w-0 flex-1 flex-col items-center px-1 text-center">
+                                                        <div className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-card text-sm font-bold text-primary shadow-sm">
                                                             {index + 1}
                                                         </div>
-                                                        <p className="mt-3 font-semibold text-sm leading-tight text-slate-800">{stage.label}</p>
-                                                        <p className="mt-1 text-[11px] text-muted-foreground capitalize">{stage.stage.replace('_', ' ')}</p>
+                                                        <p className="mt-3 text-sm font-semibold leading-tight text-slate-800">
+                                                            {stage.label}
+                                                        </p>
                                                     </div>
-                                                );
-                                            })}
+                                                </Fragment>
+                                            ))}
                                         </div>
 
-                                        {/* Mobile Vertical Timeline */}
-                                        <div className="flex md:hidden flex-col gap-6 relative pl-6 border-l-2 border-slate-100 ml-4">
-                                            {activeStages.map((stage: any, index: number) => {
-                                                return (
+                                        {/* Mobile vertical timeline */}
+                                        <div className="relative ml-4 flex flex-col gap-6 border-l-2 border-primary/30 pl-6 md:hidden">
+                                            {activeStages.map((stage: any, index: number) => (
                                                     <div key={stage.stage} className="relative flex gap-4 items-start">
-                                                        <div className="absolute -left-[35px] top-0 size-7 rounded-full bg-primary/10 border-2 border-primary text-primary flex items-center justify-center font-bold text-xs shadow-sm">
+                                                        <div className="absolute -left-[35px] top-0 flex size-7 items-center justify-center rounded-full border-2 border-primary bg-card text-xs font-bold text-primary shadow-sm">
                                                             {index + 1}
                                                         </div>
                                                         <div>
-                                                            <h4 className="font-semibold text-sm text-slate-800">{stage.label}</h4>
-                                                            <p className="text-[11px] text-muted-foreground capitalize">{stage.stage.replace('_', ' ')}</p>
+                                                            <h4 className="text-sm font-semibold text-slate-800">
+                                                                {stage.label}
+                                                            </h4>
                                                         </div>
                                                     </div>
-                                                );
-                                            })}
+                                                ))}
                                         </div>
                                     </div>
                                 </div>
@@ -213,7 +205,7 @@ function PageContent({
                                             onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)}
                                             required={!user?.resumeUrl}
                                             disabled={isLoading}
-                                        />
+                                        />x
                                         {user?.resumeUrl && (
                                             <div className="flex items-center gap-2 mt-2 p-2 bg-muted/50 rounded-lg border border-dashed">
                                                 <div className="bg-primary/10 p-1.5 rounded">

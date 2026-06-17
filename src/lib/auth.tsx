@@ -6,6 +6,7 @@ import type { CompanySizeValue } from './company-size';
 import {
   API_BASE_URL,
   AUTH_TYPE_KEY,
+  SESSION_EXPIRED_EVENT,
   STAFF_TOKEN_KEY,
   STAFF_REFRESH_KEY,
   CANDIDATE_TOKEN_KEY,
@@ -290,7 +291,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    const handleSessionExpired = () => {
+      clearTokens();
+      setUser(null);
+      setSuperAdmin(null);
+      sessionStorage.removeItem('kofeko_user_cache');
+      window.location.href = '/company-login';
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    };
   }, []);
 
   const login = async (input: LoginInput) => {

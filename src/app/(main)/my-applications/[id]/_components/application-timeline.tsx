@@ -2,17 +2,7 @@
 
 import React from 'react';
 import { CheckCircle, Circle, Clock, FileCheck, Mic, Award, XCircle, Users } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
-const defaultFlowStages = [
-  { stage: 'applied', label: 'Application Submitted', order: 1, enabled: true },
-  { stage: 'screening', label: 'Screening', order: 2, enabled: true },
-  { stage: 'technical_interview', label: 'Technical Interview', order: 3, enabled: true },
-  { stage: 'hr_interview', label: 'HR Interview', order: 4, enabled: true },
-  { stage: 'offer', label: 'Offer', order: 5, enabled: true },
-  { stage: 'hired', label: 'Hired', order: 6, enabled: true },
-  { stage: 'rejected', label: 'Rejected', order: 7, enabled: true },
-];
+import { getActiveHiringStages } from '@/lib/hiring-stages';
 
 const getStageIcon = (stageKey: string) => {
   switch (stageKey) {
@@ -37,12 +27,7 @@ interface ApplicationTimelineProps {
 }
 
 export default function ApplicationTimeline({ currentStage, customStages }: ApplicationTimelineProps) {
-  const stages = React.useMemo(() => {
-    const rawStages = customStages && Array.isArray(customStages) ? customStages : defaultFlowStages;
-    return [...rawStages]
-      .sort((a, b) => a.order - b.order)
-      .filter(s => s.enabled && s.stage !== 'rejected');
-  }, [customStages]);
+  const stages = React.useMemo(() => getActiveHiringStages(customStages), [customStages]);
 
   const currentStageIndex = React.useMemo(() => {
     if (currentStage === 'rejected') return -1;
@@ -96,7 +81,7 @@ export default function ApplicationTimeline({ currentStage, customStages }: Appl
                     {stage.label}
                   </p>
                   <p className="text-[10px] text-muted-foreground/60 capitalize mt-0.5">
-                    {stage.stage.startsWith('custom_') ? 'Custom Round' : stage.stage.replace('_', ' ')}
+                    {stage.stage.startsWith('custom_') ? 'Custom Round' : stage.stage.replace(/_/g, ' ')}
                   </p>
                 </div>
               </div>
