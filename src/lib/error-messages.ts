@@ -171,7 +171,7 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
   AI_EVALUATION_FAILED: {
     title: 'AI generation failed',
     description:
-      'The AI service could not generate the job description. Check that REPLICATE_API_TOKEN or OPEN_ROUTE is set correctly in the backend .env, then restart the server.',
+      'The AI service could not generate the job description. Check that REPLICATE_API_TOKEN is set correctly in the backend .env, then restart the server.',
   },
   STORAGE_ERROR: {
     title: 'Upload Failed',

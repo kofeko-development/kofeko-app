@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import type { WorkExperience, Education, Project, User } from '@/lib/types';
@@ -441,6 +441,16 @@ export default function ProfilePage() {
   // Candidate Profile UI (continues below)
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 pb-24">
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        onClick={() => router.back()}
+        className="mb-2 w-fit p-0 h-auto hover:bg-transparent hover:text-primary"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back
+      </Button>
       <div>
         <h1 className="text-3xl font-bold font-headline">{isNewUser ? 'Complete Your Profile' : 'My Profile'}</h1>
         <p className="text-muted-foreground">

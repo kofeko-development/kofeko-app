@@ -28,6 +28,7 @@ import {
     CreditCard,
     Mic,
     Settings,
+    BrainCircuit,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
@@ -61,6 +62,7 @@ const routePermissions: RouteRule[] = [
     // Staff-only routes
     { route: '/job-postings', permissions: ['job:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/jd-builder', permissions: ['job:create'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+    { route: '/ai-evaluation-lab', permissions: ['job:create', 'evaluation:create'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/assessments', permissions: ['evaluation:read'], blockedRoles: ['candidate'], redirectTo: '/dashboard' },
     { route: '/interviews', permissions: ['pipeline:read'], blockedRoles: ['candidate'], redirectTo: '/dashboard' },
     { route: '/applicants', permissions: ['candidate:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
@@ -118,7 +120,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         // Operator/admin → redirect to admin layout, but spare shared pipeline pages
         const isSharedPage = 
             pathname.startsWith('/profile') ||
-            pathname.startsWith('/my-profile');
+            pathname.startsWith('/my-profile') ||
+            pathname.startsWith('/ai-evaluation-lab');
 
         if (pathname.startsWith('/interviews') || pathname.startsWith('/assessments')) {
             router.push(hasPermission('rbac:manage') ? '/admin/dashboard' : '/dashboard');
@@ -171,6 +174,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const allRecruiterNav = [
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['job:read', 'candidate:read'] },
         { href: '/jd-builder', label: 'JD Creator', icon: FilePlus2, permissions: ['job:create'] },
+        { href: '/ai-evaluation-lab', label: 'AI Lab', icon: BrainCircuit, permissions: ['job:create', 'evaluation:create'] },
         { href: '/job-postings', label: 'Job Postings', icon: Briefcase, permissions: ['job:read'] },
         { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'], comingSoon: true },
         { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'], comingSoon: true },
@@ -183,6 +187,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const adminNav = [
         { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
+        { href: '/ai-evaluation-lab', label: 'AI Lab', icon: BrainCircuit },
         { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
         { href: '/interviews', label: 'Interviews', icon: Mic, comingSoon: true },
         { href: '/assessments', label: 'Assessments', icon: Sparkles, comingSoon: true },

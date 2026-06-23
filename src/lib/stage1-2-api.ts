@@ -104,7 +104,73 @@ export const aiApi = {
     jobType?: string;
     employmentType?: string;
   }) => apiRequest<{ html: string; plainText: string; suggestedSkills: SkillWeight[] }>('/ai/jd', { method: 'POST', auth: true, authType: 'staff', body: payload }),
+
+  runEvaluationLab: async (payload: {
+    jobTitle: string;
+    description: string;
+    skillWeights: SkillWeight[];
+    resumes: File[];
+  }): Promise<{ results: EvaluationLabResultItem[] }> => {
+    const token = getAccessToken('staff');
+    const formData = new FormData();
+    formData.append('jobTitle', payload.jobTitle);
+    formData.append('description', payload.description);
+    formData.append('skillWeights', JSON.stringify(payload.skillWeights));
+    payload.resumes.forEach((file) => formData.append('resumes', file));
+
+    const res = await fetch(`${API_BASE_URL}/ai/evaluation-lab`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Evaluation lab failed' }));
+      throw new Error((err as { message?: string }).message || 'Evaluation lab failed');
+    }
+
+    const envelope = (await res.json()) as { data: { results: EvaluationLabResultItem[] } };
+    return envelope.data;
+  },
 };
+
+export type EvaluationLabResultItem =
+  | {
+      fileName: string;
+      success: true;
+      overallScore: number;
+      rankingSummary: string;
+      analysis: {
+        scores: {
+          overall: number;
+          sections: Record<string, number>;
+          skillMatches: Array<{
+            skill: string;
+            weight: number;
+            matched: boolean;
+            contribution: number;
+            evidence?: string;
+          }>;
+          roleFitNotes: string;
+        };
+        rankingSummary: string;
+        hiringIntelligence?: {
+          applicationSummary?: string;
+          keyStrengths?: string[];
+          areasForGrowth?: string[];
+          riskFlags?: string[];
+          interviewRecommendation?: { classification: string; reasoning: string };
+          suggestedInterviewQuestions?: string[];
+          relevanceToRole?: { matchScorePercent: number; strongMatchAreas?: string[]; missingCapabilities?: string[] };
+        };
+        parsedResume?: { summary?: string; skills?: string[] };
+      };
+    }
+  | {
+      fileName: string;
+      success: false;
+      error: string;
+    };
 
 /** Matches backend `skillWeights` JSON — weights are integers 0–10. */
 export type SkillWeight = { skill: string; weight: number; yearsOfExperience?: number };
