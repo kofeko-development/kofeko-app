@@ -554,8 +554,17 @@ export default function ProfilePage() {
                 {user.resumeUrl && !resumeFile && <p className="text-sm text-muted-foreground">Current file: {user.resumeUrl}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cover-letter">Cover Letter</Label>
-                <Textarea id="cover-letter" placeholder="Tell us about yourself..." value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} className="min-h-[150px]" />
+                <Label htmlFor="cover-letter">About / Professional summary *</Label>
+                <Textarea
+                  id="cover-letter"
+                  placeholder="Tell us about yourself, your experience, and what you're looking for..."
+                  value={coverLetter}
+                  onChange={(e) => setCoverLetter(e.target.value)}
+                  className="min-h-[150px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Required to apply for jobs (at least 20 characters).
+                </p>
               </div>
             </CardContent>
           </Card>

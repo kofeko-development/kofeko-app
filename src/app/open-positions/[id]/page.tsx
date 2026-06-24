@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,12 @@ import { portalApi } from '@/lib/portal-api';
 import { resolveJobEmploymentType, resolveJobWorkMode } from '@/lib/job-display';
 import { getActiveHiringStages } from '@/lib/hiring-stages';
 import { usePortalJob, useInvalidatePortalApplications } from '@/hooks/use-portal';
+import Link from 'next/link';
+import {
+  canCandidateApply,
+  getCandidateProfileCompletion,
+  type CandidateProfileCompletion,
+} from '@/lib/candidate-profile';
 
 function PageContent({
     job,
@@ -32,8 +38,26 @@ function PageContent({
     coverLetter,
     setCoverLetter,
     setResume,
-    isLoading
-}: any) {
+    resume,
+    isLoading,
+    profileCompletion,
+    canSubmit,
+}: {
+    job: any;
+    user: any;
+    handleSubmit: (e: React.FormEvent) => void;
+    name: string;
+    setName: (v: string) => void;
+    email: string;
+    setEmail: (v: string) => void;
+    coverLetter: string;
+    setCoverLetter: (v: string) => void;
+    setResume: (f: File | null) => void;
+    resume: File | null;
+    isLoading: boolean;
+    profileCompletion: CandidateProfileCompletion;
+    canSubmit: boolean;
+}) {
     const formatDescription = (text: string) => {
         if (!text) return '';
         // If it looks like plain text (no tags), convert newlines to <p> tags
@@ -206,7 +230,7 @@ function PageContent({
                                             onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)}
                                             required={!user?.resumeUrl}
                                             disabled={isLoading}
-                                        />x
+                                        />
                                         {user?.resumeUrl && (
                                             <div className="flex items-center gap-2 mt-2 p-2 bg-muted/50 rounded-lg border border-dashed">
                                                 <div className="bg-primary/10 p-1.5 rounded">
@@ -223,7 +247,28 @@ function PageContent({
                                         <Label htmlFor="cover-letter" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cover Letter (Optional)</Label>
                                         <Textarea id="cover-letter" placeholder="Tell us why you're a great fit for this role..." value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} disabled={isLoading} className="min-h-[120px] resize-none" />
                                     </div>
-                                    <Button type="submit" className="w-full h-12 text-base font-semibold shadow-md" disabled={isLoading}>
+                                    {user && !profileCompletion.isComplete ? (
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+                                            <div className="flex gap-2">
+                                                <Info className="size-4 shrink-0 mt-0.5" />
+                                                <div className="space-y-2">
+                                                    <p className="font-medium">Complete your profile before applying</p>
+                                                    <p className="text-amber-900/80 dark:text-amber-100/80">
+                                                        Please add the following on your profile page, then return here to submit:
+                                                    </p>
+                                                    <ul className="list-disc pl-5 space-y-1">
+                                                        {profileCompletion.missing.map((item) => (
+                                                            <li key={item}>{item}</li>
+                                                        ))}
+                                                    </ul>
+                                                    <Button type="button" variant="outline" size="sm" className="mt-1" asChild>
+                                                        <Link href="/profile">Go to My Profile</Link>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                    <Button type="submit" className="w-full h-12 text-base font-semibold shadow-md" disabled={isLoading || (Boolean(user) && !canSubmit)}>
                                         {isLoading ? (
                                             <>
                                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -268,6 +313,12 @@ export default function JobApplicationPage() {
         }
     }, [user]);
 
+    const profileCompletion = useMemo(() => getCandidateProfileCompletion(user), [user]);
+    const canSubmit = useMemo(
+        () => canCandidateApply(user, { resumeFileSelected: Boolean(resume) }),
+        [user, resume],
+    );
+
     const {
         data: job,
         isLoading: jobLoading,
@@ -297,6 +348,15 @@ export default function JobApplicationPage() {
         }
 
         if (!job) return;
+
+        if (!canSubmit) {
+            toast({
+                title: 'Profile incomplete',
+                description: `Please complete your profile first: ${profileCompletion.missing.join(', ')}.`,
+                variant: 'destructive',
+            });
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -370,7 +430,10 @@ export default function JobApplicationPage() {
         coverLetter,
         setCoverLetter,
         setResume,
+        resume,
         isLoading: isLoading || jobLoading,
+        profileCompletion,
+        canSubmit,
     };
 
 
