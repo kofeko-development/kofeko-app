@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,6 +43,9 @@ import type { Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CreatedJob, SkillWeight } from '@/lib/stage1-2-api';
 import { jobsApi, aiApi } from '@/lib/stage1-2-api';
+import { useJobsList, useInvalidateJobs } from '@/hooks/use-jobs';
+import { useAuth } from '@/lib/auth';
+import { TableRowsSkeleton } from '@/components/loading/table-rows-skeleton';
 import { resetModalLock } from '@/lib/reset-modal-lock';
 
 function mapApiJobToRow(j: CreatedJob): Job {
@@ -86,8 +89,10 @@ export default function JobPostingsPage() {
   const routePrefix = isAdmin ? '/admin' : '';
   const editId = searchParams.get('edit');
   const { toast } = useToast();
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const invalidateJobs = useInvalidateJobs();
+  const { data: jobsData, isLoading } = useJobsList({ page: 1, limit: 100 }, { enabled: !authLoading && !!user });
+  const jobs = useMemo(() => (jobsData?.items ?? []).map(mapApiJobToRow), [jobsData]);
   const [isSaving, setIsSaving] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
@@ -106,28 +111,6 @@ export default function JobPostingsPage() {
   }>({ title: '', description: '', jobType: '', employmentType: '', skillWeights: [] });
   const [loadingJobDetail, setLoadingJobDetail] = useState(false);
   const previousPathnameRef = useRef(pathname);
-
-  const loadJobs = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await jobsApi.list({ page: 1, limit: 100 });
-      setJobs((res.items ?? []).map(mapApiJobToRow));
-    } catch (error) {
-      toast({
-        title: 'Unable to load jobs',
-        description: error instanceof Error ? error.message : 'Please sign in as a company user and try again.',
-        variant: 'destructive',
-      });
-      setJobs([]);
-    } finally {
-      setIsLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    void loadJobs();
-  }, [loadJobs]);
 
   useEffect(() => {
     if (editingJob) {
@@ -356,7 +339,7 @@ export default function JobPostingsPage() {
           description: `"${title}" has been saved.`,
         });
       }
-      await loadJobs();
+      await invalidateJobs();
       setIsManualDialogOpen(false);
       setEditingJob(null);
     } catch (error) {
@@ -383,7 +366,7 @@ export default function JobPostingsPage() {
     try {
       await jobsApi.publish(jobId);
       toast({ title: 'Job published', description: 'The job is now live for applicants.' });
-      await loadJobs();
+      await invalidateJobs();
     } catch (error) {
       toast({
         title: 'Publish failed',
@@ -399,7 +382,7 @@ export default function JobPostingsPage() {
     if (!jobToDelete) return;
     try {
       await jobsApi.delete(jobToDelete.id);
-      setJobs((prev) => prev.filter((j) => j.id !== jobToDelete.id));
+      await invalidateJobs();
       toast({ title: 'Draft deleted', description: `"${jobToDelete.title}" has been deleted.` });
     } catch (error) {
       toast({
@@ -496,13 +479,7 @@ export default function JobPostingsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Loading jobs…
-                      </span>
-                    </TableCell>
-                  </TableRow>
+                  <TableRowsSkeleton rows={5} cols={4} />
                 ) : (
                   displayedJobs.map((job) => (
                     <TableRow key={job.id}>

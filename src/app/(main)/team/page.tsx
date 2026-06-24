@@ -1,9 +1,8 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import type { User } from '@/lib/types';
 import TeamMembersTable from './_components/team-members-table';
 import { PlusCircle, ShieldCheck } from 'lucide-react';
 import {
@@ -28,7 +27,9 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { stageOneApi } from '@/lib/stage1-2-api';
-import { listStaffUsers, mapStaffUserToDisplay } from '@/lib/admin-api';
+import { mapStaffUserToDisplay } from '@/lib/admin-api';
+import { useAuth } from '@/lib/auth';
+import { useInvalidateTeam, useTeamList } from '@/hooks/use-team';
 import {
     INVITE_ACCESS_MAIN_OPTIONS,
     INVITE_ACCESS_OTHER,
@@ -40,6 +41,8 @@ import { InviteRoleDetailsPanel } from '@/components/invite-role-details-panel';
 
 export default function TeamManagementPage() {
     const { toast } = useToast();
+    const { user, loading: authLoading } = useAuth();
+    const invalidateTeam = useInvalidateTeam();
     const pathname = usePathname();
     const teamBasePath = pathname.startsWith('/admin/team') ? '/admin/team' : '/team';
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -47,29 +50,27 @@ export default function TeamManagementPage() {
     const [accessChoice, setAccessChoice] = useState<InviteAccessChoice>('recruiter');
     const [otherRoleTitle, setOtherRoleTitle] = useState('');
     const [otherPermissionKeys, setOtherPermissionKeys] = useState<string[]>([]);
-    const [teamMembers, setTeamMembers] = useState<User[]>([]);
-    const [loadingTeam, setLoadingTeam] = useState(true);
 
-    const loadTeam = useCallback(async () => {
-        setLoadingTeam(true);
-        try {
-            const res = await listStaffUsers(1, 100);
-            setTeamMembers(res.items.map(mapStaffUserToDisplay));
-        } catch (e) {
-            setTeamMembers([]);
-            toast({
-                title: 'Could not load team',
-                description: e instanceof Error ? e.message : 'Try again later.',
-                variant: 'destructive',
-            });
-        } finally {
-            setLoadingTeam(false);
-        }
-    }, [toast]);
+    const {
+        data: teamData,
+        isLoading: loadingTeam,
+        isError,
+        error,
+    } = useTeamList({ page: 1, limit: 100 }, { enabled: !authLoading && !!user });
+
+    const teamMembers = useMemo(
+        () => (teamData?.items ?? []).map(mapStaffUserToDisplay),
+        [teamData],
+    );
 
     useEffect(() => {
-        void loadTeam();
-    }, [loadTeam]);
+        if (!isError) return;
+        toast({
+            title: 'Could not load team',
+            description: error instanceof Error ? error.message : 'Try again later.',
+            variant: 'destructive',
+        });
+    }, [isError, error, toast]);
 
     const resetInviteForm = () => {
         setAccessChoice('recruiter');
@@ -134,9 +135,9 @@ export default function TeamManagementPage() {
                 });
             }
 
-            setIsDialogOpen(false);
-            resetInviteForm();
-            await loadTeam();
+      setIsDialogOpen(false);
+      resetInviteForm();
+      await invalidateTeam();
         } catch (error) {
             toast({
                 title: 'Invite failed',
@@ -260,11 +261,7 @@ export default function TeamManagementPage() {
                 </div>
             </div>
 
-            {loadingTeam ? (
-                <p className="text-muted-foreground text-sm">Loading team…</p>
-            ) : (
-                <TeamMembersTable users={teamMembers} />
-            )}
+            <TeamMembersTable users={teamMembers} loading={loadingTeam} />
 
         </div>
     );

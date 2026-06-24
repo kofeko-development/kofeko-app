@@ -1,39 +1,39 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import UserTable from '../users/_components/user-table';
-import { listStaffUsers, mapStaffUserToDisplay, isRecruiterManagementUser } from '@/lib/admin-api';
+import { mapStaffUserToDisplay, isRecruiterManagementUser } from '@/lib/admin-api';
 import { useToast } from '@/hooks/use-toast';
-import type { User } from '@/lib/types';
+import { useAuth } from '@/lib/auth';
+import { useInvalidateTeam, useTeamList } from '@/hooks/use-team';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 
 export default function RecruitersPage() {
   const { toast } = useToast();
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const invalidateTeam = useInvalidateTeam();
+  const {
+    data,
+    isLoading: loading,
+    isError,
+    error,
+  } = useTeamList({ page: 1, limit: 100 }, { enabled: !authLoading && !!user });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await listStaffUsers(1, 100);
-      setUsers(res.items.map(mapStaffUserToDisplay).filter(isRecruiterManagementUser));
-    } catch (e) {
-      setUsers([]);
-      toast({
-        title: 'Could not load staff',
-        description: e instanceof Error ? e.message : 'Try again later.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  const users = useMemo(
+    () => (data?.items ?? []).map(mapStaffUserToDisplay).filter(isRecruiterManagementUser),
+    [data],
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!isError) return;
+    toast({
+      title: 'Could not load staff',
+      description: error instanceof Error ? error.message : 'Try again later.',
+      variant: 'destructive',
+    });
+  }, [isError, error, toast]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -43,7 +43,7 @@ export default function RecruitersPage() {
         title="Recruiter Management"
         description="Track invited recruiters and team members. Pending means they have not accepted the invite yet."
         allowStatusActions
-        onStaffStatusUpdated={() => void load()}
+        onStaffStatusUpdated={() => void invalidateTeam()}
         headerAction={
           <Button type="button" variant="default" className="btn-glass shadow-md" asChild>
             <Link href="/admin/recruiters/new">

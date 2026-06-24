@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import dynamic from 'next/dynamic';
 import { composeE164Phone, validateNationalPhone } from '@/lib/phone-e164';
 import { apiRequest, getAccessToken } from '@/lib/api-client';
+import { ProfileSkeleton } from '@/components/loading/profile-skeleton';
 import Script from 'next/script';
 import { Country } from 'country-state-city';
 
@@ -427,11 +428,7 @@ export default function ProfilePage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   if (user.role !== 'candidate') {

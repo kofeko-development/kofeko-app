@@ -43,6 +43,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import AppFooter from '@/components/app-footer';
+import { AppShellSkeleton } from '@/components/loading/app-shell-skeleton';
 
 
 import { getAuthType } from '@/lib/api-client';
@@ -163,14 +164,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         ) {
             router.push(matched.redirectTo ?? '/dashboard');
         }
-    }, [user, loading, router, pathname, hasPermission]);
+    }, [user, loading, router, pathname, hasPermission, user?.permissions]);
 
-    if (loading) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
-            </div>
-        );
+    if (loading && !user) {
+        return <AppShellSkeleton />;
     }
 
     if (!user) {

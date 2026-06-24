@@ -34,6 +34,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { AppShellSkeleton } from '@/components/loading/app-shell-skeleton';
 
 
 const adminRoutes = [
@@ -92,14 +93,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!isAdminRoute) {
       router.push('/admin/dashboard');
     }
-  }, [user, loading, router, pathname, hasPermission]);
+  }, [user, loading, router, pathname, hasPermission, user?.permissions]);
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent" />
-      </div>
-    );
+  if (loading && !user) {
+    return <AppShellSkeleton />;
   }
 
   if (!user || !hasPermission('rbac:manage') || user.role === 'candidate') {

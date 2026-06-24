@@ -28,8 +28,10 @@ import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { companyApi, CompanyProfilePayload } from '@/lib/stage1-2-api';
+import { CompanyProfileSkeleton } from '@/components/loading/company-profile-skeleton';
 import { resolveUploadUrl } from '@/lib/storage-url';
 import { COMPANY_SIZE_OPTIONS } from '@/lib/company-size';
+import { useCompanyProfile, useInvalidateCompanyProfile } from '@/hooks/use-company';
 
 const COMPANY_TYPE_OPTIONS = [
   { value: 'startup', label: 'Startup' },
@@ -72,12 +74,21 @@ export default function CompanyProfilePage() {
   const { user, loading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const invalidateCompanyProfile = useInvalidateCompanyProfile();
 
   const [form, setForm] = useState<FormState>(defaultFormState);
   const [savedForm, setSavedForm] = useState<FormState | null>(null);
-  const [isHydrating, setIsHydrating] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasCompanyProfile, setHasCompanyProfile] = useState(false);
+  const [hasHydratedForm, setHasHydratedForm] = useState(false);
+
+  const isStaffUser = user?.role === 'recruiter' || user?.role === 'operator';
+  const {
+    data: companyProfile,
+    isLoading: isLoadingProfile,
+    isError: profileError,
+    error: profileLoadError,
+  } = useCompanyProfile({ enabled: !loading && isStaffUser });
 
   const canEdit = useMemo(
     () => Boolean(user?.permissions?.includes('company:update')),
@@ -85,51 +96,45 @@ export default function CompanyProfilePage() {
   );
 
   useEffect(() => {
-    if (!user) return;
-    // Company staff (including tenant admins) can view the company profile.
-    if (user.role !== 'recruiter' && user.role !== 'operator') {
-      setIsHydrating(false);
+    if (!isStaffUser) {
+      setHasHydratedForm(true);
       return;
     }
+    if (isLoadingProfile) return;
 
-    const loadCompany = async () => {
-      try {
-        const profile = await companyApi.get();
-        const loaded: FormState = {
-          companyName: profile.company.companyName ?? '',
-          industry: profile.company.industry ?? '',
-          companySize: profile.company.companySize,
-          companyType: profile.company.companyType,
-          foundedYear: profile.company.foundedYear ?? new Date().getFullYear(),
-          companyWebsite: profile.company.companyWebsite ?? '',
-          officialCompanyAddress: profile.company.officialCompanyAddress ?? '',
-          phoneNumber: profile.company.phoneNumber ?? '',
-          companyLogo: profile.company.companyLogo ?? '',
-          shortDescription: profile.company.shortDescription ?? '',
-          linkedinUrl: profile.company.linkedinUrl ?? '',
-          twitterUrl: profile.company.twitterUrl ?? '',
-          termsAccepted: true,
-        };
-        setForm(loaded);
-        setSavedForm(loaded);
-        setHasCompanyProfile(true);
-      } catch (error) {
-        if (error instanceof Error && error.message.toLowerCase().includes('not found')) {
-          setHasCompanyProfile(false);
-          return;
-        }
-        toast({
-          title: 'Unable to load company profile',
-          description: error instanceof Error ? error.message : 'Please refresh and try again.',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsHydrating(false);
-      }
-    };
+    if (companyProfile) {
+      const loaded: FormState = {
+        companyName: companyProfile.company.companyName ?? '',
+        industry: companyProfile.company.industry ?? '',
+        companySize: companyProfile.company.companySize,
+        companyType: companyProfile.company.companyType,
+        foundedYear: companyProfile.company.foundedYear ?? new Date().getFullYear(),
+        companyWebsite: companyProfile.company.companyWebsite ?? '',
+        officialCompanyAddress: companyProfile.company.officialCompanyAddress ?? '',
+        phoneNumber: companyProfile.company.phoneNumber ?? '',
+        companyLogo: companyProfile.company.companyLogo ?? '',
+        shortDescription: companyProfile.company.shortDescription ?? '',
+        linkedinUrl: companyProfile.company.linkedinUrl ?? '',
+        twitterUrl: companyProfile.company.twitterUrl ?? '',
+        termsAccepted: true,
+      };
+      setForm(loaded);
+      setSavedForm(loaded);
+      setHasCompanyProfile(true);
+    } else {
+      setHasCompanyProfile(false);
+    }
+    setHasHydratedForm(true);
+  }, [companyProfile, isLoadingProfile, isStaffUser]);
 
-    void loadCompany();
-  }, [user, toast]);
+  useEffect(() => {
+    if (!profileError) return;
+    toast({
+      title: 'Unable to load company profile',
+      description: profileLoadError instanceof Error ? profileLoadError.message : 'Please refresh and try again.',
+      variant: 'destructive',
+    });
+  }, [profileError, profileLoadError, toast]);
 
   const updateField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -176,6 +181,7 @@ export default function CompanyProfilePage() {
         setHasCompanyProfile(true);
       }
       setSavedForm({ ...form });
+      await invalidateCompanyProfile();
       toast({
         title: 'Company Profile Updated',
         description: 'Your changes have been saved successfully.',
@@ -196,12 +202,8 @@ export default function CompanyProfilePage() {
     }
   };
 
-  if (loading || isHydrating || !user) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+  if (loading || !hasHydratedForm || !user) {
+    return <CompanyProfileSkeleton />;
   }
   if (user.role !== 'recruiter' && user.role !== 'operator') {
     router.push('/dashboard');

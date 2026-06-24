@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import { FileCheck2, Clock, CalendarCheck2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { CompanyPostedJobsDashboard } from '@/components/company-posted-jobs-dashboard';
-import { portalApi } from '@/lib/portal-api';
+import { useMyApplications } from '@/hooks/use-portal';
 
 function RecruiterDashboard() {
   return (
@@ -23,25 +22,8 @@ function RecruiterDashboard() {
 
 function CandidateDashboard() {
   const { user } = useAuth();
-  const [applications, setApplications] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        const res = await portalApi.getMyApplications({ page: 1, limit: 100 });
-        setApplications(res.items || []);
-      } catch (err) {
-        console.error('Failed to load candidate applications', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    if (user) {
-      loadData();
-    }
-  }, [user]);
+  const { data, isLoading } = useMyApplications({ page: 1, limit: 100 }, { enabled: !!user });
+  const applications = data?.items ?? [];
 
   // Derived counts
   const submittedCount = applications.length;

@@ -116,13 +116,16 @@ export class ApiError extends Error {
 // ── Envelope type ─────────────────────────────────────────────────────────────
 type ApiEnvelope<T> = { success: boolean; message?: string; data: T };
 
-// ── Token refresh ─────────────────────────────────────────────────────────────
+// ── Token refresh (single-flight) ─────────────────────────────────────────────
+let refreshInFlight: Promise<boolean> | null = null;
+
 async function refreshAccessToken(type: AuthType): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
   const refreshToken = getRefreshToken(type);
   if (!refreshToken) return false;
 
-  // Staff and candidates both use /auth/refresh
-  // Super admin uses /superadmin/auth/refresh
   const refreshPath =
     type === 'super_admin'
       ? `${API_BASE_URL}/superadmin/auth/refresh`
@@ -145,6 +148,11 @@ async function refreshAccessToken(type: AuthType): Promise<boolean> {
   } catch {
     return false;
   }
+  })().finally(() => {
+    refreshInFlight = null;
+  });
+
+  return refreshInFlight;
 }
 
 // ── Error parser ──────────────────────────────────────────────────────────────

@@ -1,36 +1,35 @@
 
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import UserTable from '../users/_components/user-table';
-import { listCandidates, mapCandidateToDisplayUser } from '@/lib/admin-api';
+import { mapCandidateToDisplayUser } from '@/lib/admin-api';
 import { useToast } from '@/hooks/use-toast';
-import type { User } from '@/lib/types';
+import { useAuth } from '@/lib/auth';
+import { useCandidatesList } from '@/hooks/use-candidates';
 
 export default function CandidatesPage() {
     const { toast } = useToast();
-    const [users, setUsers] = useState<User[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { user, loading: authLoading } = useAuth();
+    const {
+        data,
+        isLoading: loading,
+        isError,
+        error,
+    } = useCandidatesList({ page: 1, limit: 100 }, { enabled: !authLoading && !!user });
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await listCandidates(1, 100);
-            setUsers(res.items.map(mapCandidateToDisplayUser));
-        } catch (e) {
-            setUsers([]);
-            toast({
-                title: 'Could not load candidates',
-                description: e instanceof Error ? e.message : 'Try again later.',
-                variant: 'destructive',
-            });
-        } finally {
-            setLoading(false);
-        }
-    }, [toast]);
+    const users = useMemo(
+        () => (data?.items ?? []).map(mapCandidateToDisplayUser),
+        [data],
+    );
 
     useEffect(() => {
-        void load();
-    }, [load]);
+        if (!isError) return;
+        toast({
+            title: 'Could not load candidates',
+            description: error instanceof Error ? error.message : 'Try again later.',
+            variant: 'destructive',
+        });
+    }, [isError, error, toast]);
 
     return (
        <UserTable

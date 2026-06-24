@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@/lib/types';
 import { displayStatusToStaffStatus, staffInviteStatusLabel, updateStaffUserStatus } from '@/lib/admin-api';
+import { UserTableRowsSkeleton } from '@/components/loading/user-table-rows-skeleton';
 
 
 const getInitials = (name: string) => {
@@ -129,12 +130,13 @@ export default function UserTable({
                                 className="pl-10"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
+                                disabled={loading}
                             />
                         </div>
                     </div>
                      <div className="space-y-2">
                         <label htmlFor="status" className="text-sm font-medium">Status</label>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <Select value={statusFilter} onValueChange={setStatusFilter} disabled={loading}>
                             <SelectTrigger id='status'>
                                 <SelectValue placeholder="Filter by status" />
                             </SelectTrigger>
@@ -162,14 +164,9 @@ export default function UserTable({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                             {loading && (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                        Loading…
-                                    </TableCell>
-                                </TableRow>
-                             )}
-                             {!loading && filteredUsers.map((user) => (
+                             {loading ? (
+                                <UserTableRowsSkeleton rows={6} actionVariant={allowStatusActions ? 'manage' : 'minimal'} />
+                             ) : filteredUsers.map((user) => (
                                 <TableRow key={user.uid}>
                                     <TableCell>
                                         <div className="flex items-center gap-4">

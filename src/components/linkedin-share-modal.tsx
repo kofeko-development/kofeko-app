@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {
   open: boolean;
@@ -43,6 +44,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
   const canPost = hasPermission("linkedin:post");
   const canRead = hasPermission("linkedin:read");
   const canConnect = hasPermission("linkedin:connect");
+  const integrationsHref = hasPermission("rbac:manage") ? "/admin/integrations" : "/settings/integrations";
 
   const [preview, setPreview] = useState<LinkedInPreview | null>(null);
   const [status, setStatus] = useState<LinkedInStatus | null>(null);
@@ -461,7 +463,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
                   {status.orgDiscoveryHint ?? (
                     <>
                       Posts will go to your personal profile ({status.name}). Link your LinkedIn Company Page in{" "}
-                      <Link href="/settings/integrations" className="underline">
+                      <Link href={integrationsHref} className="underline">
                         Settings → Integrations
                       </Link>
                       .
@@ -476,7 +478,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
                 <AlertTitle>Cannot post as company yet</AlertTitle>
                 <AlertDescription className="break-words text-sm">
                   A page is linked but your token lacks company-post permission. Enable org scopes in backend .env and reconnect in{" "}
-                  <Link href="/settings/integrations" className="underline">
+                  <Link href={integrationsHref} className="underline">
                     Settings → Integrations
                   </Link>
                   .
@@ -489,7 +491,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
                 <AlertTitle>Connect LinkedIn for Post now</AlertTitle>
                 <AlertDescription>
                   Copy text and Open on LinkedIn work without connecting.{" "}
-                  <Link href="/settings/integrations" className="underline">
+                  <Link href={integrationsHref} className="underline">
                     Connect in Settings
                   </Link>{" "}
                   to auto-post.
@@ -500,7 +502,10 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
 
           <TabsContent value="connect" className="mt-0 space-y-5 focus-visible:outline-none focus-visible:ring-0">
             {isLoadingStatus && !status ? (
-              <p className="text-sm text-muted-foreground">Loading status…</p>
+              <div className="space-y-3">
+                <Skeleton className="h-16 w-full rounded-lg" />
+                <Skeleton className="h-10 w-36" />
+              </div>
             ) : status?.connected ? (
               <Alert>
                 <AlertTitle>Connected</AlertTitle>

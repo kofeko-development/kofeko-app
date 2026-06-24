@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin, Trash2, ArrowLeft, Loader2, Briefcase } from "lucide-react";
@@ -18,7 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
-import { portalApi } from '@/lib/portal-api';
+import { useApplicationDetail } from '@/hooks/use-portal';
 
 
 export default function ApplicationStatusPage() {
@@ -27,34 +27,24 @@ export default function ApplicationStatusPage() {
     const { toast } = useToast();
     const applicationId = params.id as string;
 
-    const [application, setApplication] = useState<any | null>(null);
-    const [job, setJob] = useState<any | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+    } = useApplicationDetail(applicationId);
+
+    const application = data?.application ?? null;
+    const job = data?.job ?? null;
 
     useEffect(() => {
-        const loadDetails = async () => {
-            setIsLoading(true);
-            try {
-                const appDetails = await portalApi.getMyApplicationById(applicationId);
-                setApplication(appDetails);
-                if (appDetails.job?.id) {
-                    const jobDetails = await portalApi.getJob(appDetails.job.id);
-                    setJob(jobDetails);
-                }
-            } catch (error) {
-                toast({
-                    title: 'Failed to load details',
-                    description: error instanceof Error ? error.message : 'Please check your connection and try again.',
-                    variant: 'destructive',
-                });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        if (applicationId) {
-            void loadDetails();
-        }
-    }, [applicationId, toast]);
+        if (!isError) return;
+        toast({
+            title: 'Failed to load details',
+            description: error instanceof Error ? error.message : 'Please check your connection and try again.',
+            variant: 'destructive',
+        });
+    }, [isError, error, toast]);
 
     const handleWithdraw = () => {
         toast({

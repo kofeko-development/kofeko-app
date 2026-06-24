@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { InboxListSkeleton } from '@/components/loading/inbox-list-skeleton';
 import InboxPageContent from './inbox-content';
 
 export default function InboxPage() {
@@ -19,11 +19,7 @@ export default function InboxPage() {
   }, [loading, user, hasPermission, router]);
 
   if (loading || !user) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <InboxListSkeleton />;
   }
 
   if (user.role !== 'candidate') {

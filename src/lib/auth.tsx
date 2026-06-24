@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { User } from './types';
 import type { CompanySizeValue } from './company-size';
 import {
@@ -24,6 +24,14 @@ import {
   apiRequest,
   type AuthType,
 } from './api-client';
+import {
+  readCachedUser,
+  writeCachedUser,
+  clearAllSessionCaches,
+  readCachedSuperAdmin,
+  writeCachedSuperAdmin,
+} from './session-cache';
+import { clearAuthRouteHint, resolveAuthRouteHint, setAuthRouteHint } from './auth-hint';
 
 type LoginInput = {
   tenantSlug?: string;
@@ -178,45 +186,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const bootstrapSession = async () => {
       try {
-        // ── Migration: handle legacy keys from previous version ────────────
         const legacyToken = localStorage.getItem(LEGACY_ACCESS_KEY);
         const legacyRefresh = localStorage.getItem(LEGACY_REFRESH_KEY);
         const hasLegacy = Boolean(legacyToken && legacyRefresh);
         const hasNewType = Boolean(localStorage.getItem(AUTH_TYPE_KEY));
 
         if (hasLegacy && !hasNewType) {
-          // Old token exists but no type info — assume staff (safe default)
           localStorage.setItem(STAFF_TOKEN_KEY, legacyToken!);
           localStorage.setItem(STAFF_REFRESH_KEY, legacyRefresh!);
           localStorage.setItem(AUTH_TYPE_KEY, 'staff');
           localStorage.removeItem(LEGACY_ACCESS_KEY);
           localStorage.removeItem(LEGACY_REFRESH_KEY);
         }
-        // ─────────────────────────────────────────────────────────────────────
 
         const authType = getAuthType();
 
         if (!authType) {
-          // No session at all — not logged in
           setLoading(false);
           return;
         }
 
         const token = getAccessToken(authType);
         if (!token) {
-          // Auth type stored but token missing — clear orphan data
           clearTokens(authType);
           setLoading(false);
           return;
         }
 
-        // Call the right /me endpoint per user type
+        // Instant UI: hydrate from session cache while /me validates in background
+        if (authType === 'super_admin') {
+          const cachedAdmin = readCachedSuperAdmin();
+          if (cachedAdmin) {
+            setSuperAdmin(cachedAdmin);
+          }
+        } else {
+          const cachedUser = readCachedUser();
+          if (cachedUser) {
+            setUser(cachedUser);
+          }
+        }
+
         if (authType === 'super_admin') {
           const me = await apiRequest<BackendSuperAdmin>('/superadmin/auth/me', {
             auth: true,
             authType: 'super_admin',
           });
           setSuperAdmin(me);
+          writeCachedSuperAdmin(me);
+          setAuthRouteHint('super_admin');
           setLoading(false);
           return;
         }
@@ -231,40 +248,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             roles: me.roles?.length ? me.roles : ['candidate'],
           });
           setUser(mapped);
-          sessionStorage.setItem('kofeko_user_cache', JSON.stringify(mapped));
+          writeCachedUser(mapped);
+          setAuthRouteHint('candidate');
           setLoading(false);
           return;
         }
 
-        // Staff (default)
         const me = await apiRequest<BackendUser>('/auth/me', {
           auth: true,
           authType: 'staff',
         });
         const mapped = mapBackendUser(me);
         setUser(mapped);
-        sessionStorage.setItem('kofeko_user_cache', JSON.stringify(mapped));
+        writeCachedUser(mapped);
+        setAuthRouteHint(resolveAuthRouteHint(mapped.permissions, mapped.backendRoles));
         setLoading(false);
-
       } catch (error) {
-        // Only clear session on 401/403 (legitimately invalid token)
-        // Do NOT clear on network errors — user may just be offline
         if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404)) {
           clearTokens();
+          clearAllSessionCaches();
+          clearAuthRouteHint();
           setUser(null);
           setSuperAdmin(null);
         } else if (error instanceof ApiError) {
-          // Other API errors (404, 500) — keep session, log the issue
           console.warn('Session bootstrap non-fatal error:', error.message);
         } else {
-          // Network error or other — try to restore from sessionStorage cache
-          const cached = sessionStorage.getItem('kofeko_user_cache');
-          if (cached) {
-            try {
-              const cachedUser = JSON.parse(cached) as User;
-              setUser(cachedUser);
-            } catch {/* ignore */ }
-          }
+          const cached = readCachedUser();
+          if (cached) setUser(cached);
         }
         setLoading(false);
       }
@@ -293,9 +303,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('storage', handleStorageChange);
     const handleSessionExpired = () => {
       clearTokens();
+      clearAllSessionCaches();
+      clearAuthRouteHint();
       setUser(null);
       setSuperAdmin(null);
-      sessionStorage.removeItem('kofeko_user_cache');
       window.location.href = '/company-login';
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
@@ -319,7 +330,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       tenant: payload.user.tenant ?? payload.tenant,
     });
     setUser(mappedUser);
-    sessionStorage.setItem('kofeko_user_cache', JSON.stringify(mappedUser));
+    writeCachedUser(mappedUser);
+    setAuthRouteHint(resolveAuthRouteHint(mappedUser.permissions, mappedUser.backendRoles));
     return mappedUser;
   };
 
@@ -340,6 +352,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens('candidate', payload.accessToken, payload.refreshToken);
     const mappedUser = mapBackendUser(payload.user);
     setUser(mappedUser);
+    writeCachedUser(mappedUser);
+    setAuthRouteHint('candidate');
     return mappedUser;
   };
 
@@ -353,6 +367,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens('candidate', payload.accessToken, payload.refreshToken);
     const mappedUser = mapBackendUser(payload.user);
     setUser(mappedUser);
+    writeCachedUser(mappedUser);
+    setAuthRouteHint('candidate');
     return mappedUser;
   };
 
@@ -366,6 +382,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens('candidate', payload.accessToken, payload.refreshToken);
     const mappedUser = mapBackendUser(payload.user);
     setUser(mappedUser);
+    writeCachedUser(mappedUser);
+    setAuthRouteHint('candidate');
     return mappedUser;
   };
 
@@ -379,6 +397,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens('candidate', payload.accessToken, payload.refreshToken);
     const mappedUser = mapBackendUser(payload.user);
     setUser(mappedUser);
+    writeCachedUser(mappedUser);
+    setAuthRouteHint('candidate');
     return mappedUser;
   };
 
@@ -391,15 +411,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setTokens('super_admin', payload.accessToken, payload.refreshToken);
     setSuperAdmin(payload.superAdmin);
+    writeCachedSuperAdmin(payload.superAdmin);
+    setAuthRouteHint('super_admin');
   };
 
-  const updateCurrentUser = (nextUser: User) => {
+  const updateCurrentUser = useCallback((nextUser: User) => {
     setUser(nextUser);
-  };
+    writeCachedUser(nextUser);
+  }, []);
 
-  const hasPermission = (permission: string) => Boolean(user?.permissions?.includes(permission));
+  const permissions = user?.permissions ?? [];
 
-  const logout = async () => {
+  const hasPermission = useCallback(
+    (permission: string) => permissions.includes(permission),
+    [permissions],
+  );
+
+  const logout = useCallback(async () => {
     const authType = getAuthType();
     const refreshToken = getRefreshToken(authType);
 
@@ -419,10 +447,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     clearTokens(authType);
+    clearAllSessionCaches();
+    clearAuthRouteHint();
     setUser(null);
     setSuperAdmin(null);
     window.location.href = authType === 'candidate' ? '/candidate-auth' : authType === 'super_admin' ? '/superadmin/login' : '/company-login';
-  };
+  }, []);
 
   const value = {
     user,

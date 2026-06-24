@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { communicationApi } from '@/lib/stage1-2-api';
 import { portalApi } from '@/lib/portal-api';
@@ -12,6 +13,11 @@ export type InboxNotification = {
   body: string;
   read: boolean;
   rawStatus: string;
+};
+
+type InboxData = {
+  notifications: InboxNotification[];
+  archived: InboxNotification[];
 };
 
 export function stripInboxHtml(html: string) {
@@ -30,42 +36,69 @@ function mapNotification(msg: Record<string, unknown>): InboxNotification {
   };
 }
 
+const inboxQueryKey = (role?: string, userId?: string) => ['inbox-messages', role, userId] as const;
+
+async function fetchInboxMessages(role: string): Promise<InboxData> {
+  let items: Record<string, unknown>[] = [];
+
+  if (role === 'candidate') {
+    const data = await portalApi.getMessages();
+    items = Array.isArray(data) ? data : ((data as { data?: Record<string, unknown>[] })?.data ?? []);
+  } else {
+    const res = await communicationApi.getNotifications();
+    items = res?.items ?? ((res as { data?: { items?: Record<string, unknown>[] } })?.data?.items ?? []);
+  }
+
+  const mapped = items.map(mapNotification);
+  return {
+    notifications: mapped.filter((n) => n.rawStatus !== 'archived'),
+    archived: mapped.filter((n) => n.rawStatus === 'archived'),
+  };
+}
+
 export function useInboxNotifications() {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<InboxNotification[]>([]);
-  const [archived, setArchived] = useState<InboxNotification[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const queryClient = useQueryClient();
+  const [fetchEnabled, setFetchEnabled] = useState(false);
+
+  const queryKey = inboxQueryKey(user?.role, user?.uid);
+
+  const { data, isLoading, isFetched, refetch } = useQuery({
+    queryKey,
+    queryFn: () => fetchInboxMessages(user!.role),
+    enabled: Boolean(user) && fetchEnabled,
+  });
+
+  const notifications = data?.notifications ?? [];
+  const archived = data?.archived ?? [];
+
+  const updateCache = useCallback(
+    (updater: (prev: InboxData) => InboxData) => {
+      queryClient.setQueryData<InboxData>(queryKey, (prev) => {
+        const base = prev ?? { notifications: [], archived: [] };
+        return updater(base);
+      });
+    },
+    [queryClient, queryKey],
+  );
 
   const loadMessages = useCallback(async () => {
     if (!user) return;
 
-    setIsLoading(true);
-    try {
-      let items: Record<string, unknown>[] = [];
-
-      if (user.role === 'candidate') {
-        const data = await portalApi.getMessages();
-        items = Array.isArray(data) ? data : ((data as { data?: Record<string, unknown>[] })?.data ?? []);
-      } else {
-        const res = await communicationApi.getNotifications();
-        items = res?.items ?? ((res as { data?: { items?: Record<string, unknown>[] } })?.data?.items ?? []);
-      }
-
-      const mapped = items.map(mapNotification);
-      setNotifications(mapped.filter((n) => n.rawStatus !== 'archived'));
-      setArchived(mapped.filter((n) => n.rawStatus === 'archived'));
-      setHasLoaded(true);
-    } catch (error) {
-      console.error('Failed to load inbox messages', error);
-    } finally {
-      setIsLoading(false);
+    if (!fetchEnabled) {
+      setFetchEnabled(true);
+      return;
     }
-  }, [user]);
+
+    await refetch();
+  }, [user, fetchEnabled, refetch]);
 
   const markAsRead = useCallback(
     async (id: string) => {
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+      updateCache((prev) => ({
+        ...prev,
+        notifications: prev.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      }));
 
       try {
         if (user?.role === 'candidate') {
@@ -77,13 +110,15 @@ export function useInboxNotifications() {
         console.error('Failed to mark message as read', error);
       }
     },
-    [user?.role],
+    [updateCache, user?.role],
   );
 
   const archiveMessage = useCallback(
     async (notification: InboxNotification) => {
-      setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
-      setArchived((prev) => [{ ...notification, read: true }, ...prev]);
+      updateCache((prev) => ({
+        notifications: prev.notifications.filter((n) => n.id !== notification.id),
+        archived: [{ ...notification, read: true }, ...prev.archived],
+      }));
 
       try {
         if (user?.role === 'candidate') {
@@ -95,13 +130,15 @@ export function useInboxNotifications() {
         console.error('Failed to archive message', error);
       }
     },
-    [user?.role],
+    [updateCache, user?.role],
   );
 
   const unarchiveMessage = useCallback(
     async (notification: InboxNotification) => {
-      setArchived((prev) => prev.filter((n) => n.id !== notification.id));
-      setNotifications((prev) => [{ ...notification, read: true }, ...prev]);
+      updateCache((prev) => ({
+        archived: prev.archived.filter((n) => n.id !== notification.id),
+        notifications: [{ ...notification, read: true }, ...prev.notifications],
+      }));
 
       try {
         if (user?.role === 'candidate') {
@@ -113,7 +150,7 @@ export function useInboxNotifications() {
         console.error('Failed to unarchive message', error);
       }
     },
-    [user?.role],
+    [updateCache, user?.role],
   );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -122,7 +159,7 @@ export function useInboxNotifications() {
     notifications,
     archived,
     isLoading,
-    hasLoaded,
+    hasLoaded: isFetched,
     unreadCount,
     loadMessages,
     markAsRead,

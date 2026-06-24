@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Briefcase, MapPin, ArrowUpRight, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { portalApi, type PortalJobListItem } from "@/lib/portal-api";
+import { useAuth } from "@/lib/auth";
 import { resolveJobEmploymentType, resolveJobWorkMode } from "@/lib/job-display";
+import { FindJobsListSkeleton } from "@/components/loading/find-jobs-list-skeleton";
+import { useMyApplications, usePortalJobs } from "@/hooks/use-portal";
 
 const locationValue = (raw: string | null | undefined) => (raw ?? '').trim();
 
@@ -19,43 +21,35 @@ export default function FindJobsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [locationFilter, setLocationFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
-    const [jobs, setJobs] = useState<PortalJobListItem[]>([]);
-    const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
-    const [isLoading, setIsLoading] = useState(false);
+    const { user } = useAuth();
     const { toast } = useToast();
 
+    const {
+        data: jobsData,
+        isLoading: jobsLoading,
+        isError: jobsError,
+        error: jobsErrorObj,
+    } = usePortalJobs({ page: 1, limit: 100 });
+    const { data: appsData, isLoading: appsLoading } = useMyApplications(
+        { page: 1, limit: 100 },
+        { enabled: Boolean(user) },
+    );
+
+    const isLoading = jobsLoading || (Boolean(user) && appsLoading);
+    const jobs = jobsData?.items ?? [];
+    const appliedJobIds = useMemo(
+        () => new Set((appsData?.items ?? []).map((item) => item.job.id)),
+        [appsData],
+    );
+
     useEffect(() => {
-        let cancelled = false;
-        setIsLoading(true);
-        Promise.all([
-            portalApi.listAllJobs({ limit: 100 }),
-            portalApi.getMyApplications({ limit: 100 }).catch(() => ({ items: [] }))
-        ])
-            .then(([jobsRes, appsRes]) => {
-                if (!cancelled) {
-                    setJobs(jobsRes.items ?? []);
-                    const appliedIds = new Set((appsRes.items ?? []).map((item) => item.job.id));
-                    setAppliedJobIds(appliedIds);
-                }
-            })
-            .catch((err) => {
-                if (!cancelled) {
-                    toast({
-                        title: "Unable to load jobs",
-                        description: err instanceof Error ? err.message : "Please refresh and try again.",
-                        variant: "destructive",
-                    });
-                    setJobs([]);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setIsLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; toast is unstable across renders
-    }, []);
+        if (!jobsError) return;
+        toast({
+            title: "Unable to load jobs",
+            description: jobsErrorObj instanceof Error ? jobsErrorObj.message : "Please refresh and try again.",
+            variant: "destructive",
+        });
+    }, [jobsError, jobsErrorObj, toast]);
 
     const filteredJobs = useMemo(() => {
         return jobs.filter((job) => {
@@ -109,9 +103,10 @@ export default function FindJobsPage() {
                                 className="pl-10"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
+                                disabled={isLoading}
                              />
                         </div>
-                        <Select value={locationFilter} onValueChange={setLocationFilter}>
+                        <Select value={locationFilter} onValueChange={setLocationFilter} disabled={isLoading}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filter by location" />
                             </SelectTrigger>
@@ -123,7 +118,7 @@ export default function FindJobsPage() {
                                 <SelectItem value="austin">Austin, TX</SelectItem>
                             </SelectContent>
                         </Select>
-                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                        <Select value={typeFilter} onValueChange={setTypeFilter} disabled={isLoading}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filter by work mode" />
                             </SelectTrigger>
@@ -138,8 +133,12 @@ export default function FindJobsPage() {
                 </CardContent>
             </Card>
 
+            {isLoading ? (
+                <FindJobsListSkeleton rows={4} />
+            ) : (
             <div className="flex flex-col gap-4">
-                {filteredJobs.length > 0 ? filteredJobs.map(job => {
+                {filteredJobs.length > 0
+                  ? filteredJobs.map((job) => {
                     const workMode = resolveJobWorkMode(job.department);
                     const employmentType = resolveJobEmploymentType(job.employmentType, job.department);
                     return (
@@ -171,17 +170,19 @@ export default function FindJobsPage() {
                         </CardContent>
                     </Card>
                     );
-                }) : (
+                  })
+                  : (
                      <Card>
                         <CardContent className="p-12 text-center text-muted-foreground">
-                            <p className="font-semibold">{isLoading ? 'Loading jobs...' : 'No jobs available'}</p>
+                            <p className="font-semibold">No jobs available</p>
                             <p className="text-sm">
-                              {isLoading ? 'Please wait.' : 'New jobs will appear here once companies post openings.'}
+                              New jobs will appear here once companies post openings.
                             </p>
                         </CardContent>
                     </Card>
-                )}
+                  )}
             </div>
+            )}
         </div>
     );
 }

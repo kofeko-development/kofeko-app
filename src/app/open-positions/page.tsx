@@ -8,45 +8,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search } from "lucide-react";
 import PublicNavbar from "@/components/public-navbar";
 import AppFooter from "@/components/app-footer";
-import { portalApi } from "@/lib/portal-api";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-
-type JobItem = Awaited<ReturnType<typeof portalApi.listAllJobs>>["items"][number];
+import { usePortalJobs } from "@/hooks/use-portal";
 
 
 export default function PublicJobsPage() {
     const { toast } = useToast();
-    const [jobs, setJobs] = useState<JobItem[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+    } = usePortalJobs({ limit: 30 });
+
+    const jobs = data?.items ?? [];
+
     useEffect(() => {
-        let cancelled = false;
-        setIsLoading(true);
-        portalApi
-            .listAllJobs({ limit: 30 })
-            .then((res) => {
-                if (!cancelled) setJobs(res.items ?? []);
-            })
-            .catch((err) => {
-                if (!cancelled) {
-                    toast({
-                        title: "Unable to load jobs",
-                        description: err instanceof Error ? err.message : "Please refresh and try again.",
-                        variant: "destructive",
-                    });
-                    setJobs([]);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setIsLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        if (!isError) return;
+        toast({
+            title: "Unable to load jobs",
+            description: error instanceof Error ? error.message : "Please refresh and try again.",
+            variant: "destructive",
+        });
+    }, [isError, error, toast]);
 
     const filtered = useMemo(() => {
         const q = searchTerm.trim().toLowerCase();

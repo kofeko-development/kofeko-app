@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import type { User, CompanyRole } from '@/lib/types';
 import { removeStaffUser, staffInviteStatusLabel, updateStaffUserRole, updateStaffUserStatus } from '@/lib/admin-api';
+import { UserTableRowsSkeleton } from '@/components/loading/user-table-rows-skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,9 +41,10 @@ const roleVariantMap: { [key: string]: "default" | "secondary" | "destructive" }
 
 interface TeamMembersTableProps {
     users: User[];
+    loading?: boolean;
 }
 
-export default function TeamMembersTable({ users: initialUsers }: TeamMembersTableProps) {
+export default function TeamMembersTable({ users: initialUsers, loading = false }: TeamMembersTableProps) {
     const { toast } = useToast();
     const [users, setUsers] = useState(initialUsers);
 
@@ -133,7 +135,9 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {users.map((user) => (
+                            {loading ? (
+                                <UserTableRowsSkeleton rows={5} />
+                            ) : users.map((user) => (
                                 <TableRow key={user.uid}>
                                     <TableCell>
                                         <div className="flex items-center gap-4">
@@ -197,7 +201,7 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
                                     </TableCell>
                                 </TableRow>
                             ))}
-                             {users.length === 0 && (
+                             {!loading && users.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
                                         No team members found.

@@ -1,6 +1,7 @@
 
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useParams, usePathname } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -45,9 +46,18 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
+import { useJobDetail, useJobApplicantsData, useInvalidateJobDetail } from '@/hooks/use-job-detail';
+import { JobDetailSkeleton } from '@/components/loading/job-detail-skeleton';
 import { resolveHiringStageLabel } from '@/lib/hiring-stages';
-import { LinkedInShareModal } from '@/components/linkedin-share-modal';
-import { EditJobDialog } from '@/components/edit-job-dialog';
+
+const LinkedInShareModal = dynamic(
+    () => import('@/components/linkedin-share-modal').then((m) => ({ default: m.LinkedInShareModal })),
+    { ssr: false },
+);
+const EditJobDialog = dynamic(
+    () => import('@/components/edit-job-dialog').then((m) => ({ default: m.EditJobDialog })),
+    { ssr: false },
+);
 import {
     parseHiringIntelligence,
     hasAiEvaluation,
@@ -57,6 +67,7 @@ import {
     buildRankMap,
     formatBatchEvaluationMessage,
 } from '@/lib/evaluation-utils';
+import { cn } from '@/lib/utils';
 
 const getInitials = (name: string) => {
     const names = name.split(' ');
@@ -159,10 +170,17 @@ export default function JobApplicantsPage() {
     const { user, hasPermission } = useAuth();
     const { toast } = useToast();
     const { showError } = useApiErrorToast();
+    const invalidateJobDetail = useInvalidateJobDetail();
+    const queriesEnabled = Boolean(id) && !!user;
+    const { data: job = null, isLoading: jobLoading } = useJobDetail(id, queriesEnabled);
+    const {
+        data: applicantsData,
+        isLoading: applicantsLoading,
+        refetch: refetchApplicantsData,
+    } = useJobApplicantsData(id, queriesEnabled);
+    const isLoading = jobLoading || applicantsLoading;
 
-    const [job, setJob] = useState<CreatedJob | null>(null);
     const [applicants, setApplicants] = useState<Applicant[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
 
     const defaultFlowStages = useMemo(() => [
         { stage: 'applied', label: 'Applied', order: 1, enabled: true },
@@ -196,6 +214,43 @@ export default function JobApplicantsPage() {
         const stageObj = customStagesConfig.find(s => s.stage === stageKey);
         return stageObj ? resolveHiringStageLabel(stageObj) : resolveHiringStageLabel({ stage: stageKey, label: null });
     }, [customStagesConfig]);
+
+    const renderStageDropdownItems = useCallback(
+        (currentStatus: string, onStageSelect: (stage: string) => void) =>
+            activeHiringStages.map((stageKey) => {
+                const isCurrent = stageKey === currentStatus;
+                return (
+                    <DropdownMenuItem
+                        key={stageKey}
+                        disabled={isCurrent}
+                        onSelect={(e) => {
+                            if (isCurrent) {
+                                e.preventDefault();
+                                return;
+                            }
+                            onStageSelect(stageKey);
+                        }}
+                        className={cn(
+                            isCurrent &&
+                                'bg-primary/10 font-semibold text-primary opacity-100 focus:bg-primary/10 focus:text-primary data-[disabled]:opacity-100',
+                        )}
+                    >
+                        <span className="flex w-full items-center justify-between gap-3">
+                            <span className="flex items-center gap-2">
+                                {isCurrent ? <CheckCircle className="h-4 w-4 shrink-0" /> : null}
+                                {getStageLabel(stageKey)}
+                            </span>
+                            {isCurrent ? (
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-primary/80">
+                                    Current
+                                </span>
+                            ) : null}
+                        </span>
+                    </DropdownMenuItem>
+                );
+            }),
+        [activeHiringStages, getStageLabel],
+    );
 
     const openCustomizeFlowDialog = () => {
         if (job) {
@@ -333,27 +388,26 @@ export default function JobApplicantsPage() {
         }
     };
 
-    const loadData = useCallback(async () => {
-        setIsLoading(true);
+    const loadData = useCallback(() => {
+        invalidateJobDetail(id);
+    }, [id, invalidateJobDetail]);
+
+    const refreshApplicants = useCallback(async () => {
         try {
-            const [jobRes, pipeRes, rankingsRes] = await Promise.all([
-                jobsApi.get(id),
-                pipelinesApi.list({ jobId: id, limit: 100 }),
-                evaluationsApi.getRankings(id).catch(() => []),
-            ]);
-            const rankMap = buildRankMap(rankingsRes);
-            setJob(jobRes);
-            setApplicants(pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
+            const { data } = await refetchApplicantsData();
+            if (!data) return;
+            const rankMap = buildRankMap(data.rankingsRes);
+            setApplicants(data.pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
         } catch (error) {
             showError(error);
-        } finally {
-            setIsLoading(false);
         }
-    }, [id, showError]);
+    }, [refetchApplicantsData, showError]);
 
     useEffect(() => {
-        void loadData();
-    }, [loadData]);
+        if (!applicantsData) return;
+        const rankMap = buildRankMap(applicantsData.rankingsRes);
+        setApplicants(applicantsData.pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
+    }, [applicantsData]);
 
     useEffect(() => {
         if (selectedApplicant) {
@@ -455,18 +509,32 @@ export default function JobApplicantsPage() {
     const handleConfirmStageChange = async () => {
         if (!selectedApplicant || !selectedStage) return;
 
+        const pipelineId = selectedApplicant.id;
+        const newStage = selectedStage;
+
         try {
-            await pipelinesApi.advance(selectedApplicant.id, {
-                stage: selectedStage,
-                note: stageChangeNote.trim() || undefined
+            await pipelinesApi.advance(pipelineId, {
+                stage: newStage,
+                note: stageChangeNote.trim() || undefined,
             });
+
+            setApplicants((prev) =>
+                prev.map((a) =>
+                    a.id === pipelineId ? { ...a, status: newStage as Applicant['status'] } : a,
+                ),
+            );
+            setSelectedApplicant((prev) =>
+                prev?.id === pipelineId ? { ...prev, status: newStage as Applicant['status'] } : prev,
+            );
+
             toast({
                 title: 'Stage Updated',
-                description: `Candidate moved to ${selectedStage}.`,
+                description: `Candidate moved to ${getStageLabel(newStage)}.`,
             });
             setIsStageChangeDialogOpen(false);
             setStageChangeNote('');
-            void loadData();
+            setSelectedStage(null);
+            void refreshApplicants();
         } catch (error) {
             toast({
                 title: 'Action Failed',
@@ -589,24 +657,16 @@ export default function JobApplicantsPage() {
 
 
     const handleStageChangeDialogClose = (open: boolean) => {
+        setIsStageChangeDialogOpen(open);
         if (!open) {
-            // This timeout ensures the dialog's closing animation completes
-            // before we reset the state, preventing the UI from freezing.
             setTimeout(() => {
-                const justChangedStage = selectedStage;
                 setStageChangeNote('');
-
-                // If the profile dialog is open, update its state, otherwise clear the selection
-                if (isProfileDialogOpen && selectedApplicant && justChangedStage) {
-                    setSelectedApplicant(prev => prev ? { ...prev, status: justChangedStage as Applicant['status'] } : null);
-                } else {
+                setSelectedStage(null);
+                if (!isProfileDialogOpen) {
                     setSelectedApplicant(null);
                 }
-                setSelectedStage(null);
-
             }, 150);
         }
-        setIsStageChangeDialogOpen(open);
     };
 
 
@@ -701,14 +761,7 @@ export default function JobApplicantsPage() {
 
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                    <p className="text-muted-foreground mt-2">Loading job details...</p>
-                </div>
-            </div>
-        );
+        return <JobDetailSkeleton />;
     }
 
     if (!job) {
@@ -798,12 +851,10 @@ export default function JobApplicantsPage() {
                                         <ChevronDown className="ml-2 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    {activeHiringStages.filter(s => s !== applicant.status).map(s => (
-                                        <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(applicant, s)}>
-                                            {getStageLabel(s)}
-                                        </DropdownMenuItem>
-                                    ))}
+                                <DropdownMenuContent className="min-w-[12rem]">
+                                    {renderStageDropdownItems(applicant.status, (s) =>
+                                        handleStageChangeClick(applicant, s),
+                                    )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         )}
@@ -1445,12 +1496,10 @@ export default function JobApplicantsPage() {
                                                             <ChevronDown className="ml-2 h-4 w-4" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
-                                                    <DropdownMenuContent>
-                                                        {activeHiringStages.filter(s => s !== selectedApplicant.status).map(s => (
-                                                            <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(selectedApplicant, s)}>
-                                                                {getStageLabel(s)}
-                                                            </DropdownMenuItem>
-                                                        ))}
+                                                    <DropdownMenuContent className="min-w-[12rem]">
+                                                        {renderStageDropdownItems(selectedApplicant.status, (s) =>
+                                                            handleStageChangeClick(selectedApplicant, s),
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             )}

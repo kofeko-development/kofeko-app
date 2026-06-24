@@ -16,9 +16,10 @@ import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import sanitizeHtml from 'sanitize-html';
 import AppFooter from '@/components/app-footer';
 import MainLayout from '@/app/(main)/layout';
-import { portalApi, type PortalJobDetail } from '@/lib/portal-api';
+import { portalApi } from '@/lib/portal-api';
 import { resolveJobEmploymentType, resolveJobWorkMode } from '@/lib/job-display';
 import { getActiveHiringStages } from '@/lib/hiring-stages';
+import { usePortalJob, useInvalidatePortalApplications } from '@/hooks/use-portal';
 
 function PageContent({
     job,
@@ -251,6 +252,7 @@ export default function JobApplicationPage() {
     const { toast } = useToast();
     const { showError } = useApiErrorToast();
     const id = params.id as string;
+    const invalidateApplications = useInvalidatePortalApplications();
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -266,24 +268,20 @@ export default function JobApplicationPage() {
         }
     }, [user]);
 
-    const [job, setJob] = useState<PortalJobDetail | null>(null);
-    const [jobLoading, setJobLoading] = useState(true);
+    const {
+        data: job,
+        isLoading: jobLoading,
+        isError: jobError,
+    } = usePortalJob(id);
 
     useEffect(() => {
-        setJobLoading(true);
-        portalApi
-            .getJob(id)
-            .then((res) => setJob(res))
-            .catch((err) => {
-                toast({
-                    title: 'Job not found',
-                    description: err instanceof Error ? err.message : 'Please go back and try again.',
-                    variant: 'destructive',
-                });
-                setJob(null);
-            })
-            .finally(() => setJobLoading(false));
-    }, [id, toast]);
+        if (!jobError) return;
+        toast({
+            title: 'Job not found',
+            description: 'Please go back and try again.',
+            variant: 'destructive',
+        });
+    }, [jobError, toast]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -297,6 +295,8 @@ export default function JobApplicationPage() {
             router.push('/candidate-auth');
             return;
         }
+
+        if (!job) return;
 
         setIsLoading(true);
         try {
@@ -319,6 +319,8 @@ export default function JobApplicationPage() {
                 resumeMimeType: finalResumeMimeType,
                 coverLetter: coverLetter || undefined,
             });
+
+            await invalidateApplications();
 
             toast({
                 title: "Application Submitted!",

@@ -20,6 +20,7 @@ import {
   labelForPermission,
   rbacModuleTitle,
 } from '@/lib/staff-profile';
+import { MyProfileSkeleton } from '@/components/loading/my-profile-skeleton';
 
 export default function MyProfilePage() {
   const { user, updateCurrentUser, loading } = useAuth();
@@ -106,11 +107,7 @@ export default function MyProfilePage() {
   };
 
   if (loading || !user) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <MyProfileSkeleton />;
   }
 
   if (user.role === 'candidate') {

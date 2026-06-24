@@ -1,15 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowUpRight, Briefcase, Loader2 } from 'lucide-react';
+import { ArrowUpRight, Briefcase } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { jobsApi, type CreatedJob } from '@/lib/stage1-2-api';
+import { useJobsList } from '@/hooks/use-jobs';
+import { useAuth } from '@/lib/auth';
+import { TableRowsSkeleton } from '@/components/loading/table-rows-skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export type CompanyPostedJobsDashboardProps = {
   title: string;
@@ -31,34 +32,12 @@ export function CompanyPostedJobsDashboard({
   subtitle,
   jdCreateHref = '/jd-builder',
 }: CompanyPostedJobsDashboardProps) {
-  const { toast } = useToast();
   const pathname = usePathname();
   const isAdmin = pathname.startsWith('/admin');
   const routePrefix = isAdmin ? '/admin' : '';
-  const [jobs, setJobs] = useState<CreatedJob[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadJobs = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await jobsApi.list({ page: 1, limit: 100 });
-      setJobs(res.items ?? []);
-    } catch (error) {
-      toast({
-        title: 'Unable to load jobs',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
-      setJobs([]);
-    } finally {
-      setIsLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    void loadJobs();
-  }, [loadJobs]);
+  const { user, loading: authLoading } = useAuth();
+  const { data, isLoading } = useJobsList({ page: 1, limit: 100 }, { enabled: !authLoading && !!user });
+  const jobs = data?.items ?? [];
 
   const postedJobs = jobs.filter((j) => j.status === 'open' || j.status === 'paused');
   const postedCount = postedJobs.length;
@@ -77,7 +56,11 @@ export function CompanyPostedJobsDashboard({
             <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{isLoading ? '—' : postedCount}</div>
+            {isLoading ? (
+              <Skeleton className="h-8 w-10" />
+            ) : (
+              <div className="text-2xl font-bold">{postedCount}</div>
+            )}
             <p className="text-xs text-muted-foreground">
               Live or paused roles for your company (same list candidates can discover when published).
             </p>
@@ -113,14 +96,7 @@ export function CompanyPostedJobsDashboard({
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading jobs…
-                    </span>
-                  </TableCell>
-                </TableRow>
+                <TableRowsSkeleton rows={4} cols={5} />
               ) : postedJobs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">

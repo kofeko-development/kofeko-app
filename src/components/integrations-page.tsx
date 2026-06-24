@@ -7,8 +7,13 @@ import { Building2, CheckCircle, Linkedin, Link2, RefreshCw, Unlink, User } from
 import { ApiError } from "@/lib/api-client";
 import { getErrorDisplay } from "@/lib/error-messages";
 import { useAuth } from "@/lib/auth";
-import { linkedInApi, type LinkedInStatus } from "@/lib/linkedin-api";
+import { linkedInApi } from "@/lib/linkedin-api";
 import { useToast } from "@/hooks/use-toast";
+import {
+  useInvalidateLinkedInStatus,
+  useLinkedInStatus,
+  useSetLinkedInStatus,
+} from "@/hooks/use-linkedin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function IntegrationsPage() {
   const { user, hasPermission } = useAuth();
@@ -25,9 +31,18 @@ export default function IntegrationsPage() {
   const canRead = hasPermission("linkedin:read") || hasPermission("linkedin:connect") || hasPermission("linkedin:post");
   const canConnect = hasPermission("linkedin:connect");
 
-  const [status, setStatus] = useState<LinkedInStatus | null>(null);
+  const invalidateLinkedInStatus = useInvalidateLinkedInStatus();
+  const setLinkedInStatus = useSetLinkedInStatus();
+  const {
+    data: status,
+    isLoading,
+    isFetching,
+    isError: statusError,
+    error: statusLoadError,
+    refetch: refetchLinkedInStatus,
+  } = useLinkedInStatus({ enabled: Boolean(user) && canRead });
+
   const [postAsOrg, setPostAsOrg] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isSavingPref, setIsSavingPref] = useState(false);
@@ -65,37 +80,29 @@ export default function IntegrationsPage() {
     return null;
   }, [searchParams]);
 
-  const loadStatus = async () => {
-    setIsLoading(true);
-    try {
-      const s = await linkedInApi.status();
-      setStatus(s);
-      if (s.connected) {
-        setPostAsOrg(s.postAsOrg ?? Boolean(s.hasOrgPage));
-      }
-    } catch (e) {
-      toast({
-        title: "Unable to load LinkedIn status",
-        description: e instanceof Error ? e.message : "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (!user || !canRead) return;
-    void loadStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, canRead]);
+    if (!status?.connected) return;
+    setPostAsOrg(status.postAsOrg ?? Boolean(status.hasOrgPage));
+  }, [status]);
 
   useEffect(() => {
     if (searchParams.get("linkedin") === "connected") {
-      void loadStatus();
+      void invalidateLinkedInStatus();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, invalidateLinkedInStatus]);
+
+  useEffect(() => {
+    if (!statusError) return;
+    toast({
+      title: "Unable to load LinkedIn status",
+      description: statusLoadError instanceof Error ? statusLoadError.message : "Please try again.",
+      variant: "destructive",
+    });
+  }, [statusError, statusLoadError, toast]);
+
+  const loadStatus = async () => {
+    await refetchLinkedInStatus();
+  };
 
   const onConnect = async () => {
     setIsConnecting(true);
@@ -116,7 +123,7 @@ export default function IntegrationsPage() {
     setIsDisconnecting(true);
     try {
       await linkedInApi.disconnect();
-      setStatus({ connected: false });
+      setLinkedInStatus({ connected: false });
       toast({ title: "LinkedIn disconnected" });
     } catch (e) {
       toast({
@@ -134,7 +141,7 @@ export default function IntegrationsPage() {
     try {
       const res = await linkedInApi.refreshOrganization();
       toast({ title: "Company page loaded", description: res.orgName ?? `Page ID ${res.orgId}` });
-      await loadStatus();
+      await invalidateLinkedInStatus();
     } catch (e) {
       const display = getErrorDisplay(
         e instanceof ApiError ? e.errorCode : undefined,
@@ -156,7 +163,7 @@ export default function IntegrationsPage() {
           ? `${res.orgName ?? res.orgId} — ready for Post now`
           : `${res.orgName ?? res.orgId} linked, but reconnect with org scopes to post as the page.`,
       });
-      await loadStatus();
+      await invalidateLinkedInStatus();
     } catch (e) {
       const display = getErrorDisplay(
         e instanceof ApiError ? e.errorCode : undefined,
@@ -172,7 +179,7 @@ export default function IntegrationsPage() {
     setIsSavingPref(true);
     try {
       await linkedInApi.updatePreference(postAsOrg);
-      await loadStatus();
+      await invalidateLinkedInStatus();
       toast({ title: "Preference saved" });
     } catch (e) {
       toast({
@@ -233,9 +240,10 @@ export default function IntegrationsPage() {
 
         <CardContent className="space-y-4">
           {isLoading && !status ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Loading connection status…
+            <div className="space-y-4">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-10 w-48" />
             </div>
           ) : !status?.connected ? (
             <div className="space-y-4">
@@ -365,7 +373,7 @@ export default function IntegrationsPage() {
               ) : null}
 
               <div className="flex flex-wrap gap-2 pt-2 border-t">
-                <Button variant="outline" size="sm" onClick={() => void loadStatus()} disabled={isLoading}>
+                <Button variant="outline" size="sm" onClick={() => void loadStatus()} disabled={isLoading || isFetching}>
                   <RefreshCw className="mr-2 h-3 w-3" />
                   Refresh
                 </Button>
