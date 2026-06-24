@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { aiApi, jobsApi, type SkillWeight } from '@/lib/stage1-2-api';
 import { useAuth } from '@/lib/auth';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+import { useInvalidateJobs } from '@/hooks/use-jobs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -123,6 +124,7 @@ export default function JdBuilderPage() {
   const { toast } = useToast();
   const { showError } = useApiErrorToast();
   const { user, loading: authLoading } = useAuth();
+  const invalidateJobs = useInvalidateJobs();
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -226,11 +228,12 @@ export default function JdBuilderPage() {
         await jobsApi.publish(created.id);
       }
 
+      await invalidateJobs();
       toast({
         title: status === 'open' ? 'Job Posted!' : 'Draft Saved!',
         description: status === 'open' ? 'Your job is now live.' : 'You can find it in your drafts.',
       });
-      loadDrafts();
+      void loadDrafts();
       if (status === 'open') {
         setEditingId(null);
         setJobTitle('');

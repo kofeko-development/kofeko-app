@@ -15,6 +15,7 @@ import sanitizeHtml from 'sanitize-html';
 import { aiApi, jobsApi, type CreatedJob } from '@/lib/stage1-2-api';
 import { useAuth } from '@/lib/auth';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+import { useInvalidateJobs } from '@/hooks/use-jobs';
 
 const MIN_MANUAL_SKILLS = 2;
 
@@ -96,6 +97,7 @@ export default function AdminJdCreatorPage() {
   const { toast } = useToast();
   const { showError } = useApiErrorToast();
   const { user, loading: authLoading } = useAuth();
+  const invalidateJobs = useInvalidateJobs();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editJobId = searchParams.get('edit');
@@ -283,11 +285,12 @@ export default function AdminJdCreatorPage() {
         await jobsApi.publish(created.id);
       }
 
+      await invalidateJobs();
       toast({
         title: status === 'open' ? 'Job Posted!' : 'Draft Saved!',
         description: status === 'open' ? 'Your job is now live.' : 'You can find it in your drafts.',
       });
-      loadDrafts();
+      void loadDrafts();
       if (status === 'open') {
         setEditingId(null);
         setJobTitle('');

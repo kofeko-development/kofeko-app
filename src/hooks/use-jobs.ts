@@ -12,12 +12,16 @@ export function useJobsList(
     queryKey: jobsQueryKey(params),
     queryFn: () => jobsApi.list(params),
     enabled: options?.enabled ?? true,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
 export function useInvalidateJobs() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ['jobs'] });
+  return async () => {
+    await queryClient.invalidateQueries({ queryKey: ['jobs'] });
+  };
 }
 
 export type { PaginatedJobsResponse };

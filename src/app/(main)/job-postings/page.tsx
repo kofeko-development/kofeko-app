@@ -91,7 +91,12 @@ export default function JobPostingsPage() {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const invalidateJobs = useInvalidateJobs();
-  const { data: jobsData, isLoading } = useJobsList({ page: 1, limit: 100 }, { enabled: !authLoading && !!user });
+  const jobsQueryEnabled = !authLoading && !!user;
+  const { data: jobsData, isPending, isFetching } = useJobsList(
+    { page: 1, limit: 100 },
+    { enabled: jobsQueryEnabled },
+  );
+  const isLoading = authLoading || !jobsQueryEnabled || isPending || (isFetching && !jobsData);
   const jobs = useMemo(() => (jobsData?.items ?? []).map(mapApiJobToRow), [jobsData]);
   const [isSaving, setIsSaving] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);

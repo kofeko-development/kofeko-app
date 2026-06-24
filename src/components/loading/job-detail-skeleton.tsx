@@ -47,11 +47,21 @@ export function JobDetailSkeleton() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12" />
-                <TableHead>Candidate</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Match</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-12">
+                  <Skeleton className="h-4 w-4" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-4 w-24" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-4 w-16" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-4 w-14" />
+                </TableHead>
+                <TableHead className="text-right">
+                  <Skeleton className="ml-auto h-4 w-16" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
