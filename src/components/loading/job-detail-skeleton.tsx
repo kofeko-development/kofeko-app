@@ -1,48 +1,48 @@
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import { TableRowsSkeleton } from './table-rows-skeleton';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export function JobDetailSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
-          <Skeleton className="h-4 w-20" />
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-9 w-72 max-w-full" />
-            <Skeleton className="h-6 w-16 rounded-full" />
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 space-y-1.5">
+          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-3.5 w-14" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-36 max-w-[50vw]" />
+            <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
           </div>
-          <Skeleton className="h-4 w-56" />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-32" />
-          <Skeleton className="h-10 w-28" />
+        <div className="flex shrink-0 flex-nowrap items-center gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-9 w-20" />
         </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2">
-              <Skeleton className="h-4 w-24" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-12" />
-            </CardContent>
-          </Card>
-        ))}
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-64" />
+        <CardContent className="grid items-end gap-3 pt-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5 lg:col-span-2">
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-10 w-full" />
           </div>
-          <Skeleton className="h-10 w-36" />
-        </CardHeader>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ))}
+        </CardContent>
+        <Separator />
+        <CardFooter className="justify-end px-6 py-2.5">
+          <Skeleton className="h-9 w-28" />
+        </CardFooter>
+      </Card>
+
+      <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -65,7 +65,7 @@ export function JobDetailSkeleton() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRowsSkeleton rows={6} cols={5} />
+              <TableRowsSkeleton rows={4} cols={5} />
             </TableBody>
           </Table>
         </CardContent>

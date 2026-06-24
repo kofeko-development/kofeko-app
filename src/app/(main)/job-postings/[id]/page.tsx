@@ -1,6 +1,6 @@
 
 'use client';
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useParams, usePathname } from 'next/navigation';
@@ -167,18 +167,25 @@ export default function JobApplicantsPage() {
     const isAdmin = pathname.startsWith('/admin');
     const routePrefix = isAdmin ? '/admin' : '';
     const id = params.id as string;
-    const { user, hasPermission } = useAuth();
+    const { user, hasPermission, loading: authLoading } = useAuth();
     const { toast } = useToast();
     const { showError } = useApiErrorToast();
     const invalidateJobDetail = useInvalidateJobDetail();
-    const queriesEnabled = Boolean(id) && !!user;
-    const { data: job = null, isLoading: jobLoading } = useJobDetail(id, queriesEnabled);
+    const queriesEnabled = Boolean(id) && !!user && !authLoading;
+    const { data: job = null, isPending: jobPending, isFetching: jobFetching } = useJobDetail(id, queriesEnabled);
     const {
         data: applicantsData,
-        isLoading: applicantsLoading,
+        isPending: applicantsPending,
+        isFetching: applicantsFetching,
         refetch: refetchApplicantsData,
     } = useJobApplicantsData(id, queriesEnabled);
-    const isLoading = jobLoading || applicantsLoading;
+    const isLoading =
+        authLoading ||
+        !queriesEnabled ||
+        jobPending ||
+        applicantsPending ||
+        (jobFetching && job === null) ||
+        (applicantsFetching && applicantsData === undefined);
 
     const [applicants, setApplicants] = useState<Applicant[]>([]);
 
@@ -403,7 +410,7 @@ export default function JobApplicantsPage() {
         }
     }, [refetchApplicantsData, showError]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!applicantsData) return;
         const rankMap = buildRankMap(applicantsData.rankingsRes);
         setApplicants(applicantsData.pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
@@ -766,7 +773,7 @@ export default function JobApplicantsPage() {
 
     if (!job) {
         return (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center py-16">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold">Job not found</h2>
                     <p className="text-muted-foreground">The job posting you are looking for does not exist.</p>
@@ -874,27 +881,34 @@ export default function JobApplicantsPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm text-muted-foreground">Job Post</p>
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
-                        <Badge
-                            variant="secondary"
-                            className={`capitalize font-bold text-xs px-2.5 py-0.5 border ${job.status === 'open' ? 'bg-green-50 text-green-700 border-green-200' :
-                                job.status === 'draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                    'bg-slate-50 text-slate-700 border-slate-200'
-                                }`}
-                        >
-                            {job.status}
-                        </Badge>
-                    </div>
-                </div>
-                <div className='flex gap-2'>
-                    <Button variant="outline" onClick={() => router.back()}>
-                        <ArrowLeft className="mr-2 h-4 w-4" />
+            <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="-ml-2 h-8 px-2 text-muted-foreground hover:text-foreground"
+                        onClick={() => router.back()}
+                    >
+                        <ArrowLeft className="mr-1.5 h-4 w-4" />
                         Back
                     </Button>
+                    <div>
+                        <p className="text-sm text-muted-foreground">Job Post</p>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
+                            <Badge
+                                variant="secondary"
+                                className={`capitalize font-bold text-xs px-2.5 py-0.5 border ${job.status === 'open' ? 'bg-green-50 text-green-700 border-green-200' :
+                                    job.status === 'draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                        'bg-slate-50 text-slate-700 border-slate-200'
+                                    }`}
+                            >
+                                {job.status}
+                            </Badge>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
                     {canRunAiEvaluation && (
                         <Button
                             variant="outline"

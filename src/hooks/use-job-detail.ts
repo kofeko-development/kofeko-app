@@ -6,6 +6,8 @@ export function useJobDetail(jobId: string, enabled = true) {
     queryKey: ['job', jobId],
     queryFn: () => jobsApi.get(jobId),
     enabled: Boolean(jobId) && enabled,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
@@ -20,6 +22,8 @@ export function useJobApplicantsData(jobId: string, enabled = true) {
       return { pipeRes, rankingsRes };
     },
     enabled: Boolean(jobId) && enabled,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
