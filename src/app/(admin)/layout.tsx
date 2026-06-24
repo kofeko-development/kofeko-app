@@ -116,9 +116,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ...(hasPermission('user:read')
       ? [{ href: '/admin/team', label: 'Team', icon: Users }]
       : []),
-    ...(hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post')
-      ? [{ href: '/admin/integrations', label: 'Integrations', icon: Settings }]
-      : []),
   ];
 
   const AdminHeader = () => (

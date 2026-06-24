@@ -185,7 +185,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'], comingSoon: true },
         { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'], comingSoon: true },
         { href: '/team', label: 'Team', icon: Users, permissions: ['user:read'] },
-        { href: '/settings/integrations', label: 'Integrations', icon: Settings, permissions: ['linkedin:read', 'linkedin:connect', 'linkedin:post'] },
     ];
 
     const recruiterNav = allRecruiterNav.filter((item) => item.permissions.some((permission) => hasPermission(permission)));
@@ -200,9 +199,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/admin/candidates', label: 'Candidates', icon: Contact },
         ...(hasPermission('user:read')
             ? [{ href: '/admin/team', label: 'Team', icon: Users }]
-            : []),
-        ...(hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post')
-            ? [{ href: '/admin/integrations', label: 'Integrations', icon: Settings }]
             : []),
     ];
 

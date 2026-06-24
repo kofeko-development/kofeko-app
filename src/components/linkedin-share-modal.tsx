@@ -296,26 +296,26 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(90vh,100dvh-2rem)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:w-full">
-        <DialogHeader className="shrink-0 space-y-1 border-b px-6 py-4 pr-12">
+      <DialogContent className="flex h-[min(92vh,52rem)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:w-full">
+        <DialogHeader className="shrink-0 space-y-2 border-b px-8 py-5 pr-14">
           <DialogTitle className="flex items-center gap-2">
-            <Linkedin className="h-5 w-5" />
+            <Linkedin className="h-5 w-5 shrink-0" />
             Share to LinkedIn
           </DialogTitle>
-          <DialogDescription>
-            Copy text, open LinkedIn to post manually, or post instantly from your connected account. Upload an image for Post now.
+          <DialogDescription className="text-left">
+            Copy text, open LinkedIn manually, or post instantly. Upload an image for Post now.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="mx-6 mt-4 w-auto shrink-0 justify-start">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <TabsList className="mx-8 mt-5 h-11 w-fit shrink-0 justify-start">
             <TabsTrigger value="compose">Compose</TabsTrigger>
             <TabsTrigger value="connect">Connect</TabsTrigger>
             {canRead ? <TabsTrigger value="history">History</TabsTrigger> : null}
           </TabsList>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-          <TabsContent value="compose" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-8 py-5">
+          <TabsContent value="compose" className="mt-0 space-y-5 focus-visible:outline-none focus-visible:ring-0">
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
                 {preview ? (
@@ -333,17 +333,17 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
               </Button>
             </div>
 
-            <div className="space-y-3 rounded-lg border p-4">
+            <div className="space-y-4 rounded-lg border p-5">
               <Label className="text-sm font-medium">Share image (optional)</Label>
               <p className="text-xs text-muted-foreground">
-                Used for Post now. For Copy text or Open on LinkedIn, download the image and attach it manually on LinkedIn.
+                Used for Post now. For Copy or Open on LinkedIn, download and attach manually.
               </p>
               {preview?.imageUrl ? (
-                <div className="flex flex-col sm:flex-row gap-4 items-start">
+                <div className="flex flex-col gap-3">
                   <img
                     src={preview.imageUrl}
                     alt="LinkedIn share preview"
-                    className="max-h-40 rounded-md border object-contain"
+                    className="max-h-48 w-full max-w-sm rounded-md border object-contain"
                   />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" asChild>
@@ -418,12 +418,12 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
               placeholder="Write your LinkedIn post…"
-              className="min-h-[120px] max-h-[200px] resize-y"
+              className="min-h-[220px] w-full min-w-0 resize-none text-sm leading-relaxed"
               disabled={!preview || isLoadingPreview}
             />
 
             {status?.connected && status.hasOrgPage ? (
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <div className="rounded-lg border bg-muted/30 p-5 space-y-4">
                 <Label className="text-sm font-medium">Post as</Label>
                 <RadioGroup
                   value={postAsOrg ? "org" : "personal"}
@@ -457,7 +457,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
             {status?.connected && !status.hasOrgPage ? (
               <Alert>
                 <AlertTitle>No company page linked</AlertTitle>
-                <AlertDescription>
+                <AlertDescription className="break-words text-sm">
                   {status.orgDiscoveryHint ?? (
                     <>
                       Posts will go to your personal profile ({status.name}). Link your LinkedIn Company Page in{" "}
@@ -474,7 +474,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
             {status?.connected && status.hasOrgPage && status.canPostAsCompanyPage === false ? (
               <Alert variant="destructive">
                 <AlertTitle>Cannot post as company yet</AlertTitle>
-                <AlertDescription>
+                <AlertDescription className="break-words text-sm">
                   A page is linked but your token lacks company-post permission. Enable org scopes in backend .env and reconnect in{" "}
                   <Link href="/settings/integrations" className="underline">
                     Settings → Integrations
@@ -498,7 +498,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
             ) : null}
           </TabsContent>
 
-          <TabsContent value="connect" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          <TabsContent value="connect" className="mt-0 space-y-5 focus-visible:outline-none focus-visible:ring-0">
             {isLoadingStatus && !status ? (
               <p className="text-sm text-muted-foreground">Loading status…</p>
             ) : status?.connected ? (
@@ -537,7 +537,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
           </TabsContent>
 
           {canRead ? (
-            <TabsContent value="history" className="mt-0 space-y-3 data-[state=inactive]:hidden">
+            <TabsContent value="history" className="mt-0 space-y-4 focus-visible:outline-none focus-visible:ring-0">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">Recent LinkedIn actions for this job.</p>
                 <Button variant="outline" size="sm" onClick={() => void loadHistory()} disabled={isLoadingHistory}>
@@ -583,15 +583,15 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
           </div>
         </Tabs>
 
-        {activeTab === "compose" ? (
-          <DialogFooter className="shrink-0 flex-col gap-2 border-t bg-background px-6 py-4 sm:flex-row sm:flex-wrap sm:justify-start">
-            <Button variant="secondary" onClick={() => void onCopyText()} disabled={!preview}>
+        <DialogFooter className="shrink-0 gap-3 border-t bg-background px-8 py-5 sm:justify-between">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="secondary" onClick={() => void onCopyText()} disabled={!preview || activeTab !== "compose"}>
               <Copy className="mr-2 h-4 w-4" />
               Copy text
             </Button>
 
             {preview?.imageUrl ? (
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild disabled={activeTab !== "compose"}>
                 <a href={preview.imageUrl} target="_blank" rel="noreferrer" download>
                   <Download className="mr-2 h-4 w-4" />
                   Download image
@@ -599,15 +599,17 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
               </Button>
             ) : null}
 
-            <Button variant="outline" onClick={() => void onOpenShare()} disabled={!preview}>
+            <Button variant="outline" onClick={() => void onOpenShare()} disabled={!preview || activeTab !== "compose"}>
               <ExternalLink className="mr-2 h-4 w-4" />
               Open on LinkedIn
             </Button>
+          </div>
 
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <Button
-              className="sm:ml-auto"
+              className="w-full sm:w-auto"
               onClick={() => void onAutoPost()}
-              disabled={!preview || isPosting || !status?.connected}
+              disabled={!preview || isPosting || !status?.connected || activeTab !== "compose"}
               title={
                 preview?.hasShareImage
                   ? "Post with image and text to your connected LinkedIn"
@@ -618,13 +620,16 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
               Post now
             </Button>
 
-            {preview && !preview.hasShareImage ? (
-              <p className="w-full text-xs text-muted-foreground sm:basis-full">
-                Post now shares a link preview unless you upload an image above.
-              </p>
-            ) : null}
-          </DialogFooter>
-        ) : null}
+            <p
+              className={`text-center text-xs text-muted-foreground sm:text-right ${
+                activeTab !== "compose" || preview?.hasShareImage ? "invisible h-0 overflow-hidden" : ""
+              }`}
+              aria-hidden={activeTab !== "compose" || preview?.hasShareImage}
+            >
+              Post now uses a link preview unless you upload an image.
+            </p>
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
