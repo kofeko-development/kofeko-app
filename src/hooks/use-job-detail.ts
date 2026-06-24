@@ -25,9 +25,11 @@ export function useJobApplicantsData(jobId: string, enabled = true) {
 
 export function useInvalidateJobDetail() {
   const queryClient = useQueryClient();
-  return (jobId: string) => {
-    void queryClient.invalidateQueries({ queryKey: ['job', jobId] });
-    void queryClient.invalidateQueries({ queryKey: ['job-applicants', jobId] });
-    void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+  return async (jobId: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['job', jobId] }),
+      queryClient.invalidateQueries({ queryKey: ['job-applicants', jobId] }),
+      queryClient.invalidateQueries({ queryKey: ['jobs'] }),
+    ]);
   };
 }

@@ -388,8 +388,8 @@ export default function JobApplicantsPage() {
         }
     };
 
-    const loadData = useCallback(() => {
-        invalidateJobDetail(id);
+    const loadData = useCallback(async () => {
+        await invalidateJobDetail(id);
     }, [id, invalidateJobDetail]);
 
     const refreshApplicants = useCallback(async () => {
@@ -601,11 +601,11 @@ export default function JobApplicantsPage() {
                 candidateId: pipe.candidateId,
                 pipelineId,
             });
+            await loadData();
             toast({
                 title: 'Evaluation Complete',
                 description: 'AI has analyzed the resume.',
             });
-            await loadData();
         } catch (error) {
             showError(error);
         } finally {
@@ -641,13 +641,13 @@ export default function JobApplicantsPage() {
         setIsBatchEvaluating(true);
         try {
             const result = await evaluationsApi.evaluateAll(id);
+            await loadData();
             const msg = formatBatchEvaluationMessage(result, applicants.length);
             toast({
                 title: msg.title,
                 description: msg.description,
                 variant: result.failed > 0 && result.evaluated === 0 ? 'destructive' : 'default',
             });
-            await loadData();
         } catch (error) {
             showError(error);
         } finally {
