@@ -117,6 +117,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             return;
         }
 
+        if (hasPermission('rbac:manage') && pathname.startsWith('/settings')) {
+            const query = typeof window !== 'undefined' ? window.location.search : '';
+            router.replace(`/admin/integrations${query}`);
+            return;
+        }
+
         // Operator/admin → redirect to admin layout, but spare shared pipeline pages
         const isSharedPage = 
             pathname.startsWith('/profile') ||
@@ -195,6 +201,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         ...(hasPermission('user:read')
             ? [{ href: '/admin/team', label: 'Team', icon: Users }]
             : []),
+        ...(hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post')
+            ? [{ href: '/admin/integrations', label: 'Integrations', icon: Settings }]
+            : []),
     ];
 
     const candidateNavLinks = [
@@ -255,6 +264,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 <Link href={hasPermission('rbac:manage') ? '/admin/subscription' : '/subscription'}>
                                     <CreditCard className="mr-2 h-4 w-4" />
                                     <span>Subscription</span>
+                                </Link>
+                            </DropdownMenuItem>
+                        )}
+                        {(hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post')) && (
+                            <DropdownMenuItem asChild>
+                                <Link href={hasPermission('rbac:manage') ? '/admin/integrations' : '/settings/integrations'}>
+                                    <Settings className="mr-2 h-4 w-4" />
+                                    <span>Integrations</span>
                                 </Link>
                             </DropdownMenuItem>
                         )}

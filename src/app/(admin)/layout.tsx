@@ -22,6 +22,7 @@ import {
   Mic,
   CreditCard,
   Users,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
@@ -45,6 +46,7 @@ const adminRoutes = [
   '/admin/company-profile',
   '/admin/subscription',
   '/admin/team',
+  '/admin/integrations',
   '/my-profile',
   '/profile',
 ];
@@ -53,6 +55,7 @@ function getAdminHeaderTitle(pathname: string): string {
   if (pathname.startsWith('/admin/company-profile')) return 'Company Profile';
   if (pathname.startsWith('/admin/subscription')) return 'Subscription';
   if (pathname.startsWith('/admin/team')) return 'Team';
+  if (pathname.startsWith('/admin/integrations')) return 'Integrations';
   return 'Company dashboard';
 }
 
@@ -113,6 +116,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ...(hasPermission('user:read')
       ? [{ href: '/admin/team', label: 'Team', icon: Users }]
       : []),
+    ...(hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post')
+      ? [{ href: '/admin/integrations', label: 'Integrations', icon: Settings }]
+      : []),
   ];
 
   const AdminHeader = () => (
@@ -152,6 +158,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <DropdownMenuItem onClick={() => router.push('/admin/subscription')}>
                 <CreditCard className="mr-2 h-4 w-4" />
                 <span>Subscription</span>
+              </DropdownMenuItem>
+            )}
+            {(hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post')) && (
+              <DropdownMenuItem onClick={() => router.push('/admin/integrations')}>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Integrations</span>
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={logout}>
