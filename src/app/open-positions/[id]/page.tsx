@@ -389,7 +389,7 @@ export default function JobApplicationPage() {
 
             // Small delay before redirecting to show the success toast
             setTimeout(() => {
-                router.push('/my-applications');
+                router.push('/find-jobs');
             }, 1500);
 
         } catch (error) {
