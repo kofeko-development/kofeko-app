@@ -85,7 +85,7 @@ export default function CompanyProfilePage() {
   const isStaffUser = user?.role === 'recruiter' || user?.role === 'operator';
   const {
     data: companyProfile,
-    isLoading: isLoadingProfile,
+    isPending,
     isError: profileError,
     error: profileLoadError,
   } = useCompanyProfile({ enabled: !loading && isStaffUser });
@@ -96,11 +96,13 @@ export default function CompanyProfilePage() {
   );
 
   useEffect(() => {
+    if (loading) return;
+
     if (!isStaffUser) {
       setHasHydratedForm(true);
       return;
     }
-    if (isLoadingProfile) return;
+    if (isPending) return;
 
     if (companyProfile) {
       const loaded: FormState = {
@@ -125,7 +127,7 @@ export default function CompanyProfilePage() {
       setHasCompanyProfile(false);
     }
     setHasHydratedForm(true);
-  }, [companyProfile, isLoadingProfile, isStaffUser]);
+  }, [companyProfile, isPending, isStaffUser, loading]);
 
   useEffect(() => {
     if (!profileError) return;

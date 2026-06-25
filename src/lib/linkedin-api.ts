@@ -11,24 +11,27 @@ export type LinkedInPreview = {
   hasImage?: boolean;
 };
 
-export type LinkedInStatus =
-  | { connected: false }
-  | {
-      connected: true;
-      name?: string | null;
-      email?: string | null;
-      connectedAt?: string | null;
-      isExpired?: boolean;
-      orgScopesEnabled?: boolean;
-      grantedScopes?: string[];
-      canPostAsCompanyPage?: boolean;
-      orgDiscoveryHint?: string | null;
-      hasOrgPage?: boolean;
-      orgName?: string | null;
-      orgId?: string | null;
-      postAsOrg?: boolean;
-      willPostAs?: string;
-    };
+export type LinkedInConnectionDetails = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  connectedAt?: string | null;
+  isExpired?: boolean;
+  grantedScopes?: string[];
+  canPostAsCompanyPage?: boolean;
+  orgDiscoveryHint?: string | null;
+  hasOrgPage?: boolean;
+  orgName?: string | null;
+  orgId?: string | null;
+  postAsOrg?: boolean;
+  willPostAs?: string;
+};
+
+export type LinkedInStatus = {
+  connected: boolean;
+  orgScopesEnabled?: boolean;
+  connections?: LinkedInConnectionDetails[];
+};
 
 export type LinkedInPostResult = {
   postId: string;
@@ -89,24 +92,24 @@ export const linkedInApi = {
     return apiRequest<LinkedInStatus>(`/linkedin/status`, { auth: true });
   },
 
-  updatePreference(postAsOrg: boolean) {
-    return apiRequest<{ postAsOrg: boolean }>(`/linkedin/preference`, {
+  updatePreference(connectionId: string, postAsOrg: boolean) {
+    return apiRequest<{ postAsOrg: boolean }>(`/linkedin/preference/${connectionId}`, {
       method: 'PATCH',
       auth: true,
       body: { postAsOrg },
     });
   },
 
-  refreshOrganization() {
-    return apiRequest<{ orgId: string; orgName: string | null }>(`/linkedin/refresh-organization`, {
+  refreshOrganization(connectionId: string) {
+    return apiRequest<{ orgId: string; orgName: string | null }>(`/linkedin/refresh-organization/${connectionId}`, {
       method: 'POST',
       auth: true,
     });
   },
 
-  setOrganization(orgId: string, orgName?: string) {
+  setOrganization(connectionId: string, orgId: string, orgName?: string) {
     return apiRequest<{ orgId: string; orgName: string | null; canPostAsCompanyPage: boolean }>(
-      `/linkedin/organization`,
+      `/linkedin/organization/${connectionId}`,
       {
         method: 'PATCH',
         auth: true,
@@ -115,12 +118,12 @@ export const linkedInApi = {
     );
   },
 
-  disconnect() {
-    return apiRequest<null>(`/linkedin/disconnect`, { method: 'DELETE', auth: true });
+  disconnect(connectionId: string) {
+    return apiRequest<null>(`/linkedin/disconnect/${connectionId}`, { method: 'DELETE', auth: true });
   },
 
-  autoPost(input: { jobId: string; customText?: string; postAsOrg?: boolean }) {
-    return apiRequest<LinkedInPostResult>(`/linkedin/post`, {
+  autoPost(input: { jobId: string; customText?: string; connectionIds?: string[] }) {
+    return apiRequest<LinkedInPostResult[]>(`/linkedin/post`, {
       method: 'POST',
       auth: true,
       body: input,
