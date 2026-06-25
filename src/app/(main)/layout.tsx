@@ -202,8 +202,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const candidateNavLinks = [
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/find-jobs', label: 'Find Jobs', icon: Search },
-        { href: '/my-applications', label: 'Jobs Applied To', icon: FileText },
-        { href: '/inbox', label: 'Inbox', icon: Inbox }
+        { href: '/my-applications', label: 'Jobs Applied To', icon: FileText }
     ];
 
     const RecruiterHeader = () => (
@@ -279,8 +278,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     )
 
     const CandidateHeader = () => {
-        const unreadCount = 0;
-        const notifications: Array<{ id: string; subject: string; read: boolean }> = [];
 
         return (
             <header className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-white/95 shadow-md backdrop-blur-sm">
@@ -308,36 +305,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 ))}
                             </nav>
                             <div className="flex items-center pl-2 gap-2">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="relative">
-                                            <Bell className="h-5 w-5" />
-                                            {unreadCount > 0 && (
-                                                <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
-                                                    {unreadCount}
-                                                </span>
-                                            )}
-                                            <span className="sr-only">Notifications</span>
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-80">
-                                        <DropdownMenuLabel>Recent Notifications</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        {notifications.length > 0 ? notifications.map(n => (
-                                            <DropdownMenuItem key={n.id} asChild className="cursor-pointer focus:bg-primary/5">
-                                                <Link href={`/inbox?select=${n.id}`}>
-                                                    <p className={cn("font-semibold truncate", !n.read && "text-primary", n.read && "text-foreground/80 focus:text-foreground/80")}>{n.subject}</p>
-                                                </Link>
-                                            </DropdownMenuItem>
-                                        )) : (
-                                            <p className="p-2 text-sm text-muted-foreground">No new notifications.</p>
-                                        )}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem asChild className="cursor-pointer font-semibold justify-center focus:bg-primary/5 focus:text-primary">
-                                            <Link href="/inbox">View all notifications</Link>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                <HeaderInboxPopover />
 
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>

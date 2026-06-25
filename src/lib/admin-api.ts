@@ -29,6 +29,7 @@ type ApiCandidate = {
   email: string;
   currentCompany?: string | null;
   status: string;
+  applications?: { job: { title: string } }[];
 };
 
 function mapBackendRolesToUser(roles: string[] | undefined): Pick<User, 'role' | 'companyRole' | 'backendRoles'> {
@@ -110,11 +111,15 @@ function mapCandidateStatusToUserStatus(status: string): User['status'] {
 
 export function mapCandidateToDisplayUser(c: ApiCandidate): User {
   const name = `${c.firstName} ${c.lastName}`.trim();
+  const appliedRole = c.applications && c.applications.length > 0 
+    ? c.applications.map(a => a.job?.title).filter(Boolean).join(', ') 
+    : undefined;
   return {
     uid: c.id,
     email: c.email,
     name: name || c.email,
     role: 'candidate',
+    appliedRole,
     company: c.currentCompany ?? undefined,
     status: mapCandidateStatusToUserStatus(c.status),
   };

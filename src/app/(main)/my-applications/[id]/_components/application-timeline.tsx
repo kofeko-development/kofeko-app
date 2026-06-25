@@ -3,6 +3,7 @@
 import React from 'react';
 import { CheckCircle, Circle, Clock, FileCheck, Mic, Award, XCircle, Users } from 'lucide-react';
 import { getActiveHiringStages } from '@/lib/hiring-stages';
+import { cn } from '@/lib/utils';
 
 const getStageIcon = (stageKey: string) => {
   switch (stageKey) {

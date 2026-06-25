@@ -181,8 +181,8 @@ export default function UserTable({
                                         </div>
                                     </TableCell>
                                      <TableCell>
-                                        <Badge variant={roleVariantMap[user.role]} className="capitalize">
-                                            {user.companyRole ?? user.role}
+                                        <Badge variant={roleVariantMap[user.role]} className={user.appliedRole ? "" : "capitalize"}>
+                                            {user.appliedRole ?? user.companyRole ?? user.role}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>

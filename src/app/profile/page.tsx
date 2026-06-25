@@ -55,6 +55,7 @@ export default function ProfilePage() {
   const [currentHobby, setCurrentHobby] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
 
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
@@ -127,11 +128,31 @@ export default function ProfilePage() {
     return false;
   }, [user, name, isPhoneChanged, coverLetter, skills, hobbies, workExperience, education, projects]);
 
-  const handleVerifyPhoneWithMsg91 = () => {
+  const handleVerifyPhoneWithMsg91 = async () => {
     if (!phoneValidation.ok) {
       toast({ title: 'Invalid phone', description: phoneValidation.error, variant: 'destructive' });
       return;
     }
+
+    setIsVerifyingPhone(true);
+    try {
+      const checkRes = await apiRequest<{ available: boolean }>(
+        `/portal/profile/check-phone?phone=${encodeURIComponent(currentFullPhone)}`,
+        { auth: true }
+      );
+
+      if (!checkRes.available) {
+        toast({ title: 'Phone number unavailable', description: 'This phone number is already registered to another candidate.', variant: 'destructive' });
+        setIsVerifyingPhone(false);
+        return;
+      }
+    } catch (error) {
+      toast({ title: 'Availability check failed', description: 'Could not verify if this phone number is available.', variant: 'destructive' });
+      setIsVerifyingPhone(false);
+      return;
+    }
+
+    setIsVerifyingPhone(false);
 
     if (typeof (window as any).initSendOTP !== 'function') {
       toast({ title: 'Service unavailable', description: 'Verification service is still loading. Please try again in a second.', variant: 'destructive' });
@@ -167,6 +188,9 @@ export default function ProfilePage() {
       setPhoneVerificationToken(token);
       setVerifiedPhone(currentFullPhone);
       toast({ title: 'Phone verified', description: 'Your phone number has been verified successfully.' });
+
+      // Auto-save immediately upon verification
+      setTimeout(() => saveChanges(currentFullPhone), 0);
     } catch (error) {
       toast({ title: 'Backend verification failed', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
     }
@@ -355,76 +379,77 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSaveChanges = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isPhoneVerified) {
-      toast({ title: 'Verify Phone', description: 'Please verify your new phone number before saving.', variant: 'destructive' });
+  const saveChanges = async (forcePhone?: string, isManualSave = false) => {
+    if (!isPhoneVerified && !forcePhone) {
+      if (isManualSave) {
+        toast({ title: 'Verify Phone', description: 'Please verify your new phone number before saving.', variant: 'destructive' });
+      }
       return;
     }
     setIsSaving(true);
 
-    (async () => {
-      try {
-        if (user) {
-          let fullPhone = user.phone || '';
-          if (isPhoneChanged) {
-            const phoneCheck = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
-            if (!phoneCheck.ok) {
+    try {
+      if (user) {
+        let fullPhone = forcePhone || user.phone || '';
+        if (isPhoneChanged && !forcePhone) {
+          const phoneCheck = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
+          if (!phoneCheck.ok) {
+            if (isManualSave) {
               toast({
                 title: 'Invalid phone',
                 description: phoneCheck.error,
                 variant: 'destructive',
               });
-              setIsSaving(false);
-              return;
             }
-            fullPhone = phoneCheck.e164;
+            setIsSaving(false);
+            return;
           }
-
-          if (user.role === 'candidate') {
-            // Save to backend
-            const updatedBackendUser = await apiRequest<BackendUser>('/portal/profile', {
-              method: 'PATCH',
-              auth: true,
-              body: {
-                firstName: name.split(' ')[0],
-                lastName: name.split(' ').slice(1).join(' ') || 'Candidate',
-                phone: fullPhone,
-                summary: coverLetter,
-                skills,
-                workExperience,
-                education,
-                projects,
-                hobbies,
-                linkedinUrl: user.linkedinProfileUrl || undefined, // Keeping existing if not changed
-              },
-            });
-
-            const mapped = mapBackendUser(updatedBackendUser);
-            updateCurrentUser({
-              ...mapped,
-              role: user.role, // Explicitly preserve the current role
-              permissions: user.permissions, // Preserve permissions too
-            });
-          }
+          fullPhone = phoneCheck.e164;
         }
 
+        if (user.role === 'candidate') {
+          // Save to backend
+          const updatedBackendUser = await apiRequest<BackendUser>('/portal/profile', {
+            method: 'PATCH',
+            auth: true,
+            body: {
+              firstName: name.split(' ')[0],
+              lastName: name.split(' ').slice(1).join(' ') || 'Candidate',
+              phone: fullPhone || undefined,
+              summary: coverLetter,
+              skills,
+              workExperience,
+              education,
+              projects,
+              hobbies,
+              linkedinUrl: user.linkedinProfileUrl || undefined, // Keeping existing if not changed
+            },
+          });
+
+          const mapped = mapBackendUser(updatedBackendUser);
+          updateCurrentUser({
+            ...mapped,
+            role: user.role, // Explicitly preserve the current role
+            permissions: user.permissions, // Preserve permissions too
+          });
+        }
+      }
+
+      if (isManualSave) {
         toast({
           title: 'Profile Updated',
           description: 'Your changes have been saved successfully.',
         });
-
-        // Removed redirects as requested. User stays on the same page.
-      } catch (err) {
-        toast({
-          title: 'Update failed',
-          description: err instanceof Error ? err.message : 'Please try again.',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsSaving(false);
       }
-    })();
+    } catch (err) {
+      toast({
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (loading || !user) {
@@ -455,7 +480,7 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      <form onSubmit={handleSaveChanges}>
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Personal Information</CardTitle>
@@ -476,7 +501,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between">
                 <Label>Phone Number</Label>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 <div className="flex-1">
                   <PhoneInternationalField
                     phoneCountryIso={phoneCountryIso}
@@ -511,17 +536,22 @@ export default function ProfilePage() {
                     Done
                   </Button>
                 )}
+                {isPhoneChanged && !isPhoneVerified && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isVerifyingPhone}
+                    onClick={handleVerifyPhoneWithMsg91}
+                    className="h-10 px-4 shrink-0"
+                  >
+                    {isVerifyingPhone && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Verify Phone
+                  </Button>
+                )}
               </div>
 
               {isPhoneChanged && !isPhoneVerified && (
-                <div className="mt-2 flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground">You changed your phone number. Verify it to save.</p>
-                    <Button type="button" size="sm" onClick={handleVerifyPhoneWithMsg91}>
-                      Verify Phone
-                    </Button>
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground mt-1 text-amber-600 dark:text-amber-500"></p>
               )}
               {isPhoneChanged && isPhoneVerified && (
                 <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mt-1">✓ Phone number verified</p>
@@ -760,7 +790,8 @@ export default function ProfilePage() {
         {/* Floating Save Button */}
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
           <Button
-            type="submit"
+            type="button"
+            onClick={(e) => { e.preventDefault(); saveChanges(undefined, true); }}
             disabled={isSaving || !hasChanges}
             className="h-12 px-8 rounded-full shadow-2xl hover:shadow-primary/20 transition-all duration-300 border border-primary/20 backdrop-blur-md disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
@@ -777,7 +808,7 @@ export default function ProfilePage() {
             )}
           </Button>
         </div>
-      </form>
+      </div>
       <Script src="https://verify.msg91.com/otp-provider.js" strategy="lazyOnload" />
       <Script src="https://verify.phone91.com/otp-provider.js" strategy="lazyOnload" />
     </div>

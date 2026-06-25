@@ -213,37 +213,34 @@ export default function CompanyProfilePage() {
   return (
     <div className="flex flex-col gap-8 max-w-5xl mx-auto pb-24">
       {/* Profile Header */}
-      <div className="relative group">
-        <div className="h-32 w-full bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl border border-primary/10" />
-        <div className="absolute -bottom-6 left-8 flex items-end gap-6">
-          <div className="relative h-24 w-24 rounded-2xl border-4 border-background bg-white shadow-xl overflow-hidden group/logo">
-            {form.companyLogo ? (
-              <img src={resolveUploadUrl(form.companyLogo)} alt="Logo" className="h-full w-full object-contain p-2" />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center bg-muted">
-                <Building2 className="h-10 w-10 text-muted-foreground" />
-              </div>
-            )}
-            {canEdit && (
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                <Pencil className="h-6 w-6 text-white" />
-              </div>
-            )}
-          </div>
-          <div className="pb-2">
-            <h1 className="text-3xl font-bold font-headline">{form.companyName || 'Your Company'}</h1>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              {form.companyWebsite && (
-                <a href={form.companyWebsite} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary transition-colors">
-                  <Globe className="h-3.5 w-3.5" /> {form.companyWebsite.replace(/^https?:\/\//, '')}
-                </a>
-              )}
-              {form.industry && (
-                <span className="flex items-center gap-1">
-                  <Building2 className="h-3.5 w-3.5" /> {form.industry}
-                </span>
-              )}
+      <div className="flex items-center gap-6 group pt-4">
+        <div className="relative h-24 w-24 rounded-2xl border bg-white shadow-sm overflow-hidden group/logo shrink-0">
+          {form.companyLogo ? (
+            <img src={resolveUploadUrl(form.companyLogo)} alt="Logo" className="h-full w-full object-contain p-2" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-muted">
+              <Building2 className="h-10 w-10 text-muted-foreground" />
             </div>
+          )}
+          {canEdit && (
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+              <Pencil className="h-6 w-6 text-white" />
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col justify-center">
+          <h1 className="text-3xl font-bold font-headline">{form.companyName || 'Your Company'}</h1>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+            {form.companyWebsite && (
+              <a href={form.companyWebsite} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary transition-colors">
+                <Globe className="h-3.5 w-3.5" /> {form.companyWebsite.replace(/^https?:\/\//, '')}
+              </a>
+            )}
+            {form.industry && (
+              <span className="flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5" /> {form.industry}
+              </span>
+            )}
           </div>
         </div>
       </div>

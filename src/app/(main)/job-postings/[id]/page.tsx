@@ -47,7 +47,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
 import { useJobDetail, useJobApplicantsData, useInvalidateJobDetail } from '@/hooks/use-job-detail';
-import { JobDetailSkeleton } from '@/components/loading/job-detail-skeleton';
+import { JobApplicantsTableSkeleton, JobDetailHeaderSkeleton } from '@/components/loading/job-detail-skeleton';
 import { resolveHiringStageLabel } from '@/lib/hiring-stages';
 
 const LinkedInShareModal = dynamic(
@@ -179,13 +179,14 @@ export default function JobApplicantsPage() {
         isFetching: applicantsFetching,
         refetch: refetchApplicantsData,
     } = useJobApplicantsData(id, queriesEnabled);
-    const isLoading =
+    const isJobLoading =
         authLoading ||
         !queriesEnabled ||
         jobPending ||
-        applicantsPending ||
-        (jobFetching && job === null) ||
-        (applicantsFetching && applicantsData === undefined);
+        (jobFetching && job === null);
+    const isApplicantsLoading =
+        applicantsPending || (applicantsFetching && applicantsData === undefined);
+    const actionsDisabled = isJobLoading || isApplicantsLoading;
 
     const [applicants, setApplicants] = useState<Applicant[]>([]);
 
@@ -367,6 +368,10 @@ export default function JobApplicantsPage() {
     const [dateFilter, setDateFilter] = useState('all');
 
     const [evaluatingPipelineId, setEvaluatingPipelineId] = useState<string | null>(null);
+    const [stageChangeState, setStageChangeState] = useState<{
+        pipelineId: string;
+        targetStage: string;
+    } | null>(null);
     const [stageChangeNote, setStageChangeNote] = useState('');
     const [newNote, setNewNote] = useState('');
     const [isComparisonDialogOpen, setIsComparisonDialogOpen] = useState(false);
@@ -508,16 +513,20 @@ export default function JobApplicantsPage() {
     };
 
     const handleStageChangeClick = (applicant: Applicant, stage: string) => {
+        if (stageChangeState?.pipelineId === applicant.id) return;
         setSelectedApplicant(applicant);
         setSelectedStage(stage);
         setIsStageChangeDialogOpen(true);
     };
 
     const handleConfirmStageChange = async () => {
-        if (!selectedApplicant || !selectedStage) return;
+        if (!selectedApplicant || !selectedStage || stageChangeState) return;
 
         const pipelineId = selectedApplicant.id;
         const newStage = selectedStage;
+
+        setIsStageChangeDialogOpen(false);
+        setStageChangeState({ pipelineId, targetStage: newStage });
 
         try {
             await pipelinesApi.advance(pipelineId, {
@@ -538,7 +547,6 @@ export default function JobApplicantsPage() {
                 title: 'Stage Updated',
                 description: `Candidate moved to ${getStageLabel(newStage)}.`,
             });
-            setIsStageChangeDialogOpen(false);
             setStageChangeNote('');
             setSelectedStage(null);
             void refreshApplicants();
@@ -548,6 +556,8 @@ export default function JobApplicantsPage() {
                 description: error instanceof Error ? error.message : 'Please try again.',
                 variant: 'destructive',
             });
+        } finally {
+            setStageChangeState(null);
         }
     };
 
@@ -664,6 +674,7 @@ export default function JobApplicantsPage() {
 
 
     const handleStageChangeDialogClose = (open: boolean) => {
+        if (!open && stageChangeState) return;
         setIsStageChangeDialogOpen(open);
         if (!open) {
             setTimeout(() => {
@@ -767,11 +778,7 @@ export default function JobApplicantsPage() {
     }, [selectedApplicant]);
 
 
-    if (isLoading) {
-        return <JobDetailSkeleton />;
-    }
-
-    if (!job) {
+    if (!isJobLoading && !job) {
         return (
             <div className="flex items-center justify-center py-16">
                 <div className="text-center">
@@ -789,10 +796,12 @@ export default function JobApplicantsPage() {
         const scoreLabel = formatMatchScoreLabel(!!applicant.hasEvaluation, applicant.hasEvaluation ? applicant.matchScore : null);
         const progressValue = getMatchScoreProgress(!!applicant.hasEvaluation, applicant.hasEvaluation ? applicant.matchScore : null);
         const isRowEvaluating = evaluatingPipelineId === applicant.id;
+        const isChangingStage = stageChangeState?.pipelineId === applicant.id;
+        const pendingStage = isChangingStage ? stageChangeState.targetStage : null;
 
         return (
         <TableBody key={applicant.id} className="group hover:bg-muted/50 border-b">
-            <TableRow className="border-b-0 group-hover:bg-transparent">
+            <TableRow className={cn('border-b-0 group-hover:bg-transparent', isChangingStage && 'opacity-70')}>
                 <TableCell className="pl-4 w-12">
                     <Checkbox
                         id={`select-${applicant.id}`}
@@ -837,12 +846,22 @@ export default function JobApplicantsPage() {
                 </TableCell>
                 {!isGrouped && (
                     <TableCell>
-                        <Badge
-                            variant={statusVariantMap[applicant.status] || 'secondary'}
-                            className={`${statusClassMap[applicant.status]} hover:${statusClassMap[applicant.status]}`}
-                        >
-                            {getStageLabel(applicant.status)}
-                        </Badge>
+                        {isChangingStage ? (
+                            <Badge
+                                variant="outline"
+                                className="gap-1.5 border-primary/30 bg-primary/5 font-normal text-primary"
+                            >
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Moving to {getStageLabel(pendingStage)}
+                            </Badge>
+                        ) : (
+                            <Badge
+                                variant={statusVariantMap[applicant.status] || 'secondary'}
+                                className={`${statusClassMap[applicant.status]} hover:${statusClassMap[applicant.status]}`}
+                            >
+                                {getStageLabel(applicant.status)}
+                            </Badge>
+                        )}
                     </TableCell>
                 )}
                 <TableCell className='text-right'>
@@ -853,7 +872,10 @@ export default function JobApplicantsPage() {
                         {canChangeStatus && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm">
+                                    <Button variant="outline" size="sm" disabled={isChangingStage}>
+                                        {isChangingStage ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : null}
                                         Change Stage
                                         <ChevronDown className="ml-2 h-4 w-4" />
                                     </Button>
@@ -894,18 +916,22 @@ export default function JobApplicantsPage() {
                     </Button>
                     <div>
                         <p className="text-sm text-muted-foreground">Job Post</p>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
-                            <Badge
-                                variant="secondary"
-                                className={`capitalize font-bold text-xs px-2.5 py-0.5 border ${job.status === 'open' ? 'bg-green-50 text-green-700 border-green-200' :
-                                    job.status === 'draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                        'bg-slate-50 text-slate-700 border-slate-200'
-                                    }`}
-                            >
-                                {job.status}
-                            </Badge>
-                        </div>
+                        {!job ? (
+                            <JobDetailHeaderSkeleton />
+                        ) : (
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
+                                <Badge
+                                    variant="secondary"
+                                    className={`capitalize font-bold text-xs px-2.5 py-0.5 border ${job.status === 'open' ? 'bg-green-50 text-green-700 border-green-200' :
+                                        job.status === 'draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                            'bg-slate-50 text-slate-700 border-slate-200'
+                                        }`}
+                                >
+                                    {job.status}
+                                </Badge>
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -913,9 +939,11 @@ export default function JobApplicantsPage() {
                         <Button
                             variant="outline"
                             onClick={() => void handleEvaluateAll()}
-                            disabled={!canBatchEvaluate || isBatchEvaluating || evaluatingPipelineId !== null}
+                            disabled={actionsDisabled || !canBatchEvaluate || isBatchEvaluating || evaluatingPipelineId !== null}
                             title={
-                                !jobIsOpen
+                                actionsDisabled
+                                    ? 'Loading candidates...'
+                                    : !jobIsOpen
                                     ? 'Batch evaluation is only available for open jobs'
                                     : applicants.length === 0
                                       ? 'Add candidates before batch evaluation'
@@ -935,16 +963,16 @@ export default function JobApplicantsPage() {
                         </Button>
                     )}
                     {canShareLinkedIn && (
-                        <Button onClick={handlePostToLinkedIn}>
+                        <Button onClick={handlePostToLinkedIn} disabled={actionsDisabled}>
                             <Linkedin className="mr-2 h-4 w-4" />
                             Share to LinkedIn
                         </Button>
                     )}
-                    {canManageJob && (
+                    {job && canManageJob && (
                         <>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" disabled={isClosingJob}>
+                                    <Button variant="outline" disabled={actionsDisabled || isClosingJob}>
                                         {isClosingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Actions
                                         <ChevronDown className="ml-2 h-4 w-4" />
@@ -986,7 +1014,7 @@ export default function JobApplicantsPage() {
                             {!canShareLinkedIn ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline">
+                                        <Button variant="outline" disabled={actionsDisabled}>
                                             <Share2 className="mr-2 h-4 w-4" />
                                             Share
                                             <ChevronDown className="ml-2 h-4 w-4" />
@@ -1000,7 +1028,7 @@ export default function JobApplicantsPage() {
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             ) : (
-                                <Button variant="outline" onClick={handleShareJob}>
+                                <Button variant="outline" onClick={handleShareJob} disabled={actionsDisabled}>
                                     <Share2 className="mr-2 h-4 w-4" />
                                     Copy link
                                 </Button>
@@ -1010,13 +1038,15 @@ export default function JobApplicantsPage() {
                 </div>
             </div>
 
-            <LinkedInShareModal
-                open={isLinkedInDialogOpen}
-                onOpenChange={setIsLinkedInDialogOpen}
-                jobId={job.id}
-            />
+            {job && (
+                <LinkedInShareModal
+                    open={isLinkedInDialogOpen}
+                    onOpenChange={setIsLinkedInDialogOpen}
+                    jobId={job.id}
+                />
+            )}
 
-            {canRunAiEvaluation && !hasJobSkillWeights && (
+            {job && canRunAiEvaluation && !hasJobSkillWeights && (
                 <Card className="border-amber-200 bg-amber-50/50">
                     <CardContent className="py-4 flex items-start gap-3">
                         <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
@@ -1030,7 +1060,7 @@ export default function JobApplicantsPage() {
                 </Card>
             )}
 
-            {canRunAiEvaluation && hasJobSkillWeights && !jobIsOpen && (
+            {job && canRunAiEvaluation && hasJobSkillWeights && !jobIsOpen && (
                 <Card className="border-slate-200 bg-slate-50/50">
                     <CardContent className="py-4 flex items-start gap-3">
                         <Info className="h-5 w-5 text-slate-600 shrink-0 mt-0.5" />
@@ -1123,7 +1153,7 @@ export default function JobApplicantsPage() {
                 <CardFooter className="py-3 px-6 justify-end">
                     <Button
                         onClick={() => setIsComparisonDialogOpen(true)}
-                        disabled={selectedForComparison.length < 2}
+                        disabled={actionsDisabled || selectedForComparison.length < 2}
                     >
                         <Users className="mr-2 h-4 w-4" />
                         Compare ({selectedForComparison.length})
@@ -1132,7 +1162,9 @@ export default function JobApplicantsPage() {
             </Card>
 
             <div className="space-y-4">
-                {applicants.length === 0 && (
+                {isApplicantsLoading ? (
+                    <JobApplicantsTableSkeleton cols={isGrouped ? 4 : 5} />
+                ) : applicants.length === 0 ? (
                     <Card className="border-dashed border-2">
                         <CardContent className="py-12 flex flex-col items-center text-center gap-2">
                             <Users className="h-10 w-10 text-muted-foreground opacity-60" />
@@ -1142,9 +1174,9 @@ export default function JobApplicantsPage() {
                             </p>
                         </CardContent>
                     </Card>
-                )}
+                ) : null}
 
-                {applicants.length > 0 && isGrouped && groupedApplicants && activeHiringStages.map(stage => {
+                {!isApplicantsLoading && applicants.length > 0 && isGrouped && groupedApplicants && activeHiringStages.map(stage => {
                     const stageApplicants = groupedApplicants[stage];
                     if (!stageApplicants || stageApplicants.length === 0) return null;
                     const isOpen = openCollapsibles.includes(stage);
@@ -1189,7 +1221,7 @@ export default function JobApplicantsPage() {
                     )
                 })}
 
-                {applicants.length > 0 && !isGrouped && (
+                {!isApplicantsLoading && applicants.length > 0 && !isGrouped && (
                     <Card>
                         <CardContent className="p-0 border-t">
                             <Table className="min-w-[800px]">
@@ -1227,12 +1259,14 @@ export default function JobApplicantsPage() {
             </div>
 
 
-            <EditJobDialog
-                open={isEditJobDialogOpen}
-                onOpenChange={setIsEditJobDialogOpen}
-                job={job}
-                onSaved={loadData}
-            />
+            {job ? (
+                <EditJobDialog
+                    open={isEditJobDialogOpen}
+                    onOpenChange={setIsEditJobDialogOpen}
+                    job={job}
+                    onSaved={loadData}
+                />
+            ) : null}
 
             <Dialog open={isCustomizeFlowDialogOpen} onOpenChange={setIsCustomizeFlowDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6 overflow-hidden">
@@ -1428,8 +1462,23 @@ export default function JobApplicantsPage() {
                         />
                     </div>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmStageChange}>Confirm</AlertDialogAction>
+                        <AlertDialogCancel disabled={Boolean(stageChangeState)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={Boolean(stageChangeState)}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                void handleConfirmStageChange();
+                            }}
+                        >
+                            {stageChangeState ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Updating...
+                                </>
+                            ) : (
+                                'Confirm'
+                            )}
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -1440,7 +1489,7 @@ export default function JobApplicantsPage() {
                         <>
                             <DialogHeader>
                                 <DialogTitle className="font-headline text-2xl">{selectedApplicant.name}</DialogTitle>
-                                <DialogDescription>Applying for {job.title}</DialogDescription>
+                                <DialogDescription>Applying for {job?.title ?? 'this role'}</DialogDescription>
                             </DialogHeader>
                             <div className="grid lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
                                 <div className="lg:col-span-1 space-y-6 flex flex-col">
@@ -1505,7 +1554,13 @@ export default function JobApplicantsPage() {
                                             {canChangeStatus && (
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
-                                                        <Button className="w-full">
+                                                        <Button
+                                                            className="w-full"
+                                                            disabled={stageChangeState?.pipelineId === selectedApplicant.id}
+                                                        >
+                                                            {stageChangeState?.pipelineId === selectedApplicant.id ? (
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            ) : null}
                                                             Change Stage
                                                             <ChevronDown className="ml-2 h-4 w-4" />
                                                         </Button>

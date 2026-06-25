@@ -4,6 +4,55 @@ import { Separator } from '@/components/ui/separator';
 import { TableRowsSkeleton } from './table-rows-skeleton';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
+type JobApplicantsTableSkeletonProps = {
+  cols?: number;
+  rows?: number;
+};
+
+export function JobApplicantsTableSkeleton({ cols = 5, rows = 5 }: JobApplicantsTableSkeletonProps) {
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">
+                <Skeleton className="h-4 w-4" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-24" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-20" />
+              </TableHead>
+              {cols > 4 && (
+                <TableHead>
+                  <Skeleton className="h-4 w-14" />
+                </TableHead>
+              )}
+              <TableHead className="text-right">
+                <Skeleton className="ml-auto h-4 w-16" />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRowsSkeleton rows={rows} cols={cols} />
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function JobDetailHeaderSkeleton() {
+  return (
+    <div className="flex items-center gap-3">
+      <Skeleton className="h-10 w-64 max-w-[min(100%,20rem)]" />
+      <Skeleton className="h-6 w-16 shrink-0 rounded-full" />
+    </div>
+  );
+}
+
 export function JobDetailSkeleton() {
   return (
     <div className="flex w-full flex-col gap-4">
@@ -42,34 +91,7 @@ export function JobDetailSkeleton() {
         </CardFooter>
       </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <Skeleton className="h-4 w-4" />
-                </TableHead>
-                <TableHead>
-                  <Skeleton className="h-4 w-24" />
-                </TableHead>
-                <TableHead>
-                  <Skeleton className="h-4 w-16" />
-                </TableHead>
-                <TableHead>
-                  <Skeleton className="h-4 w-14" />
-                </TableHead>
-                <TableHead className="text-right">
-                  <Skeleton className="ml-auto h-4 w-16" />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRowsSkeleton rows={4} cols={5} />
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <JobApplicantsTableSkeleton />
     </div>
   );
 }

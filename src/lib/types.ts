@@ -40,6 +40,7 @@ export interface User {
   hobbies?: string[];
   company?: string; // For recruiters
   companyRole?: CompanyRole; // For recruiters
+  appliedRole?: string; // For candidates
   resumeUrl?: string; // For candidates
   resumeMimeType?: string; // For candidates
   linkedinProfileUrl?: string; // For recruiters
