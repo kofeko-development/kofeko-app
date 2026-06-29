@@ -58,6 +58,7 @@ function PageContent({
     profileCompletion: CandidateProfileCompletion;
     canSubmit: boolean;
 }) {
+    const router = useRouter();
     const formatDescription = (text: string) => {
         if (!text) return '';
         // If it looks like plain text (no tags), convert newlines to <p> tags
@@ -184,27 +185,56 @@ function PageContent({
                     </div>
 
                     <div className="lg:col-span-1">
-                        <Card className="sticky top-24 shadow-lg border-2 border-primary/5">
+                        <Card className="sticky top-24 shadow-lg border-2 border-primary/5 overflow-hidden">
                             <CardHeader className="bg-muted/10">
                                 <CardTitle>Apply for this position</CardTitle>
                                 <CardDescription>
                                     {user ? "Your information is pre-filled from your profile." : "Fill out the form below to submit your application."}
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="pt-6">
-                                <form onSubmit={handleSubmit} className="space-y-6">
-                                    {!user ? (
-                                        <>
+                            <CardContent className="pt-6 relative">
+                                {!user ? (
+                                    <>
+                                        {/* Blurred placeholder form */}
+                                        <div className="space-y-6 filter blur-[5px] pointer-events-none select-none opacity-40" aria-hidden="true">
                                             <div className="space-y-2">
-                                                <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Name</Label>
-                                                <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading} className="h-11" />
+                                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Name</Label>
+                                                <Input disabled placeholder="John Doe" className="h-11" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email Address</Label>
-                                                <Input id="email" type="email" placeholder="john.doe@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="h-11" />
+                                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email Address</Label>
+                                                <Input disabled placeholder="john.doe@example.com" className="h-11" />
                                             </div>
-                                        </>
-                                    ) : (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume/CV *</Label>
+                                                <Input disabled type="file" className="h-11" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cover Letter (Optional)</Label>
+                                                <Textarea disabled placeholder="Tell us why you're a great fit for this role..." className="min-h-[120px]" />
+                                            </div>
+                                            <Button disabled className="w-full h-12 text-base font-semibold">Submit Application</Button>
+                                        </div>
+
+                                        {/* Auth overlay with Login Button */}
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/25 p-6 text-center z-10 backdrop-blur-[1px]">
+                                            <div className="bg-primary/10 p-4 rounded-full mb-4">
+                                                <Briefcase className="size-8 text-primary" />
+                                            </div>
+                                            <h3 className="text-lg font-bold">Sign In to Apply</h3>
+                                            <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-[240px] mx-auto">
+                                                Please login or create a candidate account to apply for this job posting.
+                                            </p>
+                                            <Button 
+                                                onClick={() => router.push(`/candidate-auth?mode=login&redirect=/open-positions/${job.id}`)}
+                                                className="w-full max-w-[200px] h-11 font-semibold shadow-md"
+                                            >
+                                                Login / Sign Up
+                                            </Button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <form onSubmit={handleSubmit} className="space-y-6">
                                         <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 flex items-center gap-3">
                                             <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
                                                 {name.charAt(0)}
@@ -214,71 +244,71 @@ function PageContent({
                                                 <p className="text-xs text-muted-foreground truncate">{email}</p>
                                             </div>
                                         </div>
-                                    )}
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="resume" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume/CV *</Label>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="resume" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume/CV *</Label>
+                                                {user?.resumeUrl && (
+                                                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase">Attached</span>
+                                                )}
+                                            </div>
+                                            <Input
+                                                id="resume"
+                                                type="file"
+                                                accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                                                className="file:text-primary file:font-semibold h-11 pt-2"
+                                                onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)}
+                                                required={!user?.resumeUrl}
+                                                disabled={isLoading}
+                                            />
                                             {user?.resumeUrl && (
-                                                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase">Attached</span>
+                                                <div className="flex items-center gap-2 mt-2 p-2 bg-muted/50 rounded-lg border border-dashed">
+                                                    <div className="bg-primary/10 p-1.5 rounded">
+                                                        <Briefcase className="size-4 text-primary" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-medium truncate">{user.resumeUrl.split('/').pop()}</p>
+                                                        <p className="text-[10px] text-muted-foreground">From your profile</p>
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
-                                        <Input
-                                            id="resume"
-                                            type="file"
-                                            accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                                            className="file:text-primary file:font-semibold h-11 pt-2"
-                                            onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)}
-                                            required={!user?.resumeUrl}
-                                            disabled={isLoading}
-                                        />
-                                        {user?.resumeUrl && (
-                                            <div className="flex items-center gap-2 mt-2 p-2 bg-muted/50 rounded-lg border border-dashed">
-                                                <div className="bg-primary/10 p-1.5 rounded">
-                                                    <Briefcase className="size-4 text-primary" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-medium truncate">{user.resumeUrl.split('/').pop()}</p>
-                                                    <p className="text-[10px] text-muted-foreground">From your profile</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="cover-letter" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cover Letter (Optional)</Label>
-                                        <Textarea id="cover-letter" placeholder="Tell us why you're a great fit for this role..." value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} disabled={isLoading} className="min-h-[120px] resize-none" />
-                                    </div>
-                                    {user && !profileCompletion.isComplete ? (
-                                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
-                                            <div className="flex gap-2">
-                                                <Info className="size-4 shrink-0 mt-0.5" />
-                                                <div className="space-y-2">
-                                                    <p className="font-medium">Complete your profile before applying</p>
-                                                    <p className="text-amber-900/80 dark:text-amber-100/80">
-                                                        Please add the following on your profile page, then return here to submit:
-                                                    </p>
-                                                    <ul className="list-disc pl-5 space-y-1">
-                                                        {profileCompletion.missing.map((item) => (
-                                                            <li key={item}>{item}</li>
-                                                        ))}
-                                                    </ul>
-                                                    <Button type="button" variant="outline" size="sm" className="mt-1" asChild>
-                                                        <Link href="/profile">Go to My Profile</Link>
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cover-letter" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cover Letter (Optional)</Label>
+                                            <Textarea id="cover-letter" placeholder="Tell us why you're a great fit for this role..." value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} disabled={isLoading} className="min-h-[120px] resize-none" />
                                         </div>
-                                    ) : null}
-                                    <Button type="submit" className="w-full h-12 text-base font-semibold shadow-md" disabled={isLoading || (Boolean(user) && !canSubmit)}>
-                                        {isLoading ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                                Submitting...
-                                            </>
-                                        ) : (
-                                            'Submit Application'
-                                        )}
-                                    </Button>
-                                </form>
+                                        {user && !profileCompletion.isComplete ? (
+                                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+                                                <div className="flex gap-2">
+                                                    <Info className="size-4 shrink-0 mt-0.5" />
+                                                    <div className="space-y-2">
+                                                        <p className="font-medium">Complete your profile before applying</p>
+                                                        <p className="text-amber-900/80 dark:text-amber-100/80">
+                                                            Please add the following on your profile page, then return here to submit:
+                                                        </p>
+                                                        <ul className="list-disc pl-5 space-y-1">
+                                                            {profileCompletion.missing.map((item) => (
+                                                                <li key={item}>{item}</li>
+                                                            ))}
+                                                        </ul>
+                                                        <Button type="button" variant="outline" size="sm" className="mt-1" asChild>
+                                                            <Link href="/profile">Go to My Profile</Link>
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                        <Button type="submit" className="w-full h-12 text-base font-semibold shadow-md" disabled={isLoading || (Boolean(user) && !canSubmit)}>
+                                            {isLoading ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                                    Submitting...
+                                                </>
+                                            ) : (
+                                                'Submit Application'
+                                            )}
+                                        </Button>
+                                    </form>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

@@ -69,7 +69,7 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
 export default function SignupPage() {
-  const { registerAdmin } = useAuth();
+  const { registerAdmin, login } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const { showError } = useApiErrorToast();
@@ -462,36 +462,6 @@ export default function SignupPage() {
       return;
     }
 
-    const normalizedWebsite = normalizeWebsiteUrl(companyWebsite);
-    if (!isValidWebsiteUrl(normalizedWebsite)) {
-      toast({
-        title: 'Invalid company website',
-        description: 'Enter a valid website such as www.example.com or https://example.com.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const normalizedLinkedin = linkedinUrl.trim() ? normalizeWebsiteUrl(linkedinUrl) : '';
-    if (normalizedLinkedin && !isValidWebsiteUrl(normalizedLinkedin)) {
-      toast({
-        title: 'Invalid LinkedIn URL',
-        description: 'Enter a valid URL such as linkedin.com/company/... or https://linkedin.com/...',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const normalizedTwitter = twitterUrl.trim() ? normalizeWebsiteUrl(twitterUrl) : '';
-    if (normalizedTwitter && !isValidWebsiteUrl(normalizedTwitter)) {
-      toast({
-        title: 'Invalid Twitter/X URL',
-        description: 'Enter a valid URL such as x.com/... or https://x.com/...',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsLoading(true);
     setFieldErrors({});
 
@@ -508,7 +478,7 @@ export default function SignupPage() {
       }
       const phoneNumber = phoneCheck.e164;
 
-      await registerAdmin({
+      const res = await registerAdmin({
         adminEmail: adminEmail.trim(),
         password,
         emailVerificationToken: verificationToken,
@@ -521,26 +491,49 @@ export default function SignupPage() {
           fullAddress,
         },
         industry,
-        companySize: companySize as CompanySizeValue,
-        companyType,
-        foundedYear: Number(foundedYear),
-        companyWebsite: normalizedWebsite,
+        companySize: '1-10',
+        companyType: 'startup',
+        foundedYear: new Date().getFullYear(),
+        companyWebsite: 'https://example.com',
         officialCompanyAddress: fullAddress.trim(),
         phoneNumber,
-        companyLogo: companyLogo.trim() || undefined,
-        shortDescription,
-        linkedinUrl: normalizedLinkedin || undefined,
-        twitterUrl: normalizedTwitter || undefined,
-        termsAccepted: termsAccepted as true,
+        companyLogo: undefined,
+        shortDescription: 'Company profile details will be updated soon.',
+        linkedinUrl: undefined,
+        twitterUrl: undefined,
+        termsAccepted: true,
       });
 
+      const isApproved = res?.status === 'approved';
+
       toast({
-        title: "Registration Submitted",
-        description: "Your company registration is pending super admin approval.",
+        title: isApproved ? "Registration Approved!" : "Registration Submitted",
+        description: isApproved
+          ? "Your company has been auto-approved! Welcome to Kofeko."
+          : "Your company registration is pending super admin approval.",
       });
 
       clearCompanySignupDraft();
-      router.push('/signup-success');
+
+      if (isApproved && res?.tenantSlug) {
+        try {
+          const u = await login({
+            email: adminEmail.trim(),
+            password,
+            tenantSlug: res.tenantSlug,
+          });
+          if (u.companyRole === 'Company Admin' || u.companyRole === 'Hiring Manager' || u.companyRole === 'Recruiter') {
+            router.push('/admin/dashboard');
+          } else {
+            router.push('/dashboard');
+          }
+        } catch (loginErr) {
+          console.error("Auto-login failed:", loginErr);
+          router.push(`/company-login?slug=${res.tenantSlug}`);
+        }
+      } else {
+        router.push(`/signup-success?status=${res?.status || 'pending'}&slug=${res?.tenantSlug || ''}`);
+      }
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors(mapped);
@@ -566,506 +559,297 @@ export default function SignupPage() {
           Back
         </Button>
       ) : null}
-    <Card className="w-full overflow-hidden rounded-2xl border bg-card shadow-md">
-      <CardHeader className="border-b bg-card px-6 pb-6 pt-6">
-        <span className="sr-only">{step === 1 ? "Step 1 of 2" : "Step 2 of 2"}</span>
-        <div className="mb-5 flex gap-2" aria-hidden>
-          <div
-            className={cn(
-              "h-1 flex-1 rounded-full transition-colors",
-              step >= 1 ? "bg-primary" : "bg-muted",
-            )}
-          />
-          <div
-            className={cn(
-              "h-1 flex-1 rounded-full transition-colors",
-              step >= 2 ? "bg-primary" : "bg-muted",
-            )}
-          />
-        </div>
-        <CardTitle className="text-xl font-semibold tracking-tight">Company registration</CardTitle>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {step === 1 ? "Account" : "Company details"}
-        </p>
-      </CardHeader>
-      <CardContent className="px-6 pb-6 pt-6">
-        <form onSubmit={handleSignup} className="grid gap-6">
-          {step === 1 ? (
-            <div className="grid gap-5">
+      <Card className="w-full overflow-hidden rounded-2xl border bg-card shadow-md">
+        <CardHeader className="border-b bg-card px-6 pb-6 pt-6">
+          <span className="sr-only">{step === 1 ? "Step 1 of 2" : "Step 2 of 2"}</span>
+          <div className="mb-5 flex gap-2" aria-hidden>
+            <div
+              className={cn(
+                "h-1 flex-1 rounded-full transition-colors",
+                step >= 1 ? "bg-primary" : "bg-muted",
+              )}
+            />
+            <div
+              className={cn(
+                "h-1 flex-1 rounded-full transition-colors",
+                step >= 2 ? "bg-primary" : "bg-muted",
+              )}
+            />
+          </div>
+          <CardTitle className="text-xl font-semibold tracking-tight">Company registration</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {step === 1 ? "Account" : "Company details"}
+          </p>
+        </CardHeader>
+        <CardContent className="px-6 pb-6 pt-6">
+          <form onSubmit={handleSignup} className="grid gap-6">
+            {step === 1 ? (
+              <div className="grid gap-5">
 
-              <div className="grid gap-2">
-                <Label htmlFor="admin-email">Company admin email *</Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                  <Input
-                    id="admin-email"
-                    type="email"
-                    autoComplete="email"
-                    value={adminEmail}
-                    onChange={(e) => handleAdminEmailChange(e.target.value)}
-                    required
-                    readOnly={emailLooksVerified}
-                    disabled={isLoading || sendOtpLoading || confirmOtpLoading || emailLooksVerified}
-                    className={cn(
-                      "h-11 min-w-0 flex-1",
-                      emailLooksVerified && "bg-muted/50",
-                      (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive",
-                    )}
-                    placeholder="you@company.com"
-                  />
-                  {emailLooksVerified ? (
-                    <div
-                      className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 sm:w-36 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                      role="status"
-                      aria-label="Email verified"
-                    >
-                      Verified
-                      <ArrowRight className="h-4 w-4" aria-hidden />
-                    </div>
-                  ) : (
-                    <Button
-                      type="button"
-                      className="h-11 shrink-0 sm:w-36"
-                      disabled={
-                        isLoading ||
-                        sendOtpLoading ||
-                        confirmOtpLoading ||
-                        !isValidEmailShape(adminEmail) ||
-                        (otpSent && !emailLooksVerified)
-                      }
-                      onClick={() => void handleSendEmailOtp()}
-                    >
-                      {sendOtpLoading && !otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Verify'}
-                    </Button>
-                  )}
-                </div>
-                {(fieldErrors.adminEmail || fieldErrors.email) ? (
-                  <p className="text-sm text-destructive" role="alert">
-                    {fieldErrors.adminEmail ?? fieldErrors.email}
-                  </p>
-                ) : null}
-                {otpSent && !emailLooksVerified ? (
-                  <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-3">
-                    <div className="grid gap-2">
-                      <Label htmlFor="email-otp">Email code *</Label>
-                      <Input
-                        id="email-otp"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        maxLength={6}
-                        pattern="\d{6}"
-                        placeholder="000000"
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        disabled={isLoading || confirmOtpLoading || emailLooksVerified || otpExpired}
-                        className="h-11 font-mono tracking-widest"
-                      />
-                      {otpPending ? (
-                        <p className="text-xs text-muted-foreground" aria-live="polite" role="timer">
-                          Enter the 6-digit code from your email.{' '}
-                          <span className="font-semibold tabular-nums text-primary">
-                            Time remaining: {formatOtpCountdown(otpSecondsLeft)}
-                          </span>
-                        </p>
-                      ) : (
-                        <p className="text-xs text-destructive" role="status">
-                          Your verification code has expired. Tap Resend to get a new code.
-                        </p>
+                <div className="grid gap-2">
+                  <Label htmlFor="admin-email">Company admin email *</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                    <Input
+                      id="admin-email"
+                      type="email"
+                      autoComplete="email"
+                      value={adminEmail}
+                      onChange={(e) => handleAdminEmailChange(e.target.value)}
+                      required
+                      readOnly={emailLooksVerified}
+                      disabled={isLoading || sendOtpLoading || confirmOtpLoading || emailLooksVerified}
+                      className={cn(
+                        "h-11 min-w-0 flex-1",
+                        emailLooksVerified && "bg-muted/50",
+                        (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive",
                       )}
-                    </div>
-                    {otpExpired ? (
-                      <Button
-                        type="button"
-                        className="h-11 sm:mt-7"
-                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                        onClick={() => void handleSendEmailOtp()}
+                      placeholder="you@company.com"
+                    />
+                    {emailLooksVerified ? (
+                      <div
+                        className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 sm:w-36 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                        role="status"
+                        aria-label="Email verified"
                       >
-                        {sendOtpLoading && otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Resend'}
-                      </Button>
+                        Verified
+                        <ArrowRight className="h-4 w-4" aria-hidden />
+                      </div>
                     ) : (
                       <Button
                         type="button"
-                        className="h-11 sm:mt-7"
+                        className="h-11 shrink-0 sm:w-36"
                         disabled={
                           isLoading ||
+                          sendOtpLoading ||
                           confirmOtpLoading ||
-                          otpCode.trim().length !== 6 ||
-                          emailLooksVerified ||
-                          otpExpired
+                          !isValidEmailShape(adminEmail) ||
+                          (otpSent && !emailLooksVerified)
                         }
-                        onClick={() => void handleConfirmEmailOtp()}
+                        onClick={() => void handleSendEmailOtp()}
                       >
-                        {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Confirm'}
+                        {sendOtpLoading && !otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Verify'}
                       </Button>
                     )}
                   </div>
-                ) : null}
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="admin-password">Password *</Label>
-                  <div className="relative">
-                    <Input
-                      id="admin-password"
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={8}
-                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                      className={cn("h-11 pr-10", (showPasswordMismatch || fieldErrors.password) && "border-destructive focus-visible:ring-destructive")}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-                      onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      aria-pressed={showPassword}
-                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                    >
-                      {showPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
-                    </button>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="admin-password-confirm">Confirm password *</Label>
-                  <div className="relative">
-                    <Input
-                      id="admin-password-confirm"
-                      type={showConfirmPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      minLength={8}
-                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                      className={cn("h-11 pr-10", showPasswordMismatch && "border-destructive focus-visible:ring-destructive")}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-                      onClick={() => setShowConfirmPassword((v) => !v)}
-                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
-                      aria-pressed={showConfirmPassword}
-                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                    >
-                      {showConfirmPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {showPasswordMismatch ? (
-                <p className="text-sm text-destructive" role="alert">
-                  Passwords must match.
-                </p>
-              ) : null}
-              {fieldErrors.password ? (
-                <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
-              ) : null}
-              <Button
-                type="submit"
-                className="h-11 w-full"
-                disabled={
-                  isLoading ||
-                  sendOtpLoading ||
-                  confirmOtpLoading ||
-                  showPasswordMismatch ||
-                  !emailLooksVerified
-                }
-              >
-                Continue
-              </Button>
-            </div>
-          ) : null}
-
-          {step === 2 ? (
-            <>
-              {hasFieldErrors(fieldErrors) ? (
-                <div
-                  className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
-                  role="alert"
-                >
-                  <p className="font-medium">Please fix the following:</p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5">
-                    {Object.entries(fieldErrors).map(([field, message]) => (
-                      <li key={field}>{message}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="company-name">Company Name *</Label>
-                  <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} className={fieldErrors.companyName ? "border-destructive" : undefined} />
-                  {fieldErrors.companyName ? <p className="text-sm text-destructive" role="alert">{fieldErrors.companyName}</p> : null}
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="industry">Industry *</Label>
-                  <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} />
-                </div>
-              </div>
-
-              <LocationAddressFields
-                country={country}
-                state={state}
-                city={city}
-                zipCode={zipCode}
-                setCountry={setCountry}
-                setState={setState}
-                setCity={setCity}
-                setZipCode={setZipCode}
-                disabled={isLoading}
-                showRequiredIndicator
-              />
-
-              <div className="grid gap-2">
-                <Label htmlFor="full-address">Company Address (Full Address) *</Label>
-                <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} />
-              </div>
-
-              <div className="grid gap-x-4 gap-y-3 md:grid-cols-2 md:items-start">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="company-size" className="mb-0">
-                    Company size (employees) *
-                  </Label>
-                  <select
-                    id="company-size"
-                    value={companySize}
-                    onChange={(e) => setCompanySize(e.target.value)}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    required
-                    disabled={isLoading}
-                  >
-                    <option value="">Select range</option>
-                    {COMPANY_SIZE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="company-type" className="mb-0">
-                    Company Type *
-                  </Label>
-                  <select
-                    id="company-type"
-                    value={companyType}
-                    onChange={(e) => setCompanyType(e.target.value as 'startup' | 'enterprise' | 'agency' | 'non_profit')}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    required
-                    disabled={isLoading}
-                  >
-                    <option value="startup">Startup</option>
-                    <option value="enterprise">Enterprise</option>
-                    <option value="agency">Agency</option>
-                    <option value="non_profit">Non-profit</option>
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="founded-year" className="mb-0">
-                    Founded Year *
-                  </Label>
-                  <Input
-                    id="founded-year"
-                    type="number"
-                    value={foundedYear}
-                    onChange={(e) => setFoundedYear(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-                <PhoneInternationalField
-                  className="min-w-0"
-                  phoneCountryIso={phoneCountryIso}
-                  phoneNationalDigits={phoneNationalDigits}
-                  setPhoneCountryIso={setPhoneCountryIso}
-                  setPhoneNationalDigits={setPhoneNationalDigits}
-                  addressCountryName={country}
-                  disabled={isLoading}
-                  showRequiredIndicator
-                  hideHint
-                />
-                {fieldErrors.phoneNumber ? (
-                  <p className="text-sm text-destructive md:col-span-2" role="alert">{fieldErrors.phoneNumber}</p>
-                ) : null}
-                <div className="grid gap-2">
-                  <Label htmlFor="company-website">Company Website *</Label>
-                  <Input
-                    id="company-website"
-                    type="text"
-                    inputMode="url"
-                    autoComplete="url"
-                    value={companyWebsite}
-                    onChange={e => setCompanyWebsite(e.target.value)}
-                    onBlur={() => setCompanyWebsite((prev) => normalizeWebsiteUrl(prev))}
-                    placeholder="www.example.com"
-                    required
-                    disabled={isLoading}
-                    className={fieldErrors.companyWebsite ? "border-destructive" : undefined}
-                  />
-                  {fieldErrors.companyWebsite ? (
-                    <p className="text-sm text-destructive" role="alert">{fieldErrors.companyWebsite}</p>
+                  {(fieldErrors.adminEmail || fieldErrors.email) ? (
+                    <p className="text-sm text-destructive" role="alert">
+                      {fieldErrors.adminEmail ?? fieldErrors.email}
+                    </p>
                   ) : null}
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="company-logo">Company Logo </Label>
-                  <div className={cn("flex items-start gap-3", fieldErrors.companyLogo && "rounded-lg ring-1 ring-destructive/50 p-2")}>
-                    {companyLogo ? (
-                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border bg-muted">
-                        <img src={resolveUploadUrl(companyLogo)} alt="Logo preview" className="h-full w-full object-contain" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCompanyLogo('');
-                            setLogoFileName('');
-                            if (logoFileInputRef.current) {
-                              logoFileInputRef.current.value = '';
-                            }
-                          }}
-                          className="absolute right-0 top-0 rounded-bl-md bg-destructive p-0.5 text-white hover:bg-destructive/90"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                  {otpSent && !emailLooksVerified ? (
+                    <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-3">
+                      <div className="grid gap-2">
+                        <Label htmlFor="email-otp">Email code *</Label>
+                        <Input
+                          id="email-otp"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          pattern="\d{6}"
+                          placeholder="000000"
+                          value={otpCode}
+                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          disabled={isLoading || confirmOtpLoading || emailLooksVerified || otpExpired}
+                          className="h-11 font-mono tracking-widest"
+                        />
+                        {otpPending ? (
+                          <p className="text-xs text-muted-foreground" aria-live="polite" role="timer">
+                            Enter the 6-digit code from your email.{' '}
+                            <span className="font-semibold tabular-nums text-primary">
+                              Time remaining: {formatOtpCountdown(otpSecondsLeft)}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-destructive" role="status">
+                            Your verification code has expired. Tap Resend to get a new code.
+                          </p>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted/30 text-muted-foreground">
-                        <Upload className="h-4 w-4 opacity-40" aria-hidden />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <input
-                        ref={logoFileInputRef}
-                        id="company-logo"
-                        type="file"
-                        accept="image/*,.svg"
-                        className="sr-only"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setLogoFileName(file.name);
-                          setLogoUploading(true);
-                          try {
-                            const res = await companyApi.uploadPublicLogo(file);
-                            setCompanyLogo(res.url);
-                          } catch (err) {
-                            setLogoFileName('');
-                            if (logoFileInputRef.current) {
-                              logoFileInputRef.current.value = '';
-                            }
-                            showError(err);
-                          } finally {
-                            setLogoUploading(false);
-                          }
-                        }}
-                        disabled={isLoading || logoUploading}
-                      />
-                      <div className="flex min-w-0 items-center gap-2">
+                      {otpExpired ? (
                         <Button
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-9 shrink-0"
-                          disabled={isLoading || logoUploading}
-                          onClick={() => logoFileInputRef.current?.click()}
+                          className="h-11 sm:mt-7"
+                          disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                          onClick={() => void handleSendEmailOtp()}
                         >
-                          {logoUploading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                          ) : (
-                            'Choose file'
-                          )}
+                          {sendOtpLoading && otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Resend'}
                         </Button>
-                        <span className="truncate text-sm text-muted-foreground">
-                          {logoFileName || (companyLogo ? 'Logo uploaded' : 'No file chosen')}
-                        </span>
-                      </div>
-                      <p className="mt-1.5 text-xs text-muted-foreground">JPG, PNG or SVG. Max 5MB.</p>
+                      ) : (
+                        <Button
+                          type="button"
+                          className="h-11 sm:mt-7"
+                          disabled={
+                            isLoading ||
+                            confirmOtpLoading ||
+                            otpCode.trim().length !== 6 ||
+                            emailLooksVerified ||
+                            otpExpired
+                          }
+                          onClick={() => void handleConfirmEmailOtp()}
+                        >
+                          {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Confirm'}
+                        </Button>
+                      )}
                     </div>
-                  </div>
-                  {fieldErrors.companyLogo ? (
-                    <p className="text-sm text-destructive" role="alert">{fieldErrors.companyLogo}</p>
                   ) : null}
                 </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2 md:items-start">
-                <div className="grid gap-2">
-                  <Label htmlFor="linkedin-url">LinkedIn URL</Label>
-                  <Input
-                    id="linkedin-url"
-                    type="text"
-                    inputMode="url"
-                    value={linkedinUrl}
-                    onChange={e => setLinkedinUrl(e.target.value)}
-                    onBlur={() => setLinkedinUrl((prev) => (prev.trim() ? normalizeWebsiteUrl(prev) : ''))}
-                    placeholder="linkedin.com/company/..."
-                    disabled={isLoading}
-                  />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="admin-password">Password *</Label>
+                    <div className="relative">
+                      <Input
+                        id="admin-password"
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                        className={cn("h-11 pr-10", (showPasswordMismatch || fieldErrors.password) && "border-destructive focus-visible:ring-destructive")}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-pressed={showPassword}
+                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                      >
+                        {showPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="admin-password-confirm">Confirm password *</Label>
+                    <div className="relative">
+                      <Input
+                        id="admin-password-confirm"
+                        type={showConfirmPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                        className={cn("h-11 pr-10", showPasswordMismatch && "border-destructive focus-visible:ring-destructive")}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                        aria-pressed={showConfirmPassword}
+                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                      >
+                        {showConfirmPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="twitter-url">Twitter/X URL</Label>
-                  <Input
-                    id="twitter-url"
-                    type="text"
-                    inputMode="url"
-                    value={twitterUrl}
-                    onChange={e => setTwitterUrl(e.target.value)}
-                    onBlur={() => setTwitterUrl((prev) => (prev.trim() ? normalizeWebsiteUrl(prev) : ''))}
-                    placeholder="x.com/..."
-                    disabled={isLoading}
-                  />
+                {showPasswordMismatch ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    Passwords must match.
+                  </p>
+                ) : null}
+                {fieldErrors.password ? (
+                  <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
+                ) : null}
+                <Button
+                  type="submit"
+                  className="h-11 w-full"
+                  disabled={
+                    isLoading ||
+                    sendOtpLoading ||
+                    confirmOtpLoading ||
+                    showPasswordMismatch ||
+                    !emailLooksVerified
+                  }
+                >
+                  Continue
+                </Button>
+              </div>
+            ) : null}
+
+            {step === 2 ? (
+              <>
+                {hasFieldErrors(fieldErrors) ? (
+                  <div
+                    className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+                    role="alert"
+                  >
+                    <p className="font-medium">Please fix the following:</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                      {Object.entries(fieldErrors).map(([field, message]) => (
+                        <li key={field}>{message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="company-name">Company Name *</Label>
+                    <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} className={fieldErrors.companyName ? "border-destructive" : undefined} />
+                    {fieldErrors.companyName ? <p className="text-sm text-destructive" role="alert">{fieldErrors.companyName}</p> : null}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="industry">Industry *</Label>
+                    <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} />
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="short-description">Short Company Description *</Label>
-                <Textarea
-                  id="short-description"
-                  value={shortDescription}
-                  onChange={e => setShortDescription(e.target.value)}
-                  minLength={20}
-                  required
+                <LocationAddressFields
+                  country={country}
+                  state={state}
+                  city={city}
+                  zipCode={zipCode}
+                  setCountry={setCountry}
+                  setState={setState}
+                  setCity={setCity}
+                  setZipCode={setZipCode}
                   disabled={isLoading}
-                  className={fieldErrors.shortDescription ? "border-destructive" : undefined}
+                  showRequiredIndicator
                 />
-                {fieldErrors.shortDescription ? (
-                  <p className="text-sm text-destructive" role="alert">{fieldErrors.shortDescription}</p>
-                ) : (
-                <p className="text-xs text-muted-foreground">
-                  Minimum 20 characters ({shortDescription.trim().length}/20)
-                </p>
-                )}
-              </div>
 
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
-                  disabled={isLoading}
-                  required
-                  className="mt-1"
-                />
-                <span>I agree to the terms and conditions. *</span>
-              </label>
+                <div className="grid gap-2">
+                  <Label htmlFor="full-address">Company Address (Full Address) *</Label>
+                  <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} />
+                </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {isLoading ? "Submitting..." : "Submit Company Registration"}
-              </Button>
-            </>
-          ) : null}
-        </form>
-        <div className="mt-4 text-center text-sm">
-          Already approved and have credentials?{" "}
-          <Link href="/company-login" className="underline">
-            Company Login
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+                <div className="grid gap-2">
+                  <PhoneInternationalField
+                    className="min-w-0"
+                    phoneCountryIso={phoneCountryIso}
+                    phoneNationalDigits={phoneNationalDigits}
+                    setPhoneCountryIso={setPhoneCountryIso}
+                    setPhoneNationalDigits={setPhoneNationalDigits}
+                    addressCountryName={country}
+                    disabled={isLoading}
+                    showRequiredIndicator
+                    hideHint
+                  />
+                  {fieldErrors.phoneNumber ? (
+                    <p className="text-sm text-destructive" role="alert">{fieldErrors.phoneNumber}</p>
+                  ) : null}
+                </div>
+
+                <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isLoading ? "Submitting..." : "Submit Company Registration"}
+                </Button>
+              </>
+            ) : null}
+          </form>
+          <div className="mt-4 text-center text-sm">
+            Already approved and have credentials?{" "}
+            <Link href="/company-login" className="underline">
+              Company Login
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

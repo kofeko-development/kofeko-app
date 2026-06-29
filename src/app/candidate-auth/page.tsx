@@ -19,6 +19,14 @@ import { apiRequest } from '@/lib/api-client';
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
+const getSafeRedirect = (url: string | null) => {
+  if (!url) return '/find-jobs';
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    return url;
+  }
+  return '/find-jobs';
+};
+
 function CandidateAuthContent() {
   const { loginCandidate, loginCandidateWithGoogle, registerCandidate } = useAuth();
   const { toast } = useToast();
@@ -27,6 +35,7 @@ function CandidateAuthContent() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const searchParams = useSearchParams();
   const mode = useMemo(() => (searchParams.get('mode') === 'signup' ? 'signup' : 'login'), [searchParams]);
+  const redirectPath = useMemo(() => getSafeRedirect(searchParams.get('redirect')), [searchParams]);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -121,7 +130,7 @@ function CandidateAuthContent() {
           emailVerificationToken: token
         });
         toast({ title: 'Account created', description: 'Welcome to Kofeko!' });
-        router.push('/find-jobs');
+        router.push(redirectPath);
       }
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
@@ -172,7 +181,7 @@ function CandidateAuthContent() {
         await loginCandidate({ email: normalizeEmail(email), password });
         toast({ title: 'Login successful', description: 'Welcome back.' });
       }
-      router.push('/find-jobs');
+      router.push(redirectPath);
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors(mapped);
@@ -188,7 +197,7 @@ function CandidateAuthContent() {
       const idToken = await cred.user.getIdToken();
       await loginCandidateWithGoogle({ idToken });
       toast({ title: 'Login successful', description: 'Signed in with Google.' });
-      router.push('/find-jobs');
+      router.push(redirectPath);
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors(mapped);

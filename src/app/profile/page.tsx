@@ -284,8 +284,8 @@ export default function ProfilePage() {
 
     setIsParsing(true);
     toast({
-      title: 'Parsing resume...',
-      description: 'Extracting details using AI to auto-fill your profile.',
+      title: 'Uploading resume...',
+      description: 'Saving your resume file to your profile.',
     });
 
     try {
@@ -294,7 +294,7 @@ export default function ProfilePage() {
 
       const token = getAccessToken('candidate');
       const res = await fetch(
-        (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1') + '/portal/parse-resume',
+        (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1') + '/portal/upload-resume',
         {
           method: 'POST',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -303,75 +303,29 @@ export default function ProfilePage() {
       );
 
       if (!res.ok) {
-        throw new Error('Failed to parse resume');
+        throw new Error('Failed to upload resume');
       }
 
       const payload = await res.json();
-      const data = payload.data?.parsed;
+      const resumeUrl = payload.data?.resumeUrl;
+      const resumeMimeType = payload.data?.resumeMimeType;
 
-      if (data) {
-        let updatedUserFields: Partial<User> = {};
-
-        if (data.summary) {
-          setCoverLetter(data.summary);
-          updatedUserFields.coverLetter = data.summary;
-        }
-        if (Array.isArray(data.skills) && data.skills.length > 0) {
-          setSkills(data.skills);
-          updatedUserFields.skills = data.skills;
-        }
-        if (Array.isArray(data.experience) && data.experience.length > 0) {
-          const mapped = data.experience.map((e: any) => ({
-            company: e.company || '',
-            role: e.role || '',
-            startDate: e.startDate || '',
-            endDate: e.endDate || '',
-          }));
-          setWorkExperience(mapped);
-          updatedUserFields.workExperience = mapped;
-        }
-
-        if (Array.isArray(data.education) && data.education.length > 0) {
-          const mapped = data.education.map((e: any) => ({
-            institution: e.institution || '',
-            degree: e.degree || '',
-            field: e.field || '',
-            dates: e.dates || '',
-          }));
-          setEducation(mapped);
-          updatedUserFields.education = mapped;
-        }
-        if (Array.isArray(data.projects) && data.projects.length > 0) {
-          const mapped = data.projects.map((p: any) => ({
-            name: p.name || '',
-            description: p.description || '',
-            technologies: Array.isArray(p.technologies) ? p.technologies : typeof p.technologies === 'string' ? p.technologies.split(',').map((s: string) => s.trim()) : [],
-          }));
-          setProjects(mapped);
-          updatedUserFields.projects = mapped;
-        }
-        if (Array.isArray(data.hobbies) && data.hobbies.length > 0) {
-          setHobbies(data.hobbies);
-          updatedUserFields.hobbies = data.hobbies;
-        }
-
-        if (user) {
-          updateCurrentUser({
-            ...user,
-            ...updatedUserFields,
-            resumeUrl: payload.data?.resumeUrl || user.resumeUrl,
-          });
-        }
-
-        toast({
-          title: 'Resume extracted successfully!',
-          description: 'We pre-filled your summary, skills, and work experience.',
+      if (user) {
+        updateCurrentUser({
+          ...user,
+          resumeUrl: resumeUrl || user.resumeUrl,
+          resumeMimeType: resumeMimeType || user.resumeMimeType,
         });
       }
+
+      toast({
+        title: 'Resume uploaded successfully!',
+        description: 'Your resume has been saved. Please update your other profile fields manually.',
+      });
     } catch (err) {
       toast({
-        title: 'Parsing incomplete',
-        description: 'Could not auto-extract fields. Please fill them in manually.',
+        title: 'Upload failed',
+        description: 'Could not upload resume. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -578,7 +532,7 @@ export default function ProfilePage() {
                 />
                 {isParsing && (
                   <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
-                    <Loader2 className="h-4 w-4 animate-spin" /> AI is reading your resume and filling out fields below...
+                    <Loader2 className="h-4 w-4 animate-spin" /> Uploading your resume to your profile...
                   </div>
                 )}
                 {user.resumeUrl && !resumeFile && <p className="text-sm text-muted-foreground">Current file: {user.resumeUrl}</p>}

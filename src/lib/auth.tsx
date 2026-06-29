@@ -117,7 +117,7 @@ interface AuthContextType {
   superAdmin: BackendSuperAdmin | null;
   hasPermission: (permission: string) => boolean;
   login: (input: LoginInput) => Promise<User>;
-  registerAdmin: (input: RegisterAdminInput) => Promise<void>;
+  registerAdmin: (input: RegisterAdminInput) => Promise<any>;
   loginCandidate: (input: LoginCandidateInput) => Promise<User>;
   loginCandidateWithGoogle: (input: LoginCandidateGoogleInput) => Promise<User>;
   loginCandidateWithSupabase: (input: LoginCandidateSupabaseInput) => Promise<User>;
@@ -336,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const registerAdmin = async (input: RegisterAdminInput) => {
-    await apiRequest('/auth/register-company-request', {
+    return apiRequest<any>('/auth/register-company-request', {
       method: 'POST',
       body: input,
     });

@@ -127,6 +127,8 @@ export default function SuperAdminDashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { logout } = useAuth();
+  const [isAutoApproveEnabled, setIsAutoApproveEnabled] = useState(false);
+  const [isTogglingSetting, setIsTogglingSetting] = useState(false);
   const [requests, setRequests] = useState<CompanyRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -139,6 +141,58 @@ export default function SuperAdminDashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const token = useMemo(() => (typeof window !== 'undefined' ? localStorage.getItem(SUPERADMIN_TOKEN_KEY) : null), []);
+
+  const loadSettings = async () => {
+    const currentToken = localStorage.getItem(SUPERADMIN_TOKEN_KEY);
+    if (!currentToken) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin/settings/auto-approve`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+      const payload = await response.json();
+      if (response.ok && payload.success) {
+        setIsAutoApproveEnabled(payload.data.autoApprove);
+      }
+    } catch (err) {
+      console.error('Failed to load system settings:', err);
+    }
+  };
+
+  const toggleAutoApprove = async () => {
+    const currentToken = localStorage.getItem(SUPERADMIN_TOKEN_KEY);
+    if (!currentToken) return;
+    setIsTogglingSetting(true);
+    const targetState = !isAutoApproveEnabled;
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin/settings/auto-approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${currentToken}`,
+        },
+        body: JSON.stringify({ enabled: targetState }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.message ?? 'Failed to update setting');
+      }
+      setIsAutoApproveEnabled(payload.data.autoApprove);
+      toast({
+        title: targetState ? 'Auto-Approve Enabled' : 'Auto-Approve Disabled',
+        description: targetState
+          ? 'New company signups will now be approved automatically.'
+          : 'New company signups will require manual approval.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to update setting',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTogglingSetting(false);
+    }
+  };
 
   const loadRequests = async () => {
     const currentToken = localStorage.getItem(SUPERADMIN_TOKEN_KEY);
@@ -173,6 +227,7 @@ export default function SuperAdminDashboardPage() {
       return;
     }
     void loadRequests();
+    void loadSettings();
   }, [token, router]);
 
   const onApprove = async () => {
@@ -311,6 +366,35 @@ export default function SuperAdminDashboardPage() {
               Verify legal credentials, provision corporate tenants, and manage access parameters across the ecosystem.
             </p>
           </div>
+          <Card className="shadow-md border bg-background/50 backdrop-blur shrink-0 md:min-w-[280px]">
+            <CardContent className="p-4 flex items-center justify-between gap-6">
+              <div className="space-y-0.5">
+                <span className="text-sm font-bold text-foreground">Auto-Approve Settings</span>
+                <p className="text-xs text-muted-foreground">Approve requests instantly</p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={isAutoApproveEnabled}
+                onClick={toggleAutoApprove}
+                disabled={isTogglingSetting}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isAutoApproveEnabled ? 'bg-primary' : 'bg-muted'
+                }`}
+              >
+                {isTogglingSetting ? (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="h-3 w-3 animate-spin text-foreground" />
+                  </span>
+                ) : (
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                      isAutoApproveEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                )}
+              </button>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Stats Section */}
