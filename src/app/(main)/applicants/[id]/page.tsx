@@ -8,12 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Mail, Phone, Linkedin, FileText, CalendarPlus, Loader2, ArrowLeft } from "lucide-react";
 import { candidatesApi, ApiCandidate } from '@/lib/stage1-2-api';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 
 export default function ApplicantProfilePage() {
     const router = useRouter();
     const params = useParams();
-    const { toast } = useToast();
+    const { toastWarning } = useAppToast();
+    const { showError } = useApiErrorToast();
     const id = params.id as string;
 
     const [candidate, setCandidate] = useState<ApiCandidate | null>(null);
@@ -26,17 +29,13 @@ export default function ApplicantProfilePage() {
                 const data = await candidatesApi.get(id);
                 setCandidate(data);
             } catch (error) {
-                toast({
-                    title: 'Failed to load candidate',
-                    description: error instanceof Error ? error.message : 'Please try again.',
-                    variant: 'destructive',
-                });
+                showError(error);
             } finally {
                 setIsLoading(false);
             }
         };
         void loadCandidate();
-    }, [id, toast]);
+    }, [id, showError]);
 
     if (isLoading) {
         return (

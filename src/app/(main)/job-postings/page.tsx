@@ -38,7 +38,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { apiRequest, ApiError } from '@/lib/api-client';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import type { Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CreatedJob, SkillWeight } from '@/lib/stage1-2-api';
@@ -88,7 +89,8 @@ export default function JobPostingsPage() {
   const isAdmin = pathname.startsWith('/admin');
   const routePrefix = isAdmin ? '/admin' : '';
   const editId = searchParams.get('edit');
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError } = useAppToast();
+  const { showError } = useApiErrorToast();
   const { user, loading: authLoading } = useAuth();
   const invalidateJobs = useInvalidateJobs();
   const jobsQueryEnabled = !authLoading && !!user;
@@ -170,18 +172,14 @@ export default function JobPostingsPage() {
         setEditingJob(mapApiJobToRow(full));
         setIsManualDialogOpen(true);
       } catch (error) {
-        toast({
-          title: 'Could not load job details',
-          description: error instanceof Error ? error.message : 'Try again.',
-          variant: 'destructive',
-        });
+        showError(error);
         setEditingJob(job);
         setIsManualDialogOpen(true);
       } finally {
         setLoadingJobDetail(false);
       }
     })();
-  }, [toast]);
+  }, [showError]);
 
   useEffect(() => {
     if (editId && jobs.length > 0) {
@@ -216,10 +214,9 @@ export default function JobPostingsPage() {
 
   const handleGenerateWithAI = async () => {
     if (!formState.title.trim()) {
-      toast({
+      toastWarning({
         title: 'Title required',
         description: 'Please enter a job title first to help the AI generate the description.',
-        variant: 'destructive',
       });
       return;
     }
@@ -241,16 +238,12 @@ export default function JobPostingsPage() {
           : prev.skillWeights,
       }));
 
-      toast({
+      toastSuccess({
         title: 'JD Generated!',
         description: 'Description and skills have been populated by AI.',
       });
     } catch (error) {
-      toast({
-        title: 'Generation failed',
-        description: error instanceof Error ? error.message : 'AI could not generate the JD.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsGenerating(false);
     }
@@ -280,28 +273,25 @@ export default function JobPostingsPage() {
   const handleJobSave = async (status: 'open' | 'draft') => {
     const { title, description, jobType, employmentType } = formState;
     if (!title.trim() || !description.trim()) {
-      toast({
+      toastWarning({
         title: 'Missing information',
         description: 'Please provide a job title and description.',
-        variant: 'destructive',
       });
       return;
     }
 
     if (description.length < 10) {
-      toast({
+      toastWarning({
         title: 'Description too short',
         description: 'Use at least 10 characters for the job description.',
-        variant: 'destructive',
       });
       return;
     }
 
     if (editingJob?.backendStatus === 'open' && status === 'draft') {
-      toast({
+      toastError({
         title: 'Not supported',
         description: 'Published jobs cannot be turned into drafts from here.',
-        variant: 'destructive',
       });
       return;
     }
@@ -324,7 +314,7 @@ export default function JobPostingsPage() {
         if (status === 'open' && editingJob.backendStatus === 'draft') {
           await jobsApi.publish(editingJob.id);
         }
-        toast({
+        toastSuccess({
           title: status === 'open' ? 'Job published' : 'Draft saved',
           description: `"${title}" has been updated.`,
         });
@@ -339,7 +329,7 @@ export default function JobPostingsPage() {
         if (status === 'open') {
           await jobsApi.publish(created.id);
         }
-        toast({
+        toastSuccess({
           title: status === 'open' ? 'Job posted' : 'Draft saved',
           description: `"${title}" has been saved.`,
         });
@@ -349,18 +339,13 @@ export default function JobPostingsPage() {
       setEditingJob(null);
     } catch (error) {
       if (error instanceof ApiError && error.errorCode === 'JOB_IS_CLOSED') {
-        toast({
+        toastError({
           title: 'Job is Closed',
           description: 'This job has been permanently closed and cannot be modified.',
-          variant: 'destructive',
         });
         return;
       }
-      toast({
-        title: 'Save failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSaving(false);
     }
@@ -370,14 +355,10 @@ export default function JobPostingsPage() {
     setPublishingId(jobId);
     try {
       await jobsApi.publish(jobId);
-      toast({ title: 'Job published', description: 'The job is now live for applicants.' });
+      toastSuccess({ title: 'Job published', description: 'The job is now live for applicants.' });
       await invalidateJobs();
     } catch (error) {
-      toast({
-        title: 'Publish failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setPublishingId(null);
     }
@@ -388,13 +369,9 @@ export default function JobPostingsPage() {
     try {
       await jobsApi.delete(jobToDelete.id);
       await invalidateJobs();
-      toast({ title: 'Draft deleted', description: `"${jobToDelete.title}" has been deleted.` });
+      toastSuccess({ title: 'Draft deleted', description: `"${jobToDelete.title}" has been deleted.` });
     } catch (error) {
-      toast({
-        title: 'Delete failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setJobToDelete(null);
       setIsDeleteDialogOpen(false);

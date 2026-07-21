@@ -31,7 +31,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { format } from 'date-fns';
 import type { Interview } from '@/lib/types';
 import {
@@ -74,7 +76,8 @@ function isFutureDateTime(date: string, time: string): boolean {
 }
 
 export default function InterviewsPage() {
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+    const { showError } = useApiErrorToast();
     const [interviews, setInterviews] = useState<Interview[]>([]);
     const [isScheduleOpen, setIsScheduleOpen] = useState(false);
     const [archiveSearchQuery, setArchiveSearchQuery] = useState('');
@@ -108,15 +111,11 @@ export default function InterviewsPage() {
             setOpenJobs(res.items ?? []);
         } catch (error) {
             setOpenJobs([]);
-            toast({
-                title: 'Unable to load jobs',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setLoadingJobs(false);
         }
-    }, [toast]);
+    }, [showError]);
 
     const loadApplicantsForJob = useCallback(async (jobId: string) => {
         if (!jobId) {
@@ -129,15 +128,11 @@ export default function InterviewsPage() {
             setJobApplicants((res.items ?? []).map(pipelineToApplicant));
         } catch (error) {
             setJobApplicants([]);
-            toast({
-                title: 'Unable to load applicants',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setLoadingApplicants(false);
         }
-    }, [toast]);
+    }, [showError]);
 
     useEffect(() => {
         if (!isScheduleOpen) return;
@@ -202,24 +197,22 @@ export default function InterviewsPage() {
         const applicant = jobApplicants.find((a) => a.candidateId === newInterview.applicantId);
 
         if (!job) {
-            toast({ title: 'Select a job', description: 'Choose one of your open job postings.', variant: 'destructive' });
+            toastWarning({ title: 'Select a job', description: 'Choose one of your open job postings.' });
             return;
         }
 
         if (!applicant) {
-            toast({
+            toastWarning({
                 title: 'Select an applicant',
                 description: 'This job has no applicants yet. Add candidates from Job Postings first.',
-                variant: 'destructive',
             });
             return;
         }
 
         if (!isFutureDateTime(newInterview.date, newInterview.time)) {
-            toast({
+            toastWarning({
                 title: 'Invalid date or time',
                 description: 'Interview must be scheduled for a future date and time.',
-                variant: 'destructive',
             });
             return;
         }
@@ -241,7 +234,7 @@ export default function InterviewsPage() {
         setInterviews([scheduledInterview, ...interviews]);
         resetAssignForm();
         setIsScheduleOpen(false);
-        toast({
+        toastSuccess({
             title: 'Interview assigned',
             description: `${applicant.name} has been scheduled for ${job.title}.`,
         });

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Archive, ArchiveRestore, Inbox, FileText, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import {
   stripInboxHtml,
   useInboxNotifications,
@@ -15,7 +16,7 @@ import {
 } from '@/hooks/use-inbox-notifications';
 
 function InboxComponent() {
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const searchParams = useSearchParams();
 
   const [selectedNotification, setSelectedNotification] = useState<InboxNotification | null>(null);
@@ -65,14 +66,14 @@ function InboxComponent() {
     if (!selectedNotification) return;
     await archiveMessage(selectedNotification);
     setSelectedNotification(null);
-    toast({ title: 'Message archived.' });
+    toastInfo({ title: 'Message archived.' });
   };
 
   const handleUnarchive = async () => {
     if (!selectedNotification) return;
     await unarchiveMessage(selectedNotification);
     setSelectedNotification(null);
-    toast({ title: 'Message moved to inbox.' });
+    toastInfo({ title: 'Message moved to inbox.' });
   };
 
   const displayedNotifications = useMemo(

@@ -8,13 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Logo from '@/components/logo';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 function QuestionsForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
 
     const name = searchParams.get('name');
     const email = searchParams.get('email');
@@ -23,7 +24,7 @@ function QuestionsForm() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        toast({
+        toastSuccess({
             title: "Information Saved!",
             description: "Your application has been submitted. Please complete your profile to finish.",
         });

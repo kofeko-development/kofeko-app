@@ -3,12 +3,14 @@
 import { useEffect, useMemo } from 'react';
 import UserTable from '../users/_components/user-table';
 import { mapCandidateToDisplayUser } from '@/lib/admin-api';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { useAuth } from '@/lib/auth';
 import { useCandidatesList } from '@/hooks/use-candidates';
 
 export default function CandidatesPage() {
-    const { toast } = useToast();
+    const { showError } = useApiErrorToast();
     const { user, loading: authLoading } = useAuth();
     const {
         data,
@@ -24,12 +26,8 @@ export default function CandidatesPage() {
 
     useEffect(() => {
         if (!isError) return;
-        toast({
-            title: 'Could not load candidates',
-            description: error instanceof Error ? error.message : 'Try again later.',
-            variant: 'destructive',
-        });
-    }, [isError, error, toast]);
+        showError(error);
+    }, [isError, error, showError]);
 
     return (
        <UserTable

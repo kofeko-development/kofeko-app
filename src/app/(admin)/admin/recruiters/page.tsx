@@ -4,14 +4,16 @@ import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import UserTable from '../users/_components/user-table';
 import { mapStaffUserToDisplay, isRecruiterManagementUser } from '@/lib/admin-api';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { useAuth } from '@/lib/auth';
 import { useInvalidateTeam, useTeamList } from '@/hooks/use-team';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 
 export default function RecruitersPage() {
-  const { toast } = useToast();
+  const { showError } = useApiErrorToast();
   const { user, loading: authLoading } = useAuth();
   const invalidateTeam = useInvalidateTeam();
   const {
@@ -28,12 +30,8 @@ export default function RecruitersPage() {
 
   useEffect(() => {
     if (!isError) return;
-    toast({
-      title: 'Could not load staff',
-      description: error instanceof Error ? error.message : 'Try again later.',
-      variant: 'destructive',
-    });
-  }, [isError, error, toast]);
+    showError(error);
+  }, [isError, error, showError]);
 
   return (
     <div className="flex flex-col gap-6">

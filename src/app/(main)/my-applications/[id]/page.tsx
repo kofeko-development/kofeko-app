@@ -17,14 +17,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { useApplicationDetail } from '@/hooks/use-portal';
 
 
 export default function ApplicationStatusPage() {
     const params = useParams();
     const router = useRouter();
-    const { toast } = useToast();
+    const { toastSuccess } = useAppToast();
+    const { showError } = useApiErrorToast();
     const applicationId = params.id as string;
 
     const {
@@ -39,15 +42,11 @@ export default function ApplicationStatusPage() {
 
     useEffect(() => {
         if (!isError) return;
-        toast({
-            title: 'Failed to load details',
-            description: error instanceof Error ? error.message : 'Please check your connection and try again.',
-            variant: 'destructive',
-        });
-    }, [isError, error, toast]);
+        showError(error);
+    }, [isError, error, showError]);
 
     const handleWithdraw = () => {
-        toast({
+        toastSuccess({
             title: 'Withdraw Request Sent',
             description: 'Your request to withdraw this application has been sent to the hiring team.',
         });

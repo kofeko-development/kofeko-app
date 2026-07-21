@@ -8,10 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useAppToast } from '@/lib/toast-helpers';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
-import { stageOneApi } from '@/lib/stage1-2-api';
+import { superadminApi } from '@/lib/superadmin-api';
 import { cn } from '@/lib/utils';
 
-export default function ForgotPasswordPage() {
+export default function SuperAdminForgotPasswordPage() {
   const { toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const [email, setEmail] = useState('');
@@ -23,10 +23,10 @@ export default function ForgotPasswordPage() {
     setFieldErrors({});
     try {
       setIsSubmitting(true);
-      await stageOneApi.forgotPassword({ email });
+      await superadminApi.forgotPassword(email);
       toastInfo({
         title: 'Reset email sent',
-        description: 'If your account exists, you will receive a password reset email shortly.',
+        description: 'If that email exists, you will receive a password reset email shortly.',
       });
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
@@ -41,7 +41,7 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Forgot Password</CardTitle>
-          <CardDescription>Enter your email to receive a reset link.</CardDescription>
+          <CardDescription>Enter your superadmin email to receive a reset link.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" onSubmit={onSubmit}>
@@ -53,17 +53,19 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="you@company.com"
+                placeholder="admin@example.com"
                 className={cn(fieldErrors.email && 'border-destructive')}
               />
               {fieldErrors.email ? (
                 <p className="text-sm text-destructive" role="alert">{fieldErrors.email}</p>
               ) : null}
             </div>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Sending...' : 'Send Reset Link'}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Sending...' : 'Send Reset Link'}
+            </Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Back to <Link href="/company-login" className="underline">Login</Link>
+            Back to <Link href="/superadmin/login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+import { apiErrorFromResponse } from '@/lib/api-client';
+
 import { 
   Loader2, 
   Shield, 
@@ -22,7 +26,8 @@ import {
   Calendar,
   Users,
   KeyRound,
-  FileText
+  FileText,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
@@ -125,7 +130,8 @@ type CompanyRequest = {
 
 export default function SuperAdminDashboardPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+  const { showError } = useApiErrorToast();
   const { logout } = useAuth();
   const [isAutoApproveEnabled, setIsAutoApproveEnabled] = useState(false);
   const [isTogglingSetting, setIsTogglingSetting] = useState(false);
@@ -174,21 +180,17 @@ export default function SuperAdminDashboardPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.message ?? 'Failed to update setting');
+        throw apiErrorFromResponse(response, payload);
       }
       setIsAutoApproveEnabled(payload.data.autoApprove);
-      toast({
+      toastSuccess({
         title: targetState ? 'Auto-Approve Enabled' : 'Auto-Approve Disabled',
         description: targetState
           ? 'New company signups will now be approved automatically.'
           : 'New company signups will require manual approval.',
       });
     } catch (error) {
-      toast({
-        title: 'Failed to update setting',
-        description: error instanceof Error ? error.message : 'Please try again',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsTogglingSetting(false);
     }
@@ -207,15 +209,11 @@ export default function SuperAdminDashboardPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.message ?? 'Failed to fetch requests');
+        throw apiErrorFromResponse(response, payload);
       }
       setRequests(payload.data || []);
     } catch (error) {
-      toast({
-        title: 'Failed to load requests',
-        description: error instanceof Error ? error.message : 'Please try again',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsLoading(false);
     }
@@ -253,9 +251,9 @@ export default function SuperAdminDashboardPage() {
       });
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result?.message ?? 'Approve failed');
+        throw apiErrorFromResponse(response, result);
       }
-      toast({ title: 'Approved', description: result?.message ?? 'Company approved and credentials created.' });
+      toastSuccess({ title: 'Approved', description: result?.message ?? 'Company approved and credentials created.' });
       setSelectedId(null);
       setTenantSlug('');
       setAdminEmail('');
@@ -263,11 +261,7 @@ export default function SuperAdminDashboardPage() {
       setReviewNotes('');
       await loadRequests();
     } catch (error) {
-      toast({
-        title: 'Approval failed',
-        description: error instanceof Error ? error.message : 'Please try again',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -287,18 +281,14 @@ export default function SuperAdminDashboardPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.message ?? 'Reject failed');
+        throw apiErrorFromResponse(response, payload);
       }
-      toast({ title: 'Rejected', description: 'Company request rejected.' });
+      toastSuccess({ title: 'Rejected', description: 'Company request rejected.' });
       setSelectedId(null);
       setReviewNotes('');
       await loadRequests();
     } catch (error) {
-      toast({
-        title: 'Rejection failed',
-        description: error instanceof Error ? error.message : 'Please try again',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -350,10 +340,18 @@ export default function SuperAdminDashboardPage() {
             </div>
           </div>
 
-          <Button variant="ghost" size="sm" onClick={logout} className="gap-2 text-muted-foreground hover:text-foreground">
-            <LogOut className="h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild className="gap-2 text-muted-foreground hover:text-foreground">
+              <Link href="/superadmin/settings">
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={logout} className="gap-2 text-muted-foreground hover:text-foreground">
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 

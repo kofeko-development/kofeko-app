@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Briefcase, Loader2, Info } from "lucide-react";
 import PublicNavbar from "@/components/public-navbar";
 import { useAuth } from '@/lib/auth';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import sanitizeHtml from 'sanitize-html';
 import AppFooter from '@/components/app-footer';
@@ -324,7 +325,7 @@ export default function JobApplicationPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuth();
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
     const { showError } = useApiErrorToast();
     const id = params.id as string;
     const invalidateApplications = useInvalidatePortalApplications();
@@ -357,21 +358,19 @@ export default function JobApplicationPage() {
 
     useEffect(() => {
         if (!jobError) return;
-        toast({
+        toastError({
             title: 'Job not found',
             description: 'Please go back and try again.',
-            variant: 'destructive',
         });
-    }, [jobError, toast]);
+    }, [jobError, toastError]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!user) {
-            toast({
+            toastWarning({
                 title: "Login Required",
                 description: "Please login as a candidate to apply for this position.",
-                variant: "destructive",
             });
             router.push('/candidate-auth');
             return;
@@ -380,10 +379,9 @@ export default function JobApplicationPage() {
         if (!job) return;
 
         if (!canSubmit) {
-            toast({
+            toastError({
                 title: 'Profile incomplete',
                 description: `Please complete your profile first: ${profileCompletion.missing.join(', ')}.`,
-                variant: 'destructive',
             });
             return;
         }
@@ -412,7 +410,7 @@ export default function JobApplicationPage() {
 
             await invalidateApplications();
 
-            toast({
+            toastSuccess({
                 title: "Application Submitted!",
                 description: `You have successfully applied for ${job.title}.`,
             });

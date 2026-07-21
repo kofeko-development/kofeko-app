@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api-client";
-import { getErrorDisplay } from "@/lib/error-messages";
 import { linkedInApi, type LinkedInPostResult, type LinkedInPostRecord, type LinkedInPreview, type LinkedInStatus } from "@/lib/linkedin-api";
 import { useAuth } from "@/lib/auth";
-import { useToast } from "@/hooks/use-toast";
+import { useAppToast } from "@/lib/toast-helpers";
+import { useApiErrorToast } from "@/hooks/use-api-error-toast";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,7 +39,8 @@ function formatDate(d?: string | null) {
 
 export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
   const { hasPermission } = useAuth();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+  const { showError } = useApiErrorToast();
 
   const canPost = hasPermission("linkedin:post");
   const canRead = hasPermission("linkedin:read");
@@ -74,10 +75,9 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
       setPreview(p);
       setCustomText(p.postText);
     } catch (e) {
-      toast({
+      toastError({
         title: "Unable to generate LinkedIn preview",
         description: e instanceof Error ? e.message : "Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsLoadingPreview(false);
@@ -127,13 +127,12 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
     try {
       await navigator.clipboard.writeText(effectiveText);
       await linkedInApi.recordCopy({ jobId, postText: effectiveText });
-      toast({ title: "Copied", description: "LinkedIn post text copied to clipboard." });
+      toastSuccess({ title: "Copied", description: "LinkedIn post text copied to clipboard." });
       void loadHistory();
     } catch (e) {
-      toast({
+      toastError({
         title: "Copy failed",
         description: e instanceof Error ? e.message : "Please try again.",
-        variant: "destructive",
       });
     }
   };
@@ -143,7 +142,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
     try {
       window.open(preview.shareUrl, "_blank", "noopener,noreferrer");
       await linkedInApi.recordShare({ jobId, postText: effectiveText, shareUrl: preview.shareUrl });
-      toast({
+      toastInfo({
         title: "Opened LinkedIn",
         description: preview.imageUrl
           ? "Finish posting in the new tab. Attach the downloaded image if you uploaded one."
@@ -151,10 +150,9 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
       });
       void loadHistory();
     } catch (e) {
-      toast({
+      toastError({
         title: "Could not open share",
         description: e instanceof Error ? e.message : "Please try again.",
-        variant: "destructive",
       });
     }
   };
@@ -164,10 +162,9 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
       const { url } = await linkedInApi.authUrl();
       window.location.href = url;
     } catch (e) {
-      toast({
+      toastError({
         title: "Could not start LinkedIn connect",
         description: e instanceof Error ? e.message : "Please try again.",
-        variant: "destructive",
       });
     }
   };
@@ -184,19 +181,17 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
 
     const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
     if (!allowed.includes(file.type) && !/\.(jpe?g|png|gif|webp)$/i.test(file.name)) {
-      toast({
+      toastWarning({
         title: "Unsupported format",
         description: "Use JPG, PNG, GIF, or WEBP for LinkedIn share images.",
-        variant: "destructive",
       });
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast({
+      toastWarning({
         title: "File too large",
         description: "Maximum size is 5 MB.",
-        variant: "destructive",
       });
       return;
     }
@@ -204,13 +199,12 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
     setIsUploadingImage(true);
     try {
       await linkedInApi.uploadJobImage(jobId, file);
-      toast({ title: "Image uploaded", description: "This image will be included when you use Post now." });
+      toastSuccess({ title: "Image uploaded", description: "This image will be included when you use Post now." });
       await loadPreview();
     } catch (err) {
-      toast({
+      toastError({
         title: "Upload failed",
         description: err instanceof Error ? err.message : "Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsUploadingImage(false);
@@ -221,13 +215,12 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
     setIsRemovingImage(true);
     try {
       await linkedInApi.clearJobImage(jobId);
-      toast({ title: "Image removed" });
+      toastSuccess({ title: "Image removed" });
       await loadPreview();
     } catch (err) {
-      toast({
+      toastError({
         title: "Could not remove image",
         description: err instanceof Error ? err.message : "Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsRemovingImage(false);
@@ -237,19 +230,17 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
   const onAutoPost = async () => {
     if (!preview) return;
     if (charCount > charLimit) {
-      toast({
+      toastWarning({
         title: "Post too long",
         description: `LinkedIn allows max ${charLimit} characters.`,
-        variant: "destructive",
       });
       return;
     }
 
     if (selectedConnectionIds.length === 0) {
-      toast({
+      toastWarning({
         title: "No account selected",
         description: "Please select at least one LinkedIn account to post to.",
-        variant: "destructive",
       });
       return;
     }
@@ -263,7 +254,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
       });
 
       const successCount = res.length;
-      toast({
+      toastSuccess({
         title: "Posted to LinkedIn",
         description: `Successfully posted to ${successCount} account${successCount > 1 ? 's' : ''}.`,
       });
@@ -271,11 +262,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
       await loadStatus();
     } catch (e) {
       const errorCode = e instanceof ApiError ? e.errorCode : undefined;
-      const display = getErrorDisplay(
-        errorCode,
-        e instanceof ApiError ? e.message : e instanceof Error ? e.message : undefined,
-      );
-      toast({ title: display.title, description: display.description, variant: "destructive" });
+      showError(e);
 
       if (
         errorCode === "LINKEDIN_NOT_CONNECTED" ||
@@ -462,7 +449,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
               ) : null}
 
               {!status?.connected ? (
-                <Alert>
+                <Alert variant="info">
                   <AlertTitle>Connect LinkedIn for Post now</AlertTitle>
                   <AlertDescription>
                     Copy text and Open on LinkedIn work without connecting.{" "}
@@ -483,7 +470,7 @@ export function LinkedInShareModal({ open, onOpenChange, jobId }: Props) {
                 </div>
               ) : status?.connected && hasConnections ? (
                 <div className="space-y-4">
-                  <Alert>
+                  <Alert variant="success">
                     <AlertTitle>Connected Accounts</AlertTitle>
                     <AlertDescription>
                       You have {connections.length} account{connections.length > 1 ? 's' : ''} connected.

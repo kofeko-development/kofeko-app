@@ -22,7 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { ApiError } from '@/lib/api-client';
 import { aiApi, jobsApi, type CreatedJob, type SkillWeight } from '@/lib/stage1-2-api';
 
@@ -100,7 +101,8 @@ type EditJobDialogProps = {
 };
 
 export function EditJobDialog({ open, onOpenChange, job, onSaved }: EditJobDialogProps) {
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError } = useAppToast();
+  const { showError } = useApiErrorToast();
   const [formState, setFormState] = useState<FormState>({
     title: '',
     requirements: '',
@@ -135,10 +137,9 @@ export function EditJobDialog({ open, onOpenChange, job, onSaved }: EditJobDialo
 
   const removeSkillRow = (index: number) => {
     if (formState.skillWeights.length <= MIN_MANUAL_SKILLS) {
-      toast({
+      toastWarning({
         title: 'Minimum skills required',
         description: `Keep at least ${MIN_MANUAL_SKILLS} skill rows.`,
-        variant: 'destructive',
       });
       return;
     }
@@ -150,10 +151,9 @@ export function EditJobDialog({ open, onOpenChange, job, onSaved }: EditJobDialo
 
   const handleGenerateWithAI = async () => {
     if (!formState.title.trim()) {
-      toast({
+      toastWarning({
         title: 'Title required',
         description: 'Please enter a job title first.',
-        variant: 'destructive',
       });
       return;
     }
@@ -181,16 +181,12 @@ export function EditJobDialog({ open, onOpenChange, job, onSaved }: EditJobDialo
             : prev.skillWeights,
       }));
 
-      toast({
+      toastSuccess({
         title: 'JD Generated!',
         description: 'Description and skills have been populated by AI.',
       });
     } catch (error) {
-      toast({
-        title: 'Generation failed',
-        description: error instanceof Error ? error.message : 'AI could not generate the JD.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsGenerating(false);
     }
@@ -202,10 +198,9 @@ export function EditJobDialog({ open, onOpenChange, job, onSaved }: EditJobDialo
     const errors = validateForm(formState);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
-      toast({
+      toastWarning({
         title: 'Missing required fields',
         description: 'Please complete all mandatory fields before saving.',
-        variant: 'destructive',
       });
       return;
     }
@@ -230,7 +225,7 @@ export function EditJobDialog({ open, onOpenChange, job, onSaved }: EditJobDialo
         skillWeights: skillWeightsPayload,
       });
 
-      toast({
+      toastSuccess({
         title: 'Job updated',
         description: `"${formState.title.trim()}" has been saved.`,
       });
@@ -239,18 +234,13 @@ export function EditJobDialog({ open, onOpenChange, job, onSaved }: EditJobDialo
       await onSaved?.();
     } catch (error) {
       if (error instanceof ApiError && error.errorCode === 'JOB_IS_CLOSED') {
-        toast({
+        toastError({
           title: 'Job is closed',
           description: 'This job has been permanently closed and cannot be modified.',
-          variant: 'destructive',
         });
         return;
       }
-      toast({
-        title: 'Save failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSaving(false);
     }

@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import {
   Loader2,
   Save,
@@ -72,7 +74,8 @@ const selectTriggerClass =
 
 export default function CompanyProfilePage() {
   const { user, loading } = useAuth();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+  const { showError } = useApiErrorToast();
   const router = useRouter();
   const invalidateCompanyProfile = useInvalidateCompanyProfile();
 
@@ -131,12 +134,8 @@ export default function CompanyProfilePage() {
 
   useEffect(() => {
     if (!profileError) return;
-    toast({
-      title: 'Unable to load company profile',
-      description: profileLoadError instanceof Error ? profileLoadError.message : 'Please refresh and try again.',
-      variant: 'destructive',
-    });
-  }, [profileError, profileLoadError, toast]);
+    showError(profileLoadError);
+  }, [profileError, profileLoadError, showError]);
 
   const updateField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -151,18 +150,16 @@ export default function CompanyProfilePage() {
     e.preventDefault();
     if (!canEdit) return;
     if (form.shortDescription.trim().length < 20) {
-      toast({
+      toastWarning({
         title: 'Description too short',
         description: 'Short description must be at least 20 characters.',
-        variant: 'destructive',
       });
       return;
     }
     if (!form.termsAccepted) {
-      toast({
+      toastWarning({
         title: 'Terms required',
         description: 'Please accept the terms before saving.',
-        variant: 'destructive',
       });
       return;
     }
@@ -184,20 +181,20 @@ export default function CompanyProfilePage() {
       }
       setSavedForm({ ...form });
       await invalidateCompanyProfile();
-      toast({
+      toastSuccess({
         title: 'Company Profile Updated',
         description: 'Your changes have been saved successfully.',
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to save profile.';
+      const message = error instanceof Error ? error.message : '';
       if (message.toLowerCase().includes('already exists')) {
         setHasCompanyProfile(true);
-        toast({
+        toastSuccess({
           title: 'Profile already exists',
           description: 'Switched to update mode. Please click save again.',
         });
       } else {
-        toast({ title: 'Save failed', description: message, variant: 'destructive' });
+        showError(error);
       }
     } finally {
       setIsSaving(false);

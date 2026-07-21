@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import type { User, CompanyRole } from '@/lib/types';
 import { removeStaffUser, staffInviteStatusLabel, updateStaffUserRole, updateStaffUserStatus } from '@/lib/admin-api';
 import { UserTableRowsSkeleton } from '@/components/loading/user-table-rows-skeleton';
@@ -45,7 +47,8 @@ interface TeamMembersTableProps {
 }
 
 export default function TeamMembersTable({ users: initialUsers, loading = false }: TeamMembersTableProps) {
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+    const { showError } = useApiErrorToast();
     const [users, setUsers] = useState(initialUsers);
 
     useEffect(() => {
@@ -63,16 +66,12 @@ export default function TeamMembersTable({ users: initialUsers, loading = false 
             
             await updateStaffUserRole(userId, backendRole);
             setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, companyRole: newRole } : u));
-            toast({
+            toastSuccess({
                 title: "User role updated",
                 description: `The user's role has been changed to ${newRole}.`,
             });
         } catch (error) {
-            toast({
-                title: "Failed to update role",
-                description: error instanceof Error ? error.message : "An error occurred",
-                variant: 'destructive'
-            });
+            showError(error);
         }
     }
 
@@ -86,17 +85,12 @@ export default function TeamMembersTable({ users: initialUsers, loading = false 
          try {
              await removeStaffUser(selectedUser.uid);
              setUsers(prevUsers => prevUsers.filter(u => u.uid !== selectedUser.uid));
-             toast({
+             toastSuccess({
                  title: "User Removed",
-                 description: `${selectedUser.name} has been removed from the team.`,
-                 variant: 'destructive'
+                 description: `${selectedUser.name} has been removed from the team.`
              });
          } catch (error) {
-             toast({
-                 title: "Failed to remove user",
-                 description: error instanceof Error ? error.message : "An error occurred",
-                 variant: 'destructive'
-             });
+             showError(error);
          } finally {
              setIsAlertOpen(false);
              setSelectedUser(null);
@@ -107,16 +101,12 @@ export default function TeamMembersTable({ users: initialUsers, loading = false 
         try {
             await updateStaffUserStatus(userId, status);
             setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, status } : u));
-            toast({
+            toastSuccess({
                 title: `User ${status}`,
                 description: `The user has been ${status}.`,
             });
         } catch (error) {
-            toast({
-                title: `Failed to ${status === 'active' ? 'reactivate' : 'suspend'} user`,
-                description: error instanceof Error ? error.message : "An error occurred",
-                variant: 'destructive'
-            });
+            showError(error);
         }
     }
 

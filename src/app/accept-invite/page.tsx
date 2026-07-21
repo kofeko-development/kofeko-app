@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { ApiError } from '@/lib/api-client';
@@ -19,7 +20,7 @@ const strongPassword = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
   const [password, setPassword] = useState('');
@@ -34,26 +35,25 @@ function AcceptInviteContent() {
     setFieldErrors({});
 
     if (!token) {
-      toast({ title: 'Missing invite token', description: 'Open this page from the invite email link.', variant: 'destructive' });
+      toastWarning({ title: 'Missing invite token', description: 'Open this page from the invite email link.' });
       return;
     }
     if (!strongPassword.test(password)) {
-      toast({
+      toastWarning({
         title: 'Weak password',
         description: 'Password must be at least 8 characters with one uppercase letter and one number.',
-        variant: 'destructive',
       });
       return;
     }
     if (password !== confirmPassword) {
-      toast({ title: 'Passwords do not match', description: 'Please confirm the same password.', variant: 'destructive' });
+      toastWarning({ title: 'Passwords do not match', description: 'Please confirm the same password.' });
       return;
     }
 
     try {
       setIsSubmitting(true);
       await stageOneApi.acceptInvite({ token, password });
-      toast({ title: 'Invite accepted', description: 'Your account is active now. Please login.' });
+      toastSuccess({ title: 'Invite accepted', description: 'Your account is active now. Please login.' });
       router.push('/company-login');
     } catch (error) {
       if (error instanceof ApiError && error.errorCode === 'INVITE_TOKEN_USED') {

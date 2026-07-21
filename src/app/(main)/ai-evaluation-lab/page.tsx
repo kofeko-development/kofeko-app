@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import {
   Loader2,
@@ -166,7 +167,7 @@ function ResultCard({ item, rank }: { item: EvaluationLabResultItem; rank: numbe
 }
 
 export default function AiEvaluationLabPage() {
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
 
   const [jobTitle, setJobTitle] = useState('');
@@ -182,7 +183,7 @@ export default function AiEvaluationLabPage() {
 
   const handleGenerateJd = async () => {
     if (!jobTitle.trim()) {
-      toast({ title: 'Job title required', variant: 'destructive' });
+      toastWarning({ title: 'Job title required' });
       return;
     }
     setIsGeneratingJd(true);
@@ -194,7 +195,7 @@ export default function AiEvaluationLabPage() {
       setJdHtml(data.html);
       setDescription(data.plainText || '');
       setSkillWeights(data.suggestedSkills ?? []);
-      toast({ title: 'Job description generated' });
+      toastSuccess({ title: 'Job description generated' });
     } catch (err) {
       showError(err);
     } finally {
@@ -234,15 +235,14 @@ export default function AiEvaluationLabPage() {
 
   const handleRunEvaluation = async () => {
     if (!jobTitle.trim() || !description.trim()) {
-      toast({
+      toastWarning({
         title: 'Missing job details',
         description: 'Generate or enter a job title and description first.',
-        variant: 'destructive',
       });
       return;
     }
     if (resumeFiles.length === 0) {
-      toast({ title: 'Upload at least one resume', variant: 'destructive' });
+      toastWarning({ title: 'Upload at least one resume' });
       return;
     }
 
@@ -257,7 +257,7 @@ export default function AiEvaluationLabPage() {
       });
       setResults(data.results);
       const successCount = data.results.filter((r) => r.success).length;
-      toast({
+      toastSuccess({
         title: 'Evaluation complete',
         description: `${successCount} of ${data.results.length} resume(s) scored.`,
       });

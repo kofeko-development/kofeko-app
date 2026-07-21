@@ -10,7 +10,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import type { User } from '@/lib/types';
 import { displayStatusToStaffStatus, staffInviteStatusLabel, updateStaffUserStatus } from '@/lib/admin-api';
 import { UserTableRowsSkeleton } from '@/components/loading/user-table-rows-skeleton';
@@ -57,7 +59,8 @@ export default function UserTable({
     onStaffStatusUpdated,
     headerAction,
 }: UserTableProps) {
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+    const { showError } = useApiErrorToast();
     const [users, setUsers] = useState(initialUsers);
     const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
 
@@ -91,18 +94,14 @@ export default function UserTable({
         try {
             setStatusUpdatingId(userId);
             await updateStaffUserStatus(userId, displayStatusToStaffStatus(newStatus));
-            toast({
+            toastSuccess({
                 title: 'User status updated',
                 description: `The user has been moved to ${newStatus}.`,
             });
             onStaffStatusUpdated?.();
         } catch (error) {
             setUsers(prevSnapshot);
-            toast({
-                title: 'Update failed',
-                description: error instanceof Error ? error.message : 'Could not update status.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setStatusUpdatingId(null);
         }

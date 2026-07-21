@@ -6,7 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,7 +39,8 @@ const PhoneInternationalField = dynamic(
 
 export default function ProfilePage() {
   const { user, updateCurrentUser, loading } = useAuth();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError } = useAppToast();
+  const { showError } = useApiErrorToast();
   const router = useRouter();
 
   const [name, setName] = useState('');
@@ -130,7 +133,7 @@ export default function ProfilePage() {
 
   const handleVerifyPhoneWithMsg91 = async () => {
     if (!phoneValidation.ok) {
-      toast({ title: 'Invalid phone', description: phoneValidation.error, variant: 'destructive' });
+      toastWarning({ title: 'Invalid phone', description: phoneValidation.error });
       return;
     }
 
@@ -142,12 +145,12 @@ export default function ProfilePage() {
       );
 
       if (!checkRes.available) {
-        toast({ title: 'Phone number unavailable', description: 'This phone number is already registered to another candidate.', variant: 'destructive' });
+        toastError({ title: 'Phone number unavailable', description: 'This phone number is already registered to another candidate.' });
         setIsVerifyingPhone(false);
         return;
       }
     } catch (error) {
-      toast({ title: 'Availability check failed', description: 'Could not verify if this phone number is available.', variant: 'destructive' });
+      toastWarning({ title: 'Availability check failed', description: 'Could not verify if this phone number is available.' });
       setIsVerifyingPhone(false);
       return;
     }
@@ -155,7 +158,7 @@ export default function ProfilePage() {
     setIsVerifyingPhone(false);
 
     if (typeof (window as any).initSendOTP !== 'function') {
-      toast({ title: 'Service unavailable', description: 'Verification service is still loading. Please try again in a second.', variant: 'destructive' });
+      toastError({ title: 'Service unavailable', description: 'Verification service is still loading. Please try again in a second.' });
       return;
     }
 
@@ -167,7 +170,7 @@ export default function ProfilePage() {
         handleMsg91Success(data);
       },
       failure: (error: any) => {
-        toast({ title: 'Verification failed', description: error?.message || 'Verification was unsuccessful.', variant: 'destructive' });
+        toastError({ title: 'Verification failed', description: error?.message || 'Verification was unsuccessful.' });
       },
     };
     (window as any).initSendOTP(config);
@@ -187,12 +190,12 @@ export default function ProfilePage() {
 
       setPhoneVerificationToken(token);
       setVerifiedPhone(currentFullPhone);
-      toast({ title: 'Phone verified', description: 'Your phone number has been verified successfully.' });
+      toastSuccess({ title: 'Phone verified', description: 'Your phone number has been verified successfully.' });
 
       // Auto-save immediately upon verification
       setTimeout(() => saveChanges(currentFullPhone), 0);
     } catch (error) {
-      toast({ title: 'Backend verification failed', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
+      showError(error);
     }
   };
 
@@ -283,7 +286,7 @@ export default function ProfilePage() {
     if (!file) return;
 
     setIsParsing(true);
-    toast({
+    toastSuccess({
       title: 'Uploading resume...',
       description: 'Saving your resume file to your profile.',
     });
@@ -318,15 +321,14 @@ export default function ProfilePage() {
         });
       }
 
-      toast({
+      toastSuccess({
         title: 'Resume uploaded successfully!',
         description: 'Your resume has been saved. Please update your other profile fields manually.',
       });
     } catch (err) {
-      toast({
+      toastError({
         title: 'Upload failed',
         description: 'Could not upload resume. Please try again.',
-        variant: 'destructive',
       });
     } finally {
       setIsParsing(false);
@@ -336,7 +338,7 @@ export default function ProfilePage() {
   const saveChanges = async (forcePhone?: string, isManualSave = false) => {
     if (!isPhoneVerified && !forcePhone) {
       if (isManualSave) {
-        toast({ title: 'Verify Phone', description: 'Please verify your new phone number before saving.', variant: 'destructive' });
+        toastWarning({ title: 'Verify Phone', description: 'Please verify your new phone number before saving.' });
       }
       return;
     }
@@ -349,10 +351,9 @@ export default function ProfilePage() {
           const phoneCheck = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
           if (!phoneCheck.ok) {
             if (isManualSave) {
-              toast({
+              toastWarning({
                 title: 'Invalid phone',
                 description: phoneCheck.error,
-                variant: 'destructive',
               });
             }
             setIsSaving(false);
@@ -390,16 +391,15 @@ export default function ProfilePage() {
       }
 
       if (isManualSave) {
-        toast({
+        toastSuccess({
           title: 'Profile Updated',
           description: 'Your changes have been saved successfully.',
         });
       }
     } catch (err) {
-      toast({
+      toastError({
         title: 'Update failed',
         description: err instanceof Error ? err.message : 'Please try again.',
-        variant: 'destructive',
       });
     } finally {
       setIsSaving(false);

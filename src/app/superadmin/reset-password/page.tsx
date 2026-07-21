@@ -8,18 +8,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useAppToast } from '@/lib/toast-helpers';
-
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
-import { stageOneApi } from '@/lib/stage1-2-api';
+import { superadminApi } from '@/lib/superadmin-api';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
 const strongPassword = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 
-function ResetPasswordContent() {
+function SuperAdminResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+  const { toastSuccess, toastWarning } = useAppToast();
   const { showError } = useApiErrorToast();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
   const [password, setPassword] = useState('');
@@ -49,16 +48,14 @@ function ResetPasswordContent() {
 
     try {
       setIsSubmitting(true);
-      await stageOneApi.resetPassword({ token, password });
-      toastSuccess({ title: 'Password reset successful', description: 'Please login with your new password.' });
-      router.push('/company-login');
+      await superadminApi.resetPassword(token, password);
+      toastSuccess({ title: 'Password reset successful', description: 'Please log in with your new password.' });
+      router.push('/superadmin/login');
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.errorCode === 'RESET_TOKEN_EXPIRED') {
-          showError(error);
-          router.push('/forgot-password');
-          return;
-        }
+      if (error instanceof ApiError && error.errorCode === 'RESET_TOKEN_EXPIRED') {
+        showError(error);
+        router.push('/superadmin/forgot-password');
+        return;
       }
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors(mapped);
@@ -72,7 +69,7 @@ function ResetPasswordContent() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Reset Password</CardTitle>
-          <CardDescription>Enter your new password to complete the reset process.</CardDescription>
+          <CardDescription>Enter your new superadmin password.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" onSubmit={onSubmit}>
@@ -100,10 +97,12 @@ function ResetPasswordContent() {
                 required
               />
             </div>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Resetting...' : 'Reset Password'}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Resetting...' : 'Reset Password'}
+            </Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Back to <Link href="/company-login" className="underline">Login</Link>
+            Back to <Link href="/superadmin/login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>
@@ -111,10 +110,10 @@ function ResetPasswordContent() {
   );
 }
 
-export default function ResetPasswordPage() {
+export default function SuperAdminResetPasswordPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-      <ResetPasswordContent />
+      <SuperAdminResetPasswordContent />
     </Suspense>
   );
 }

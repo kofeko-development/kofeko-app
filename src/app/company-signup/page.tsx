@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/api-client";
-import { useToast } from "@/hooks/use-toast";
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from "@/hooks/use-api-error-toast";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
@@ -71,7 +72,7 @@ const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(n
 export default function SignupPage() {
   const { registerAdmin, login } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -295,10 +296,9 @@ export default function SignupPage() {
   const handleSendEmailOtp = async () => {
     const raw = adminEmail.trim();
     if (!isValidEmailShape(raw)) {
-      toast({
+      toastWarning({
         title: 'Invalid email',
         description: 'Enter a valid email address, then tap Verify.',
-        variant: 'destructive',
       });
       return;
     }
@@ -323,7 +323,7 @@ export default function SignupPage() {
         emailVerificationToken: null,
         verifiedAtEmail: null,
       });
-      toast({
+      toastInfo({
         title: 'Code sent',
         description: `Enter the 6-digit code within ${formatOtpCountdown(COMPANY_SIGNUP_OTP_TTL_SECONDS)}.`,
       });
@@ -339,18 +339,16 @@ export default function SignupPage() {
     const raw = adminEmail.trim();
     const code = otpCode.trim();
     if (otpExpired) {
-      toast({
+      toastError({
         title: 'Code expired',
         description: 'Your verification code has expired. Tap Resend to get a new one.',
-        variant: 'destructive',
       });
       return;
     }
     if (!isValidEmailShape(raw) || !/^\d{6}$/.test(code)) {
-      toast({
+      toastWarning({
         title: 'Invalid code',
         description: 'Enter the 6-digit code from your email.',
-        variant: 'destructive',
       });
       return;
     }
@@ -379,7 +377,7 @@ export default function SignupPage() {
         emailVerificationToken: token,
         verifiedAtEmail: normalized,
       });
-      toast({ title: 'Email verified', description: 'You can continue to company details.' });
+      toastSuccess({ title: 'Email verified', description: 'You can continue to company details.' });
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors((prev) => ({ ...prev, ...mapped }));
@@ -391,42 +389,37 @@ export default function SignupPage() {
   const validateStep1 = (): boolean => {
     const norm = normalizeEmail(adminEmail);
     if (!norm || !isValidEmailShape(adminEmail)) {
-      toast({
+      toastWarning({
         title: 'Invalid email',
         description: 'Enter a valid email you will use to log in after approval.',
-        variant: 'destructive',
       });
       return false;
     }
     if (!emailLooksVerified) {
-      toast({
+      toastWarning({
         title: 'Verify your email',
         description: 'Use Verify to get a code, then confirm it before continuing.',
-        variant: 'destructive',
       });
       return false;
     }
     if (password.length < 8) {
-      toast({
+      toastWarning({
         title: 'Password too short',
         description: 'Use at least 8 characters.',
-        variant: 'destructive',
       });
       return false;
     }
     if (confirmPassword.length < 8) {
-      toast({
+      toastError({
         title: 'Confirm your password',
         description: 'Enter the same password in both fields (at least 8 characters).',
-        variant: 'destructive',
       });
       return false;
     }
     if (!passwordsMatch) {
-      toast({
+      toastWarning({
         title: 'Passwords do not match',
         description: 'Re-enter the same password in both fields.',
-        variant: 'destructive',
       });
       return false;
     }
@@ -441,10 +434,9 @@ export default function SignupPage() {
     }
 
     if (!isEmailVerifiedFor(adminEmail)) {
-      toast({
+      toastError({
         title: 'Email not verified',
         description: 'Go back to step 1 and verify your email with the code we sent.',
-        variant: 'destructive',
       });
       setStep(1);
       return;
@@ -453,10 +445,9 @@ export default function SignupPage() {
     const verificationToken = getEmailVerificationTokenForSubmit(adminEmail.trim()) ?? emailVerificationToken ?? undefined;
 
     if (password !== confirmPassword) {
-      toast({
+      toastWarning({
         title: 'Passwords do not match',
         description: 'Go back to the account step and make sure both passwords match.',
-        variant: 'destructive',
       });
       setStep(1);
       return;
@@ -468,10 +459,9 @@ export default function SignupPage() {
     try {
       const phoneCheck = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
       if (!phoneCheck.ok) {
-        toast({
+        toastWarning({
           title: "Invalid phone number",
           description: phoneCheck.error,
-          variant: "destructive",
         });
         setIsLoading(false);
         return;
@@ -506,7 +496,7 @@ export default function SignupPage() {
 
       const isApproved = res?.status === 'approved';
 
-      toast({
+      toastSuccess({
         title: isApproved ? "Registration Approved!" : "Registration Submitted",
         description: isApproved
           ? "Your company has been auto-approved! Welcome to Kofeko."

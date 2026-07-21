@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { Loader2, Sparkles, Copy, Save, Plus, Trash2, Clock } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -94,7 +95,7 @@ export default function AdminJdCreatorPage() {
   const [fieldErrors, setFieldErrors] = useState<JdFormErrors>({});
   const [drafts, setDrafts] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const { user, loading: authLoading } = useAuth();
   const invalidateJobs = useInvalidateJobs();
@@ -142,20 +143,16 @@ export default function AdminJdCreatorPage() {
         loadedEditIdRef.current = editJobId;
         loadJobIntoForm(job);
         router.replace('/admin/jd-creator', { scroll: false });
-        toast({ title: 'Job loaded', description: `Editing: ${job.title}` });
+        toastInfo({ title: 'Job loaded', description: `Editing: ${job.title}` });
       } catch (error) {
-        toast({
-          title: 'Could not load job',
-          description: error instanceof Error ? error.message : 'Please try again.',
-          variant: 'destructive',
-        });
+        showError(error);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [authLoading, user, editJobId, loadJobIntoForm, router, toast]);
+  }, [authLoading, user, editJobId, loadJobIntoForm, router, showError, toastInfo]);
 
   const loadDrafts = async () => {
     try {
@@ -168,7 +165,7 @@ export default function AdminJdCreatorPage() {
 
   const loadDraft = (job: CreatedJob) => {
     loadJobIntoForm(job);
-    toast({ title: 'Draft loaded', description: `Editing: ${job.title}` });
+    toastInfo({ title: 'Draft loaded', description: `Editing: ${job.title}` });
   };
 
   const addSkillRow = () => {
@@ -181,10 +178,9 @@ export default function AdminJdCreatorPage() {
 
   const removeSkillRow = (index: number) => {
     if (skillWeights.length <= MIN_MANUAL_SKILLS) {
-      toast({
+      toastWarning({
         title: 'Minimum skills required',
         description: `Keep at least ${MIN_MANUAL_SKILLS} skill rows.`,
-        variant: 'destructive',
       });
       return;
     }
@@ -206,10 +202,9 @@ export default function AdminJdCreatorPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!runFormValidation()) {
-      toast({
+      toastWarning({
         title: 'Missing required fields',
         description: 'Please complete all mandatory fields before generating.',
-        variant: 'destructive',
       });
       return;
     }
@@ -224,7 +219,7 @@ export default function AdminJdCreatorPage() {
         employmentType: employmentType.trim() || undefined,
       });
       setGeneratedJD(result.html);
-      toast({
+      toastSuccess({
         title: 'Description Generated!',
         description: 'Your job description has been created.',
       });
@@ -237,10 +232,9 @@ export default function AdminJdCreatorPage() {
 
   const handleFinalSave = async (status: 'open' | 'draft') => {
     if (!runFormValidation()) {
-      toast({
+      toastWarning({
         title: 'Missing required fields',
         description: 'Please complete all mandatory fields before saving.',
-        variant: 'destructive',
       });
       return;
     }
@@ -286,7 +280,7 @@ export default function AdminJdCreatorPage() {
       }
 
       await invalidateJobs();
-      toast({
+      toastSuccess({
         title: status === 'open' ? 'Job Posted!' : 'Draft Saved!',
         description: status === 'open' ? 'Your job is now live.' : 'You can find it in your drafts.',
       });
@@ -301,11 +295,7 @@ export default function AdminJdCreatorPage() {
         setFieldErrors({});
       }
     } catch (error) {
-      toast({
-        title: 'Save failed',
-        description: error instanceof Error ? error.message : 'Could not save the job.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setSavingAction(null);
     }
@@ -313,10 +303,9 @@ export default function AdminJdCreatorPage() {
 
   const handleGenerateWithAI = async () => {
     if (!jobTitle.trim()) {
-      toast({
+      toastWarning({
         title: 'Title required',
         description: 'Please enter a job title first.',
-        variant: 'destructive',
       });
       return;
     }
@@ -335,16 +324,12 @@ export default function AdminJdCreatorPage() {
         setSkillWeights(result.suggestedSkills);
       }
 
-      toast({
+      toastSuccess({
         title: 'JD Generated!',
         description: 'Description and skills have been populated.',
       });
     } catch (error) {
-      toast({
-        title: 'Generation failed',
-        description: error instanceof Error ? error.message : 'AI could not generate the JD.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsGenerating(false);
     }

@@ -1,5 +1,12 @@
 // src/lib/api-client.ts
 
+import {
+  ERROR_CATEGORIES,
+  ERROR_CODES,
+  getErrorCategory,
+  type ErrorCategory,
+} from '@/lib/error-categories';
+
 // ── Storage keys — one set per user type ─────────────────────────────────────
 export const AUTH_TYPE_KEY        = 'kofeko_auth_type';          // 'staff' | 'candidate' | 'super_admin'
 export const SESSION_EXPIRED_EVENT = 'kofeko:session-expired';
@@ -99,18 +106,40 @@ export type ApiErrorDetails = {
   [key: string]: unknown;
 };
 
-// ── Error class ───────────────────────────────────────────────────────────────
+
 export class ApiError extends Error {
   status: number;
   errorCode?: string;
+  errorCategory?: ErrorCategory;
   details?: ApiErrorDetails;
 
-  constructor(message: string, status: number, errorCode?: string, details?: ApiErrorDetails) {
+  constructor(
+    message: string,
+    status: number,
+    errorCode?: string,
+    details?: ApiErrorDetails,
+    errorCategory?: ErrorCategory,
+  ) {
     super(message);
     this.status = status;
     this.errorCode = errorCode;
     this.details = details;
+    this.errorCategory =
+      errorCategory ?? getErrorCategory(errorCode ?? ERROR_CODES.INTERNAL_SERVER_ERROR, status);
   }
+}
+
+export function apiErrorFromResponse(
+  response: Response,
+  payload?: Partial<{ message?: string; errorCode?: string; errorCategory?: ErrorCategory; details?: ApiErrorDetails }>,
+): ApiError {
+  return new ApiError(
+    payload?.message ?? 'Request failed',
+    response.status,
+    payload?.errorCode,
+    payload?.details,
+    payload?.errorCategory,
+  );
 }
 
 // ── Envelope type ─────────────────────────────────────────────────────────────
@@ -162,16 +191,17 @@ async function parseError(response: Response): Promise<ApiError> {
   try {
     bodyText = await response.text();
   } catch {
-    return new ApiError('Request failed', status);
+    return new ApiError('Request failed', status, ERROR_CODES.NETWORK_ERROR, undefined, ERROR_CATEGORIES.NETWORK);
   }
 
   if (!bodyText.trim()) {
-    return new ApiError('Request failed', status);
+    return new ApiError('Request failed', status, undefined, undefined, getErrorCategory('', status));
   }
 
   try {
     const payload = JSON.parse(bodyText) as Partial<ApiEnvelope<unknown>> & {
       errorCode?: string;
+      errorCategory?: ErrorCategory;
       details?: ApiErrorDetails;
     };
     return new ApiError(
@@ -179,10 +209,24 @@ async function parseError(response: Response): Promise<ApiError> {
       status,
       payload.errorCode,
       payload.details,
+      payload.errorCategory,
     );
   } catch {
-    return new ApiError(bodyText.length > 200 ? `${bodyText.slice(0, 200)}…` : bodyText, status);
+    return new ApiError(
+      bodyText.length > 200 ? `${bodyText.slice(0, 200)}…` : bodyText,
+      status,
+    );
   }
+}
+
+function isNetworkFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === 'AbortError') return true;
+  return (
+    error instanceof TypeError ||
+    error.message.toLowerCase().includes('failed to fetch') ||
+    error.message.toLowerCase().includes('network')
+  );
 }
 
 // ── Request options ───────────────────────────────────────────────────────────
@@ -210,17 +254,33 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       throw new ApiError(
         'Your session has expired. Please log in again.',
         401,
-        'UNAUTHORIZED',
+        ERROR_CODES.SESSION_EXPIRED,
+        undefined,
+        ERROR_CATEGORIES.AUTH,
       );
     }
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      throw new ApiError(
+        "Couldn't reach the server, check your connection.",
+        0,
+        ERROR_CODES.NETWORK_ERROR,
+        undefined,
+        ERROR_CATEGORIES.NETWORK,
+      );
+    }
+    throw error;
+  }
 
   // Auto-refresh on 401
   if (response.status === 401 && auth && retryOnUnauthorized && tokenType) {

@@ -8,13 +8,15 @@ import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { resolveHiringStageLabel } from '@/lib/hiring-stages';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { useAuth } from '@/lib/auth';
 import { MyApplicationsTableSkeleton } from '@/components/loading/my-applications-table-skeleton';
 import { useMyApplications } from '@/hooks/use-portal';
 
 export default function MyApplicationsPage() {
-    const { toast } = useToast();
+    const { showError } = useApiErrorToast();
     const { user, loading: authLoading } = useAuth();
     const {
         data,
@@ -27,12 +29,8 @@ export default function MyApplicationsPage() {
 
     useEffect(() => {
         if (!isError) return;
-        toast({
-            title: 'Failed to load applications',
-            description: error instanceof Error ? error.message : 'Please ensure you are logged in.',
-            variant: 'destructive',
-        });
-    }, [isError, error, toast]);
+        showError(error);
+    }, [isError, error, showError]);
 
     const statusVariantMap: { [key: string]: string } = {
         applied: 'bg-yellow-500/20 text-yellow-700',

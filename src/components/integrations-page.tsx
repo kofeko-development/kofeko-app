@@ -4,11 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Building2, CheckCircle, Linkedin, Link2, RefreshCw, Unlink, User, Plus } from "lucide-react";
 
-import { ApiError } from "@/lib/api-client";
-import { getErrorDisplay } from "@/lib/error-messages";
-import { useAuth } from "@/lib/auth";
 import { linkedInApi, type LinkedInConnectionDetails } from "@/lib/linkedin-api";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
+import { useAppToast } from "@/lib/toast-helpers";
+import { useApiErrorToast } from "@/hooks/use-api-error-toast";
 import {
   useInvalidateLinkedInStatus,
   useLinkedInStatus,
@@ -31,7 +30,8 @@ function ConnectionCard({
   onRefresh: () => Promise<void>;
   canConnect: boolean;
 }) {
-  const { toast } = useToast();
+  const { toastSuccess, toastError } = useAppToast();
+  const { showError } = useApiErrorToast();
   const [postAsOrg, setPostAsOrg] = useState(connection.postAsOrg ?? Boolean(connection.hasOrgPage));
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isSavingPref, setIsSavingPref] = useState(false);
@@ -44,13 +44,12 @@ function ConnectionCard({
     setIsDisconnecting(true);
     try {
       await linkedInApi.disconnect(connection.id);
-      toast({ title: "LinkedIn disconnected" });
+      toastSuccess({ title: "LinkedIn disconnected" });
       await onRefresh();
     } catch (e) {
-      toast({
+      toastError({
         title: "Could not disconnect LinkedIn",
         description: e instanceof Error ? e.message : "Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsDisconnecting(false);
@@ -61,14 +60,10 @@ function ConnectionCard({
     setIsRefreshingOrg(true);
     try {
       const res = await linkedInApi.refreshOrganization(connection.id);
-      toast({ title: "Company page loaded", description: res.orgName ?? `Page ID ${res.orgId}` });
+      toastSuccess({ title: "Company page loaded", description: res.orgName ?? `Page ID ${res.orgId}` });
       await onRefresh();
     } catch (e) {
-      const display = getErrorDisplay(
-        e instanceof ApiError ? e.errorCode : undefined,
-        e instanceof Error ? e.message : undefined,
-      );
-      toast({ title: display.title, description: display.description, variant: "destructive" });
+      showError(e);
     } finally {
       setIsRefreshingOrg(false);
     }
@@ -78,7 +73,7 @@ function ConnectionCard({
     setIsLinkingOrg(true);
     try {
       const res = await linkedInApi.setOrganization(connection.id, manualOrgId, manualOrgName || undefined);
-      toast({
+      toastSuccess({
         title: "Company page linked",
         description: res.canPostAsCompanyPage
           ? `${res.orgName ?? res.orgId} — ready for Post now`
@@ -86,11 +81,7 @@ function ConnectionCard({
       });
       await onRefresh();
     } catch (e) {
-      const display = getErrorDisplay(
-        e instanceof ApiError ? e.errorCode : undefined,
-        e instanceof Error ? e.message : undefined,
-      );
-      toast({ title: display.title, description: display.description, variant: "destructive" });
+      showError(e);
     } finally {
       setIsLinkingOrg(false);
     }
@@ -101,12 +92,11 @@ function ConnectionCard({
     try {
       await linkedInApi.updatePreference(connection.id, postAsOrg);
       await onRefresh();
-      toast({ title: "Preference saved" });
+      toastSuccess({ title: "Preference saved" });
     } catch (e) {
-      toast({
+      toastError({
         title: "Could not save preference",
         description: e instanceof Error ? e.message : "Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsSavingPref(false);
@@ -141,7 +131,7 @@ function ConnectionCard({
           </div>
         </div>
       ) : connection.orgDiscoveryHint ? (
-        <Alert>
+        <Alert variant="info">
           <AlertTitle>LinkedIn company page not detected yet</AlertTitle>
           <AlertDescription className="space-y-2">
             <p>{connection.orgDiscoveryHint}</p>
@@ -244,7 +234,8 @@ function ConnectionCard({
 
 export default function IntegrationsPage() {
   const { user, hasPermission } = useAuth();
-  const { toast } = useToast();
+  const { toastSuccess, toastError } = useAppToast();
+  const { showError } = useApiErrorToast();
   const searchParams = useSearchParams();
 
   const canRead = hasPermission("linkedin:read") || hasPermission("linkedin:connect") || hasPermission("linkedin:post");
@@ -279,7 +270,7 @@ export default function IntegrationsPage() {
       const desc = org
         ? `Connected as ${name ?? "member"}. Company page found: ${org}.`
         : `Connected as ${name ?? "member"}. You can auto-post to your personal profile.`;
-      return { variant: "default" as const, title: "LinkedIn connected", desc };
+      return { variant: "success" as const, title: "LinkedIn connected", desc };
     }
     if (li === "error") {
       return {
@@ -299,12 +290,11 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     if (!statusError) return;
-    toast({
+    toastError({
       title: "Unable to load LinkedIn status",
       description: statusLoadError instanceof Error ? statusLoadError.message : "Please try again.",
-      variant: "destructive",
     });
-  }, [statusError, statusLoadError, toast]);
+  }, [statusError, statusLoadError, toastError]);
 
   const onConnect = async () => {
     setIsConnecting(true);
@@ -312,11 +302,7 @@ export default function IntegrationsPage() {
       const { url } = await linkedInApi.authUrl();
       window.location.href = url;
     } catch (e) {
-      const display = getErrorDisplay(
-        e instanceof ApiError ? e.errorCode : undefined,
-        e instanceof Error ? e.message : undefined,
-      );
-      toast({ title: display.title, description: display.description, variant: "destructive" });
+      showError(e);
       setIsConnecting(false);
     }
   };

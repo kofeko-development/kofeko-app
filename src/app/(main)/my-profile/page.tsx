@@ -10,7 +10,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { apiRequest } from '@/lib/api-client';
 import { staffInviteStatusLabel } from '@/lib/admin-api';
 import {
@@ -25,7 +27,8 @@ import { MyProfileSkeleton } from '@/components/loading/my-profile-skeleton';
 export default function MyProfilePage() {
   const { user, updateCurrentUser, loading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning } = useAppToast();
+  const { showError } = useApiErrorToast();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -62,10 +65,9 @@ export default function MyProfilePage() {
     if (!user || !hasNameChanges) return;
 
     if (firstName.trim().length < 2) {
-      toast({
+      toastWarning({
         title: 'First name required',
         description: 'Please enter at least 2 characters for your first name.',
-        variant: 'destructive',
       });
       return;
     }
@@ -91,16 +93,12 @@ export default function MyProfilePage() {
         company: user.company,
       });
 
-      toast({
+      toastSuccess({
         title: 'Profile updated',
         description: 'Your name has been saved.',
       });
     } catch (error) {
-      toast({
-        title: 'Update failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSaving(false);
     }

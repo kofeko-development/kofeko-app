@@ -36,7 +36,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { useAuth } from '@/lib/auth';
 import { Applicant } from '@/lib/data';
@@ -168,7 +169,7 @@ export default function JobApplicantsPage() {
     const routePrefix = isAdmin ? '/admin' : '';
     const id = params.id as string;
     const { user, hasPermission, loading: authLoading } = useAuth();
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError } = useAppToast();
     const { showError } = useApiErrorToast();
     const invalidateJobDetail = useInvalidateJobDetail();
     const queriesEnabled = Boolean(id) && !!user && !authLoading;
@@ -336,18 +337,14 @@ export default function JobApplicantsPage() {
         setIsSavingFlow(true);
         try {
             await jobsApi.update(id, { customStages: flowStages });
-            toast({
+            toastSuccess({
                 title: 'Hiring Flow Updated',
                 description: 'The customizable recruitment flow has been successfully saved.',
             });
             setIsCustomizeFlowDialogOpen(false);
             void loadData();
         } catch (error) {
-            toast({
-                title: 'Failed to save flow',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setIsSavingFlow(false);
         }
@@ -384,17 +381,13 @@ export default function JobApplicantsPage() {
         try {
             setIsClosingJob(true);
             await jobsApi.close(id);
-            toast({
+            toastSuccess({
                 title: 'Job Closed',
                 description: 'This job has been closed and moved to the closed section.',
             });
             void loadData();
         } catch (error) {
-            toast({
-                title: 'Failed to close job',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setIsClosingJob(false);
         }
@@ -543,7 +536,7 @@ export default function JobApplicantsPage() {
                 prev?.id === pipelineId ? { ...prev, status: newStage as Applicant['status'] } : prev,
             );
 
-            toast({
+            toastSuccess({
                 title: 'Stage Updated',
                 description: `Candidate moved to ${getStageLabel(newStage)}.`,
             });
@@ -551,11 +544,7 @@ export default function JobApplicantsPage() {
             setSelectedStage(null);
             void refreshApplicants();
         } catch (error) {
-            toast({
-                title: 'Action Failed',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setStageChangeState(null);
         }
@@ -575,38 +564,34 @@ export default function JobApplicantsPage() {
     const handleAIEvaluate = async (pipelineId: string) => {
         const pipe = applicants.find((a) => a.id === pipelineId);
         if (!pipe?.candidateId) {
-            toast({ title: 'Candidate not found', variant: 'destructive' });
+            toastWarning({ title: 'Candidate not found' });
             return;
         }
         if (!jobIsOpen) {
-            toast({
+            toastWarning({
                 title: 'Job not open',
                 description: 'AI evaluation is only available for open job postings.',
-                variant: 'destructive',
             });
             return;
         }
         if (!pipe.resumeUrl) {
-            toast({
+            toastWarning({
                 title: 'No Resume',
                 description: 'Please upload a resume before running AI evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (!hasJobSkillWeights) {
-            toast({
+            toastWarning({
                 title: 'No Skill Weights',
                 description: 'Add skill priorities to the job before running AI evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (isBatchEvaluating) {
-            toast({
+            toastWarning({
                 title: 'Batch in progress',
                 description: 'Wait for batch evaluation to finish before evaluating one candidate.',
-                variant: 'destructive',
             });
             return;
         }
@@ -619,7 +604,7 @@ export default function JobApplicantsPage() {
                 pipelineId,
             });
             await loadData();
-            toast({
+            toastSuccess({
                 title: 'Evaluation Complete',
                 description: 'AI has analyzed the resume.',
             });
@@ -632,26 +617,23 @@ export default function JobApplicantsPage() {
 
     const handleEvaluateAll = async () => {
         if (applicants.length === 0) {
-            toast({
+            toastWarning({
                 title: 'No candidates',
                 description: 'Add candidates to this job before running batch evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (!hasJobSkillWeights) {
-            toast({
+            toastWarning({
                 title: 'No Skill Weights',
                 description: 'Add skill priorities to the job before running batch evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (!jobIsOpen) {
-            toast({
+            toastWarning({
                 title: 'Job not open',
                 description: 'Batch evaluation is only available for open job postings.',
-                variant: 'destructive',
             });
             return;
         }
@@ -660,11 +642,17 @@ export default function JobApplicantsPage() {
             const result = await evaluationsApi.evaluateAll(id);
             await loadData();
             const msg = formatBatchEvaluationMessage(result, applicants.length);
-            toast({
-                title: msg.title,
-                description: msg.description,
-                variant: result.failed > 0 && result.evaluated === 0 ? 'destructive' : 'default',
-            });
+            if (result.failed > 0 && result.evaluated === 0) {
+                toastError({
+                    title: msg.title,
+                    description: msg.description,
+                });
+            } else {
+                toastSuccess({
+                    title: msg.title,
+                    description: msg.description,
+                });
+            }
         } catch (error) {
             showError(error);
         } finally {
@@ -699,7 +687,7 @@ export default function JobApplicantsPage() {
 
         try {
             await pipelinesApi.addNote(selectedApplicant.id, newNote);
-            toast({ title: 'Note saved successfully!' });
+            toastSuccess({ title: 'Note saved successfully!' });
             setNewNote('');
             void loadData(); // Re-fetch to get updated notes
 
@@ -719,7 +707,7 @@ export default function JobApplicantsPage() {
                 };
             });
         } catch (error) {
-            toast({ title: 'Failed to save note', variant: 'destructive' });
+            showError(error);
         }
     };
 
@@ -727,7 +715,7 @@ export default function JobApplicantsPage() {
         if (!job) return;
         const jobUrl = `${window.location.origin}/open-positions/${job.id}`;
         navigator.clipboard.writeText(jobUrl);
-        toast({
+        toastSuccess({
             title: 'Link Copied!',
             description: 'Candidate job link copied. Share it so applicants can view and apply.',
         });
@@ -1546,7 +1534,7 @@ export default function JobApplicantsPage() {
                                                 <Button
                                                     variant="outline"
                                                     className="w-full"
-                                                    onClick={() => toast({ title: "No resume attached", description: "Candidate did not provide a resume file.", variant: "destructive" })}
+                                                    onClick={() => toastWarning({ title: "No resume attached", description: "Candidate did not provide a resume file." })}
                                                 >
                                                     <FileText className="mr-2 h-4 w-4" /> No Resume
                                                 </Button>

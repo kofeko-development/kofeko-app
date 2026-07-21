@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Briefcase, MapPin, ArrowUpRight, Search } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useAuth } from "@/lib/auth";
 import { resolveJobEmploymentType, resolveJobWorkMode } from "@/lib/job-display";
 import { FindJobsListSkeleton } from "@/components/loading/find-jobs-list-skeleton";
@@ -22,7 +23,7 @@ export default function FindJobsPage() {
     const [locationFilter, setLocationFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
     const { user } = useAuth();
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
 
     const {
         data: jobsData,
@@ -44,12 +45,11 @@ export default function FindJobsPage() {
 
     useEffect(() => {
         if (!jobsError) return;
-        toast({
+        toastError({
             title: "Unable to load jobs",
             description: jobsErrorObj instanceof Error ? jobsErrorObj.message : "Please refresh and try again.",
-            variant: "destructive",
         });
-    }, [jobsError, jobsErrorObj, toast]);
+    }, [jobsError, jobsErrorObj, toastError]);
 
     const filteredJobs = useMemo(() => {
         return jobs.filter((job) => {

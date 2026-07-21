@@ -23,7 +23,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { stageOneApi } from '@/lib/stage1-2-api';
@@ -40,7 +42,8 @@ import { InvitePermissionCheckboxes } from '@/components/invite-permission-check
 import { InviteRoleDetailsPanel } from '@/components/invite-role-details-panel';
 
 export default function TeamManagementPage() {
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+    const { showError } = useApiErrorToast();
     const { user, loading: authLoading } = useAuth();
     const invalidateTeam = useInvalidateTeam();
     const pathname = usePathname();
@@ -65,12 +68,8 @@ export default function TeamManagementPage() {
 
     useEffect(() => {
         if (!isError) return;
-        toast({
-            title: 'Could not load team',
-            description: error instanceof Error ? error.message : 'Try again later.',
-            variant: 'destructive',
-        });
-    }, [isError, error, toast]);
+        showError(error);
+    }, [isError, error, showError]);
 
     const resetInviteForm = () => {
         setAccessChoice('recruiter');
@@ -86,18 +85,16 @@ export default function TeamManagementPage() {
 
         if (accessChoice === INVITE_ACCESS_OTHER) {
             if (!otherRoleTitle.trim()) {
-                toast({
+                toastWarning({
                     title: 'Position / role name required',
                     description: 'Enter a label for this role.',
-                    variant: 'destructive',
                 });
                 return;
             }
             if (otherPermissionKeys.length === 0) {
-                toast({
+                toastError({
                     title: 'Pick permissions',
                     description: 'Select at least one permission or use a preset.',
-                    variant: 'destructive',
                 });
                 return;
             }
@@ -117,7 +114,7 @@ export default function TeamManagementPage() {
                     position: otherRoleTitle.trim(),
                     permissionKeys: otherPermissionKeys,
                 });
-                toast({
+                toastSuccess({
                     title: 'Invitation sent',
                     description: `We emailed an invitation link to ${email.trim()} to set up their password. Ask them to check their inbox and spam.`,
                 });
@@ -129,7 +126,7 @@ export default function TeamManagementPage() {
                     email,
                     roleName,
                 });
-                toast({
+                toastSuccess({
                     title: 'Invitation sent',
                     description: `We emailed an invitation link to ${email.trim()} to set up their password. Ask them to check their inbox and spam.`,
                 });
@@ -139,11 +136,7 @@ export default function TeamManagementPage() {
       resetInviteForm();
       await invalidateTeam();
         } catch (error) {
-            toast({
-                title: 'Invite failed',
-                description: error instanceof Error ? error.message : 'Unable to send invitation.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setIsInviting(false);
         }

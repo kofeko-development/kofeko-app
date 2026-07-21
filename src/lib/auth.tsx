@@ -32,6 +32,7 @@ import {
   writeCachedSuperAdmin,
 } from './session-cache';
 import { clearAuthRouteHint, resolveAuthRouteHint, setAuthRouteHint } from './auth-hint';
+import { superadminApi, type SuperAdminLoginResult } from './superadmin-api';
 
 type LoginInput = {
   tenantSlug?: string;
@@ -121,7 +122,8 @@ interface AuthContextType {
   loginCandidate: (input: LoginCandidateInput) => Promise<User>;
   loginCandidateWithGoogle: (input: LoginCandidateGoogleInput) => Promise<User>;
   loginCandidateWithSupabase: (input: LoginCandidateSupabaseInput) => Promise<User>;
-  loginSuperAdmin: (input: { email: string; password: string }) => Promise<void>;
+  loginSuperAdmin: (input: { email: string; password: string }) => Promise<SuperAdminLoginResult>;
+  completeSuperAdminLogin2FA: (pendingToken: string, code: string) => Promise<void>;
   registerCandidate: (input: RegisterCandidateInput) => Promise<User>;
   updateCurrentUser: (nextUser: User) => void;
   logout: () => Promise<void>;
@@ -403,12 +405,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginSuperAdmin = async (input: { email: string; password: string }) => {
-    const payload = await apiRequest<{
-      accessToken: string;
-      refreshToken: string;
-      superAdmin: BackendSuperAdmin;
-    }>('/superadmin/auth/login', { method: 'POST', body: input });
+    const payload = await superadminApi.login(input.email, input.password);
 
+    if (payload.requiresTwoFactor) {
+      return payload;
+    }
+
+    setTokens('super_admin', payload.accessToken, payload.refreshToken);
+    setSuperAdmin(payload.superAdmin);
+    writeCachedSuperAdmin(payload.superAdmin);
+    setAuthRouteHint('super_admin');
+    return payload;
+  };
+
+  const completeSuperAdminLogin2FA = async (pendingToken: string, code: string) => {
+    const payload = await superadminApi.verifyLogin2FA(pendingToken, code);
     setTokens('super_admin', payload.accessToken, payload.refreshToken);
     setSuperAdmin(payload.superAdmin);
     writeCachedSuperAdmin(payload.superAdmin);
@@ -464,6 +475,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loginCandidateWithGoogle,
     loginCandidateWithSupabase,
     loginSuperAdmin,
+    completeSuperAdminLogin2FA,
     registerCandidate,
     updateCurrentUser,
     logout,

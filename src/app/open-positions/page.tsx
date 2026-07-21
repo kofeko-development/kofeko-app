@@ -9,12 +9,14 @@ import { Search } from "lucide-react";
 import PublicNavbar from "@/components/public-navbar";
 import AppFooter from "@/components/app-footer";
 import { useEffect, useMemo, useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { usePortalJobs } from "@/hooks/use-portal";
 
 
 export default function PublicJobsPage() {
-    const { toast } = useToast();
+    const { showError } = useApiErrorToast();
     const [searchTerm, setSearchTerm] = useState('');
 
     const {
@@ -28,12 +30,8 @@ export default function PublicJobsPage() {
 
     useEffect(() => {
         if (!isError) return;
-        toast({
-            title: "Unable to load jobs",
-            description: error instanceof Error ? error.message : "Please refresh and try again.",
-            variant: "destructive",
-        });
-    }, [isError, error, toast]);
+        showError(error);
+    }, [isError, error, showError]);
 
     const filtered = useMemo(() => {
         const q = searchTerm.trim().toLowerCase();
