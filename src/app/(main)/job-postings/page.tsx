@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, Bot, Pencil, ChevronDown, Send, Trash2, Edit, Loader2, Plus, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Send, Trash2, Edit, Loader2, Plus, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -18,7 +18,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
@@ -35,21 +34,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { apiRequest, ApiError } from '@/lib/api-client';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import type { Job } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { CreatedJob, SkillWeight } from '@/lib/stage1-2-api';
 import { jobsApi, aiApi } from '@/lib/stage1-2-api';
+import { useJobsList, useInvalidateJobs } from '@/hooks/use-jobs';
+import { useAuth } from '@/lib/auth';
+import { TableRowsSkeleton } from '@/components/loading/table-rows-skeleton';
+import { resetModalLock } from '@/lib/reset-modal-lock';
 
 function mapApiJobToRow(j: CreatedJob): Job {
   const backend = j.status as Job['backendStatus'];
@@ -91,12 +89,21 @@ export default function JobPostingsPage() {
   const isAdmin = pathname.startsWith('/admin');
   const routePrefix = isAdmin ? '/admin' : '';
   const editId = searchParams.get('edit');
-  const { toast } = useToast();
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { toastSuccess, toastWarning, toastError } = useAppToast();
+  const { showError } = useApiErrorToast();
+  const { user, loading: authLoading } = useAuth();
+  const invalidateJobs = useInvalidateJobs();
+  const jobsQueryEnabled = !authLoading && !!user;
+  const { data: jobsData, isPending, isFetching } = useJobsList(
+    { page: 1, limit: 100 },
+    { enabled: jobsQueryEnabled },
+  );
+  const isLoading = authLoading || !jobsQueryEnabled || isPending || (isFetching && !jobsData);
+  const jobs = useMemo(() => (jobsData?.items ?? []).map(mapApiJobToRow), [jobsData]);
   const [isSaving, setIsSaving] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [view, setView] = useState<'open' | 'draft' | 'closed'>('open');
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -110,28 +117,7 @@ export default function JobPostingsPage() {
     skillWeights: SkillWeight[];
   }>({ title: '', description: '', jobType: '', employmentType: '', skillWeights: [] });
   const [loadingJobDetail, setLoadingJobDetail] = useState(false);
-
-  const loadJobs = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await jobsApi.list({ page: 1, limit: 100 });
-      setJobs((res.items ?? []).map(mapApiJobToRow));
-    } catch (error) {
-      toast({
-        title: 'Unable to load jobs',
-        description: error instanceof Error ? error.message : 'Please sign in as a company user and try again.',
-        variant: 'destructive',
-      });
-      setJobs([]);
-    } finally {
-      setIsLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    void loadJobs();
-  }, [loadJobs]);
+  const previousPathnameRef = useRef(pathname);
 
   useEffect(() => {
     if (editingJob) {
@@ -186,33 +172,40 @@ export default function JobPostingsPage() {
         setEditingJob(mapApiJobToRow(full));
         setIsManualDialogOpen(true);
       } catch (error) {
-        toast({
-          title: 'Could not load job details',
-          description: error instanceof Error ? error.message : 'Try again.',
-          variant: 'destructive',
-        });
+        showError(error);
         setEditingJob(job);
         setIsManualDialogOpen(true);
       } finally {
         setLoadingJobDetail(false);
       }
     })();
-  }, [toast]);
+  }, [showError]);
 
   useEffect(() => {
     if (editId && jobs.length > 0) {
       const targetJob = jobs.find((j) => j.id === editId);
       if (targetJob) {
-        window.history.replaceState(null, '', '/job-postings');
-        handleOpenDialog(targetJob);
+        window.history.replaceState(null, '', `${routePrefix}/job-postings`);
+        window.setTimeout(() => handleOpenDialog(targetJob), 0);
       }
     }
-  }, [editId, jobs, handleOpenDialog]);
+  }, [editId, jobs, handleOpenDialog, routePrefix]);
+
+  useEffect(() => {
+    if (previousPathnameRef.current === pathname) return;
+    previousPathnameRef.current = pathname;
+    setIsManualDialogOpen(false);
+    setIsDeleteDialogOpen(false);
+    setEditingJob(null);
+    setJobToDelete(null);
+    resetModalLock();
+  }, [pathname]);
 
   const handleCloseDialog = (open?: boolean) => {
     if (open === true) return;
     setIsManualDialogOpen(false);
     setEditingJob(null);
+    window.setTimeout(resetModalLock, 0);
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -221,10 +214,9 @@ export default function JobPostingsPage() {
 
   const handleGenerateWithAI = async () => {
     if (!formState.title.trim()) {
-      toast({
+      toastWarning({
         title: 'Title required',
         description: 'Please enter a job title first to help the AI generate the description.',
-        variant: 'destructive',
       });
       return;
     }
@@ -246,16 +238,12 @@ export default function JobPostingsPage() {
           : prev.skillWeights,
       }));
 
-      toast({
+      toastSuccess({
         title: 'JD Generated!',
         description: 'Description and skills have been populated by AI.',
       });
     } catch (error) {
-      toast({
-        title: 'Generation failed',
-        description: error instanceof Error ? error.message : 'AI could not generate the JD.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsGenerating(false);
     }
@@ -285,28 +273,25 @@ export default function JobPostingsPage() {
   const handleJobSave = async (status: 'open' | 'draft') => {
     const { title, description, jobType, employmentType } = formState;
     if (!title.trim() || !description.trim()) {
-      toast({
+      toastWarning({
         title: 'Missing information',
         description: 'Please provide a job title and description.',
-        variant: 'destructive',
       });
       return;
     }
 
     if (description.length < 10) {
-      toast({
+      toastWarning({
         title: 'Description too short',
         description: 'Use at least 10 characters for the job description.',
-        variant: 'destructive',
       });
       return;
     }
 
     if (editingJob?.backendStatus === 'open' && status === 'draft') {
-      toast({
+      toastError({
         title: 'Not supported',
         description: 'Published jobs cannot be turned into drafts from here.',
-        variant: 'destructive',
       });
       return;
     }
@@ -329,7 +314,7 @@ export default function JobPostingsPage() {
         if (status === 'open' && editingJob.backendStatus === 'draft') {
           await jobsApi.publish(editingJob.id);
         }
-        toast({
+        toastSuccess({
           title: status === 'open' ? 'Job published' : 'Draft saved',
           description: `"${title}" has been updated.`,
         });
@@ -344,28 +329,23 @@ export default function JobPostingsPage() {
         if (status === 'open') {
           await jobsApi.publish(created.id);
         }
-        toast({
+        toastSuccess({
           title: status === 'open' ? 'Job posted' : 'Draft saved',
           description: `"${title}" has been saved.`,
         });
       }
-      await loadJobs();
+      await invalidateJobs();
       setIsManualDialogOpen(false);
       setEditingJob(null);
     } catch (error) {
       if (error instanceof ApiError && error.errorCode === 'JOB_IS_CLOSED') {
-        toast({
+        toastError({
           title: 'Job is Closed',
           description: 'This job has been permanently closed and cannot be modified.',
-          variant: 'destructive',
         });
         return;
       }
-      toast({
-        title: 'Save failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSaving(false);
     }
@@ -375,14 +355,10 @@ export default function JobPostingsPage() {
     setPublishingId(jobId);
     try {
       await jobsApi.publish(jobId);
-      toast({ title: 'Job published', description: 'The job is now live for applicants.' });
-      await loadJobs();
+      toastSuccess({ title: 'Job published', description: 'The job is now live for applicants.' });
+      await invalidateJobs();
     } catch (error) {
-      toast({
-        title: 'Publish failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setPublishingId(null);
     }
@@ -392,16 +368,14 @@ export default function JobPostingsPage() {
     if (!jobToDelete) return;
     try {
       await jobsApi.delete(jobToDelete.id);
-      setJobs((prev) => prev.filter((j) => j.id !== jobToDelete.id));
-      toast({ title: 'Draft deleted', description: `"${jobToDelete.title}" has been deleted.` });
+      await invalidateJobs();
+      toastSuccess({ title: 'Draft deleted', description: `"${jobToDelete.title}" has been deleted.` });
     } catch (error) {
-      toast({
-        title: 'Delete failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setJobToDelete(null);
+      setIsDeleteDialogOpen(false);
+      window.setTimeout(resetModalLock, 0);
     }
   };
 
@@ -425,21 +399,9 @@ export default function JobPostingsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button>
-                Create New Job <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-              <DropdownMenuItem onSelect={() => router.push(isAdmin ? '/admin/jd-creator' : '/jd-builder')}>
-                <Bot className="mr-2 h-4 w-4" /> Use AI Assistant
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => handleOpenDialog(null)}>
-                <Pencil className="mr-2 h-4 w-4" /> Create Manually
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button onClick={() => router.push(isAdmin ? '/admin/jd-creator' : '/jd-builder')}>
+            Create New Job
+          </Button>
         </div>
       </div>
 
@@ -476,7 +438,16 @@ export default function JobPostingsPage() {
         </Button>
       </div>
 
-      <AlertDialog>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            setJobToDelete(null);
+            window.setTimeout(resetModalLock, 0);
+          }
+        }}
+      >
         <Card>
           <CardContent className="p-0">
             <Table>
@@ -490,13 +461,7 @@ export default function JobPostingsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Loading jobs…
-                      </span>
-                    </TableCell>
-                  </TableRow>
+                  <TableRowsSkeleton rows={5} cols={4} />
                 ) : (
                   displayedJobs.map((job) => (
                     <TableRow key={job.id}>
@@ -535,16 +500,17 @@ export default function JobPostingsPage() {
                               )}
                               Publish
                             </Button>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => setJobToDelete(job)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => {
+                                setJobToDelete(job);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         )}
                       </TableCell>
@@ -571,7 +537,7 @@ export default function JobPostingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setJobToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleDeleteDraft()} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
@@ -580,8 +546,8 @@ export default function JobPostingsPage() {
       </AlertDialog>
 
       <Dialog open={isManualDialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(90vh,100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[640px] flex-col gap-0 overflow-hidden p-0 sm:w-full">
+          <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-5">
             <DialogTitle>{editingJob ? 'Edit Job Draft' : 'Create Job Manually'}</DialogTitle>
             <DialogDescription>
               {editingJob
@@ -589,7 +555,8 @@ export default function JobPostingsPage() {
                 : 'Fill in the details below to post a new job.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-5 py-4 overflow-y-auto max-h-[70vh] pr-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4">
+            <div className="grid min-w-0 gap-5">
             <div className="grid gap-2">
               <Label htmlFor="title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Job Title
@@ -701,20 +668,23 @@ export default function JobPostingsPage() {
                   </div>
                 )}
                 {formState.skillWeights.map((row, index) => (
-                  <div key={index} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div
+                    key={index}
+                    className="grid min-w-0 gap-3 rounded-lg border p-3 animate-in fade-in slide-in-from-top-1 duration-200 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
+                  >
                     <Input
-                      className="flex-1 h-10"
+                      className="min-w-0 h-10"
                       placeholder="e.g. React"
                       value={row.skill}
                       onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
                     />
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium">Weight</span>
+                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Weight</span>
                       <Input
                         type="number"
                         min={0}
                         max={10}
-                        className="w-14 h-10 text-center"
+                        className="w-16 h-10 text-center"
                         value={row.weight}
                         onChange={(e) =>
                           updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
@@ -722,11 +692,11 @@ export default function JobPostingsPage() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium">Years</span>
+                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Years</span>
                       <Input
                         type="number"
                         min={0}
-                        className="w-14 h-10 text-center"
+                        className="w-16 h-10 text-center"
                         value={row.yearsOfExperience || ''}
                         onChange={(e) =>
                           updateSkillRow(index, { yearsOfExperience: Number.parseInt(e.target.value, 10) || 0 })
@@ -738,7 +708,7 @@ export default function JobPostingsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => removeSkillRow(index)}
-                      className="h-10 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                      className="h-10 justify-self-start text-muted-foreground hover:text-destructive hover:bg-destructive/5 sm:justify-self-auto"
                     >
                       Remove
                     </Button>
@@ -746,9 +716,9 @@ export default function JobPostingsPage() {
                 ))}
               </div>
             </div>
-
           </div>
-          <DialogFooter className="mt-2">
+          </div>
+          <DialogFooter className="shrink-0 gap-2 border-t px-6 py-4 sm:justify-end">
             <Button type="button" variant="ghost" onClick={() => handleCloseDialog(false)}>
               Cancel
             </Button>

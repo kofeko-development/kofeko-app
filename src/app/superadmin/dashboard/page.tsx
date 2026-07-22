@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+import { apiErrorFromResponse } from '@/lib/api-client';
+
 import { 
   Loader2, 
   Shield, 
@@ -22,7 +26,8 @@ import {
   Calendar,
   Users,
   KeyRound,
-  FileText
+  FileText,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
@@ -34,6 +39,65 @@ const generateTenantSlug = () => {
   }
   return slug;
 };
+
+type CompanyAddressFields = {
+  country?: string;
+  state?: string;
+  city?: string;
+  zipCode?: string;
+  fullAddress?: string;
+};
+
+const ADDRESS_FIELD_LABELS: { key: keyof CompanyAddressFields; label: string }[] = [
+  { key: 'country', label: 'Country' },
+  { key: 'state', label: 'State / Province' },
+  { key: 'city', label: 'City' },
+  { key: 'zipCode', label: 'ZIP / Postal code' },
+  { key: 'fullAddress', label: 'Full address' },
+];
+
+function parseCompanyAddress(value: Record<string, string> | string | null): CompanyAddressFields | null {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as CompanyAddressFields;
+      return typeof parsed === 'object' && parsed !== null ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return value;
+}
+
+function StructuredAddressBlock({ address }: { address: Record<string, string> | string | null }) {
+  const parsed = parseCompanyAddress(address);
+  if (!parsed) {
+    return <p className="mt-1 text-muted-foreground">—</p>;
+  }
+
+  const fields = ADDRESS_FIELD_LABELS.map(({ key, label }) => ({
+    key,
+    label,
+    value: parsed[key]?.trim() ?? '',
+  })).filter((field) => field.value);
+
+  if (fields.length === 0) {
+    return <p className="mt-1 text-muted-foreground">—</p>;
+  }
+
+  return (
+    <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {fields.map(({ key, label, value }) => (
+        <div key={key} className={key === 'fullAddress' ? 'sm:col-span-2' : undefined}>
+          <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">
+            {label}
+          </span>
+          <p className="mt-1 font-medium">{value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5000/api/v1';
 const SUPERADMIN_TOKEN_KEY = 'kofeko_superadmin_token';
@@ -66,8 +130,11 @@ type CompanyRequest = {
 
 export default function SuperAdminDashboardPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+  const { showError } = useApiErrorToast();
   const { logout } = useAuth();
+  const [isAutoApproveEnabled, setIsAutoApproveEnabled] = useState(false);
+  const [isTogglingSetting, setIsTogglingSetting] = useState(false);
   const [requests, setRequests] = useState<CompanyRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -80,6 +147,54 @@ export default function SuperAdminDashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const token = useMemo(() => (typeof window !== 'undefined' ? localStorage.getItem(SUPERADMIN_TOKEN_KEY) : null), []);
+
+  const loadSettings = async () => {
+    const currentToken = localStorage.getItem(SUPERADMIN_TOKEN_KEY);
+    if (!currentToken) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin/settings/auto-approve`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+      const payload = await response.json();
+      if (response.ok && payload.success) {
+        setIsAutoApproveEnabled(payload.data.autoApprove);
+      }
+    } catch (err) {
+      console.error('Failed to load system settings:', err);
+    }
+  };
+
+  const toggleAutoApprove = async () => {
+    const currentToken = localStorage.getItem(SUPERADMIN_TOKEN_KEY);
+    if (!currentToken) return;
+    setIsTogglingSetting(true);
+    const targetState = !isAutoApproveEnabled;
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin/settings/auto-approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${currentToken}`,
+        },
+        body: JSON.stringify({ enabled: targetState }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw apiErrorFromResponse(response, payload);
+      }
+      setIsAutoApproveEnabled(payload.data.autoApprove);
+      toastSuccess({
+        title: targetState ? 'Auto-Approve Enabled' : 'Auto-Approve Disabled',
+        description: targetState
+          ? 'New company signups will now be approved automatically.'
+          : 'New company signups will require manual approval.',
+      });
+    } catch (error) {
+      showError(error);
+    } finally {
+      setIsTogglingSetting(false);
+    }
+  };
 
   const loadRequests = async () => {
     const currentToken = localStorage.getItem(SUPERADMIN_TOKEN_KEY);
@@ -94,15 +209,11 @@ export default function SuperAdminDashboardPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.message ?? 'Failed to fetch requests');
+        throw apiErrorFromResponse(response, payload);
       }
       setRequests(payload.data || []);
     } catch (error) {
-      toast({
-        title: 'Failed to load requests',
-        description: error instanceof Error ? error.message : 'Please try again',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsLoading(false);
     }
@@ -114,6 +225,7 @@ export default function SuperAdminDashboardPage() {
       return;
     }
     void loadRequests();
+    void loadSettings();
   }, [token, router]);
 
   const onApprove = async () => {
@@ -139,9 +251,9 @@ export default function SuperAdminDashboardPage() {
       });
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result?.message ?? 'Approve failed');
+        throw apiErrorFromResponse(response, result);
       }
-      toast({ title: 'Approved', description: result?.message ?? 'Company approved and credentials created.' });
+      toastSuccess({ title: 'Approved', description: result?.message ?? 'Company approved and credentials created.' });
       setSelectedId(null);
       setTenantSlug('');
       setAdminEmail('');
@@ -149,11 +261,7 @@ export default function SuperAdminDashboardPage() {
       setReviewNotes('');
       await loadRequests();
     } catch (error) {
-      toast({
-        title: 'Approval failed',
-        description: error instanceof Error ? error.message : 'Please try again',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -173,18 +281,14 @@ export default function SuperAdminDashboardPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.message ?? 'Reject failed');
+        throw apiErrorFromResponse(response, payload);
       }
-      toast({ title: 'Rejected', description: 'Company request rejected.' });
+      toastSuccess({ title: 'Rejected', description: 'Company request rejected.' });
       setSelectedId(null);
       setReviewNotes('');
       await loadRequests();
     } catch (error) {
-      toast({
-        title: 'Rejection failed',
-        description: error instanceof Error ? error.message : 'Please try again',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -236,10 +340,18 @@ export default function SuperAdminDashboardPage() {
             </div>
           </div>
 
-          <Button variant="ghost" size="sm" onClick={logout} className="gap-2 text-muted-foreground hover:text-foreground">
-            <LogOut className="h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild className="gap-2 text-muted-foreground hover:text-foreground">
+              <Link href="/superadmin/settings">
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={logout} className="gap-2 text-muted-foreground hover:text-foreground">
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -252,6 +364,35 @@ export default function SuperAdminDashboardPage() {
               Verify legal credentials, provision corporate tenants, and manage access parameters across the ecosystem.
             </p>
           </div>
+          <Card className="shadow-md border bg-background/50 backdrop-blur shrink-0 md:min-w-[280px]">
+            <CardContent className="p-4 flex items-center justify-between gap-6">
+              <div className="space-y-0.5">
+                <span className="text-sm font-bold text-foreground">Auto-Approve Settings</span>
+                <p className="text-xs text-muted-foreground">Approve requests instantly</p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={isAutoApproveEnabled}
+                onClick={toggleAutoApprove}
+                disabled={isTogglingSetting}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isAutoApproveEnabled ? 'bg-primary' : 'bg-muted'
+                }`}
+              >
+                {isTogglingSetting ? (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="h-3 w-3 animate-spin text-foreground" />
+                  </span>
+                ) : (
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                      isAutoApproveEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                )}
+              </button>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Stats Section */}
@@ -531,12 +672,8 @@ export default function SuperAdminDashboardPage() {
                 </div>
 
                 <div className="sm:col-span-2 border-t pt-3">
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Structured Address</span> 
-                  <p className="mt-1 text-muted-foreground">
-                    {typeof selectedRequest.companyAddress === 'object' && selectedRequest.companyAddress !== null ? (
-                      Object.entries(selectedRequest.companyAddress).map(([k, v]) => v ? `${k}: ${v}` : null).filter(Boolean).join(', ')
-                    ) : String(selectedRequest.companyAddress || '—')}
-                  </p>
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Structured Address</span>
+                  <StructuredAddressBlock address={selectedRequest.companyAddress} />
                 </div>
 
                 <div className="sm:col-span-2 border-t pt-3 grid grid-cols-2 gap-4">

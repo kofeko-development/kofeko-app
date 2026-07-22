@@ -6,13 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { cn } from '@/lib/utils';
 
 export default function ForgotPasswordPage() {
-  const { toast } = useToast();
+  const { toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
     try {
       setIsSubmitting(true);
       await stageOneApi.forgotPassword({ email });
-      toast({
+      toastInfo({
         title: 'Reset email sent',
         description: 'If your account exists, you will receive a password reset email shortly.',
       });
@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Sending...' : 'Send Reset Link'}</Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Back to <Link href="/login" className="underline">Login</Link>
+            Back to <Link href="/company-login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>

@@ -8,7 +8,7 @@ export default function AppFooter() {
           <span>&copy; {new Date().getFullYear()} Kofeko. All rights reserved.</span>
            <nav className="flex items-center gap-4">
              <Link href="/open-positions" className="hover:text-primary-light transition-colors">
-               Careers
+               Careerss
              </Link>
            </nav>
       </div>

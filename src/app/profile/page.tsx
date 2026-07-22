@@ -6,18 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload } from 'lucide-react';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
+import { Loader2, PlusCircle, Trash2, X, Pencil, Check, Save, Upload, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
 import type { WorkExperience, Education, Project, User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { companyApi } from '@/lib/stage1-2-api';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { COMPANY_SIZE_OPTIONS } from '@/lib/company-size';
 import dynamic from 'next/dynamic';
-import { buildE164Phone } from '@/lib/phone-e164';
+import { composeE164Phone, validateNationalPhone } from '@/lib/phone-e164';
 import { apiRequest, getAccessToken } from '@/lib/api-client';
+import { ProfileSkeleton } from '@/components/loading/profile-skeleton';
 import Script from 'next/script';
 import { Country } from 'country-state-city';
 
@@ -36,16 +36,17 @@ const PhoneInternationalField = dynamic(
   }
 );
 
+
 export default function ProfilePage() {
   const { user, updateCurrentUser, loading } = useAuth();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError } = useAppToast();
+  const { showError } = useApiErrorToast();
   const router = useRouter();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneCountryIso, setPhoneCountryIso] = useState('IN');
   const [phoneNationalDigits, setPhoneNationalDigits] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [coverLetter, setCoverLetter] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
@@ -57,32 +58,19 @@ export default function ProfilePage() {
   const [currentHobby, setCurrentHobby] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
 
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
-  const [editingField, setEditingField] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && user && user.role !== 'candidate') {
+      router.replace('/my-profile');
+    }
+  }, [loading, user, router]);
 
   const isNewUser = user && !user.resumeUrl;
-
-  const canReadCompany = useMemo(() => Boolean(user?.permissions?.includes('company:read')), [user?.permissions]);
-  const canEditCompany = useMemo(() => Boolean(user?.permissions?.includes('company:update')), [user?.permissions]);
-
-  const [companyLoading, setCompanyLoading] = useState(false);
-  const [companyProfile, setCompanyProfile] = useState<null | {
-    companyName: string;
-    industry: string;
-    companySize: string;
-    companyType: string;
-    foundedYear: number;
-    companyWebsite: string;
-    officialCompanyAddress: string;
-    phoneNumber?: string;
-    companyLogo: string;
-    shortDescription: string;
-    linkedinUrl?: string;
-    twitterUrl?: string;
-  }>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -115,65 +103,12 @@ export default function ProfilePage() {
     setEducation(user.education && user.education.length > 0 ? user.education : [{ institution: '', degree: '', field: '', dates: '' }]);
     setProjects(user.projects && user.projects.length > 0 ? user.projects : [{ name: '', description: '', technologies: [] }]);
     setHobbies(user.hobbies || []);
-    if (user.role === 'recruiter') {
-      setLinkedinUrl(user.linkedinProfileUrl || '');
-    }
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    if (user.role === 'candidate') return;
-    if (!canReadCompany) return;
-
-    let cancelled = false;
-    setCompanyLoading(true);
-    companyApi
-      .get()
-      .then((res) => {
-        if (cancelled) return;
-        const data = {
-          companyName: res.company.companyName ?? '',
-          industry: res.company.industry ?? '',
-          companySize: res.company.companySize,
-          companyType: res.company.companyType,
-          foundedYear: res.company.foundedYear ?? new Date().getFullYear(),
-          companyWebsite: res.company.companyWebsite ?? '',
-          officialCompanyAddress: res.company.officialCompanyAddress ?? '',
-          phoneNumber: res.company.phoneNumber ?? undefined,
-          companyLogo: res.company.companyLogo ?? '',
-          shortDescription: res.company.shortDescription ?? '',
-          linkedinUrl: res.company.linkedinUrl ?? undefined,
-          twitterUrl: res.company.twitterUrl ?? undefined,
-        };
-        setCompanyProfile(data);
-        setInitialCompanyProfile(data);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        toast({
-          title: 'Unable to load company profile',
-          description: err instanceof Error ? err.message : 'Please refresh and try again.',
-          variant: 'destructive',
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setCompanyLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user, canReadCompany, toast]);
-
-  const [initialCompanyProfile, setInitialCompanyProfile] = useState<null | typeof companyProfile>(null);
-
-  const hasCompanyChanges = useMemo(() => {
-    if (!companyProfile || !initialCompanyProfile) return false;
-    return JSON.stringify(companyProfile) !== JSON.stringify(initialCompanyProfile);
-  }, [companyProfile, initialCompanyProfile]);
-
-  const currentFullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
-  const isPhoneChanged = currentFullPhone.replace(/\D/g, '') !== (user?.phone || '').replace(/\D/g, '');
+  const composedPhone = composeE164Phone(phoneCountryIso, phoneNationalDigits) || '';
+  const phoneValidation = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
+  const currentFullPhone = phoneValidation.ok ? phoneValidation.e164 : '';
+  const isPhoneChanged = composedPhone.replace(/\D/g, '') !== (user?.phone || '').replace(/\D/g, '');
   const isPhoneVerified = !isPhoneChanged || (verifiedPhone?.replace(/\D/g, '') === currentFullPhone.replace(/\D/g, ''));
 
   const hasChanges = useMemo(() => {
@@ -183,7 +118,6 @@ export default function ProfilePage() {
     if (name !== user.name) return true;
     if (isPhoneChanged) return true;
     if (coverLetter !== (user.coverLetter || '')) return true;
-    if (linkedinUrl !== (user.linkedinProfileUrl || '')) return true;
 
     // Deep compare arrays using stringification for simplicity
     const normalize = (arr: any[]) => JSON.stringify(arr?.filter(i => Object.values(i).some(v => v)) || []);
@@ -195,16 +129,36 @@ export default function ProfilePage() {
     if (normalize(projects) !== normalize(user.projects || [])) return true;
 
     return false;
-  }, [user, name, isPhoneChanged, coverLetter, linkedinUrl, skills, hobbies, workExperience, education, projects]);
+  }, [user, name, isPhoneChanged, coverLetter, skills, hobbies, workExperience, education, projects]);
 
-  const handleVerifyPhoneWithMsg91 = () => {
-    if (!currentFullPhone) {
-      toast({ title: 'Invalid phone', description: 'Enter a valid phone number.', variant: 'destructive' });
+  const handleVerifyPhoneWithMsg91 = async () => {
+    if (!phoneValidation.ok) {
+      toastWarning({ title: 'Invalid phone', description: phoneValidation.error });
       return;
     }
 
+    setIsVerifyingPhone(true);
+    try {
+      const checkRes = await apiRequest<{ available: boolean }>(
+        `/portal/profile/check-phone?phone=${encodeURIComponent(currentFullPhone)}`,
+        { auth: true }
+      );
+
+      if (!checkRes.available) {
+        toastError({ title: 'Phone number unavailable', description: 'This phone number is already registered to another candidate.' });
+        setIsVerifyingPhone(false);
+        return;
+      }
+    } catch (error) {
+      toastWarning({ title: 'Availability check failed', description: 'Could not verify if this phone number is available.' });
+      setIsVerifyingPhone(false);
+      return;
+    }
+
+    setIsVerifyingPhone(false);
+
     if (typeof (window as any).initSendOTP !== 'function') {
-      toast({ title: 'Service unavailable', description: 'Verification service is still loading. Please try again in a second.', variant: 'destructive' });
+      toastError({ title: 'Service unavailable', description: 'Verification service is still loading. Please try again in a second.' });
       return;
     }
 
@@ -216,7 +170,7 @@ export default function ProfilePage() {
         handleMsg91Success(data);
       },
       failure: (error: any) => {
-        toast({ title: 'Verification failed', description: error?.message || 'Verification was unsuccessful.', variant: 'destructive' });
+        toastError({ title: 'Verification failed', description: error?.message || 'Verification was unsuccessful.' });
       },
     };
     (window as any).initSendOTP(config);
@@ -236,9 +190,12 @@ export default function ProfilePage() {
 
       setPhoneVerificationToken(token);
       setVerifiedPhone(currentFullPhone);
-      toast({ title: 'Phone verified', description: 'Your phone number has been verified successfully.' });
+      toastSuccess({ title: 'Phone verified', description: 'Your phone number has been verified successfully.' });
+
+      // Auto-save immediately upon verification
+      setTimeout(() => saveChanges(currentFullPhone), 0);
     } catch (error) {
-      toast({ title: 'Backend verification failed', description: error instanceof Error ? error.message : 'Please try again.', variant: 'destructive' });
+      showError(error);
     }
   };
 
@@ -329,9 +286,9 @@ export default function ProfilePage() {
     if (!file) return;
 
     setIsParsing(true);
-    toast({
-      title: 'Parsing resume...',
-      description: 'Extracting details using AI to auto-fill your profile.',
+    toastSuccess({
+      title: 'Uploading resume...',
+      description: 'Saving your resume file to your profile.',
     });
 
     try {
@@ -340,7 +297,7 @@ export default function ProfilePage() {
 
       const token = getAccessToken('candidate');
       const res = await fetch(
-        (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1') + '/portal/parse-resume',
+        (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1') + '/portal/upload-resume',
         {
           method: 'POST',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -349,618 +306,127 @@ export default function ProfilePage() {
       );
 
       if (!res.ok) {
-        throw new Error('Failed to parse resume');
+        throw new Error('Failed to upload resume');
       }
 
       const payload = await res.json();
-      const data = payload.data?.parsed;
+      const resumeUrl = payload.data?.resumeUrl;
+      const resumeMimeType = payload.data?.resumeMimeType;
 
-      if (data) {
-        let updatedUserFields: Partial<User> = {};
-
-        if (data.summary) {
-          setCoverLetter(data.summary);
-          updatedUserFields.coverLetter = data.summary;
-        }
-        if (Array.isArray(data.skills) && data.skills.length > 0) {
-          setSkills(data.skills);
-          updatedUserFields.skills = data.skills;
-        }
-        if (Array.isArray(data.experience) && data.experience.length > 0) {
-          const mapped = data.experience.map((e: any) => ({
-            company: e.company || '',
-            role: e.role || '',
-            startDate: e.startDate || '',
-            endDate: e.endDate || '',
-          }));
-          setWorkExperience(mapped);
-          updatedUserFields.workExperience = mapped;
-        }
-
-        if (Array.isArray(data.education) && data.education.length > 0) {
-          const mapped = data.education.map((e: any) => ({
-            institution: e.institution || '',
-            degree: e.degree || '',
-            field: e.field || '',
-            dates: e.dates || '',
-          }));
-          setEducation(mapped);
-          updatedUserFields.education = mapped;
-        }
-        if (Array.isArray(data.projects) && data.projects.length > 0) {
-          const mapped = data.projects.map((p: any) => ({
-            name: p.name || '',
-            description: p.description || '',
-            technologies: Array.isArray(p.technologies) ? p.technologies : typeof p.technologies === 'string' ? p.technologies.split(',').map((s: string) => s.trim()) : [],
-          }));
-          setProjects(mapped);
-          updatedUserFields.projects = mapped;
-        }
-        if (Array.isArray(data.hobbies) && data.hobbies.length > 0) {
-          setHobbies(data.hobbies);
-          updatedUserFields.hobbies = data.hobbies;
-        }
-
-        if (user) {
-          updateCurrentUser({
-            ...user,
-            ...updatedUserFields,
-            resumeUrl: payload.data?.resumeUrl || user.resumeUrl,
-          });
-        }
-
-        toast({
-          title: 'Resume extracted successfully!',
-          description: 'We pre-filled your summary, skills, and work experience.',
+      if (user) {
+        updateCurrentUser({
+          ...user,
+          resumeUrl: resumeUrl || user.resumeUrl,
+          resumeMimeType: resumeMimeType || user.resumeMimeType,
         });
       }
+
+      toastSuccess({
+        title: 'Resume uploaded successfully!',
+        description: 'Your resume has been saved. Please update your other profile fields manually.',
+      });
     } catch (err) {
-      toast({
-        title: 'Parsing incomplete',
-        description: 'Could not auto-extract fields. Please fill them in manually.',
-        variant: 'destructive',
+      toastError({
+        title: 'Upload failed',
+        description: 'Could not upload resume. Please try again.',
       });
     } finally {
       setIsParsing(false);
     }
   };
 
-  const handleSaveChanges = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isPhoneVerified) {
-      toast({ title: 'Verify Phone', description: 'Please verify your new phone number before saving.', variant: 'destructive' });
+  const saveChanges = async (forcePhone?: string, isManualSave = false) => {
+    if (!isPhoneVerified && !forcePhone) {
+      if (isManualSave) {
+        toastWarning({ title: 'Verify Phone', description: 'Please verify your new phone number before saving.' });
+      }
       return;
     }
     setIsSaving(true);
 
-    (async () => {
-      try {
-        if (user) {
-          const fullPhone = buildE164Phone(phoneCountryIso, phoneNationalDigits) || '';
+    try {
+      if (user) {
+        let fullPhone = forcePhone || user.phone || '';
+        if (isPhoneChanged && !forcePhone) {
+          const phoneCheck = validateNationalPhone(phoneCountryIso, phoneNationalDigits);
+          if (!phoneCheck.ok) {
+            if (isManualSave) {
+              toastWarning({
+                title: 'Invalid phone',
+                description: phoneCheck.error,
+              });
+            }
+            setIsSaving(false);
+            return;
+          }
+          fullPhone = phoneCheck.e164;
+        }
 
-          if (user.role === 'candidate') {
-            // Save to backend
-            const updatedBackendUser = await apiRequest<BackendUser>('/portal/profile', {
-              method: 'PATCH',
-              auth: true,
-              body: {
-                firstName: name.split(' ')[0],
-                lastName: name.split(' ').slice(1).join(' ') || 'Candidate',
-                phone: fullPhone,
-                summary: coverLetter,
-                skills,
-                workExperience,
-                education,
-                projects,
-                hobbies,
-                linkedinUrl: user.linkedinProfileUrl || undefined, // Keeping existing if not changed
-              },
-            });
-
-            const mapped = mapBackendUser(updatedBackendUser);
-            updateCurrentUser({
-              ...mapped,
-              role: user.role, // Explicitly preserve the current role
-              permissions: user.permissions, // Preserve permissions too
-            });
-          } else {
-            // Recruiter / Operator (keeping existing mock logic for now or update similarly if needed)
-            const updatedUser = {
-              ...user,
-              name,
-              email,
-              phone: fullPhone,
-              coverLetter,
+        if (user.role === 'candidate') {
+          // Save to backend
+          const updatedBackendUser = await apiRequest<BackendUser>('/portal/profile', {
+            method: 'PATCH',
+            auth: true,
+            body: {
+              firstName: name.split(' ')[0],
+              lastName: name.split(' ').slice(1).join(' ') || 'Candidate',
+              phone: fullPhone || undefined,
+              summary: coverLetter,
               skills,
               workExperience,
               education,
               projects,
               hobbies,
-              linkedinProfileUrl: user.role === 'recruiter' ? linkedinUrl : user.linkedinProfileUrl,
-              resumeUrl: resumeFile ? resumeFile.name : user.resumeUrl,
-            };
-            updateCurrentUser(updatedUser);
-          }
-        }
+              linkedinUrl: user.linkedinProfileUrl || undefined, // Keeping existing if not changed
+            },
+          });
 
-        toast({
+          const mapped = mapBackendUser(updatedBackendUser);
+          updateCurrentUser({
+            ...mapped,
+            role: user.role, // Explicitly preserve the current role
+            permissions: user.permissions, // Preserve permissions too
+          });
+        }
+      }
+
+      if (isManualSave) {
+        toastSuccess({
           title: 'Profile Updated',
           description: 'Your changes have been saved successfully.',
         });
-
-        // Removed redirects as requested. User stays on the same page.
-      } catch (err) {
-        toast({
-          title: 'Update failed',
-          description: err instanceof Error ? err.message : 'Please try again.',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsSaving(false);
       }
-    })();
-  };
-
-  const handleSaveCompanyChanges = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!companyProfile || !canEditCompany) return;
-    setIsSaving(true);
-    try {
-      await companyApi.update(companyProfile as any);
-      setInitialCompanyProfile(companyProfile);
-      toast({
-        title: 'Company Profile Updated',
-        description: 'Your company details have been saved successfully.',
-      });
     } catch (err) {
-      toast({
+      toastError({
         title: 'Update failed',
-        description: err instanceof Error ? err.message : 'Unable to update company profile.',
-        variant: 'destructive',
+        description: err instanceof Error ? err.message : 'Please try again.',
       });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const updateCompanyField = (field: string, value: any) => {
-    setCompanyProfile((prev) => (prev ? { ...prev, [field]: value } : null));
-  };
-
   if (loading || !user) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
-  // Staff / Recruiter Profile UI (Company details)
   if (user.role !== 'candidate') {
-    return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
-        <div>
-          <h1 className="text-3xl font-bold font-headline">Company Profile</h1>
-          <p className="text-muted-foreground">View and update your company details.</p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Company details</CardTitle>
-            <CardDescription>The information entered during company signup.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {companyLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading company profile…
-              </div>
-            ) : !canReadCompany ? (
-              <p className="text-sm text-muted-foreground">You don&apos;t have permission to view company details.</p>
-            ) : !companyProfile ? (
-              <p className="text-sm text-muted-foreground">No company profile found for this tenant.</p>
-            ) : (
-              <form onSubmit={handleSaveCompanyChanges} className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Company name</Label>
-                    <div className="relative group">
-                      <Input
-                        value={companyProfile.companyName}
-                        onChange={(e) => updateCompanyField('companyName', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'companyName'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'companyName'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'companyName'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'companyName' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('companyName')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Industry</Label>
-                    <div className="relative group">
-                      <Input
-                        value={companyProfile.industry}
-                        onChange={(e) => updateCompanyField('industry', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'industry'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'industry'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'industry'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'industry' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('industry')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company size</Label>
-                    <div className="relative group">
-                      {editingField === 'companySize' ? (
-                        <Select
-                          value={companyProfile.companySize}
-                          onValueChange={(v) => {
-                            updateCompanyField('companySize', v);
-                            setEditingField(null);
-                          }}
-                          open={true}
-                          onOpenChange={(open) => !open && setEditingField(null)}
-                        >
-                          <SelectTrigger className="pr-10 bg-background border-primary shadow-sm transition-all rounded-lg h-11">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COMPANY_SIZE_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div
-                          className="pr-10 border-transparent bg-muted/20 hover:bg-muted/40 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
-                          onClick={() => canEditCompany && setEditingField('companySize')}
-                        >
-                          {COMPANY_SIZE_OPTIONS.find(opt => opt.value === companyProfile.companySize)?.label || companyProfile.companySize}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company type</Label>
-                    <div className="relative group">
-                      {editingField === 'companyType' ? (
-                        <Select
-                          value={companyProfile.companyType}
-                          onValueChange={(v) => {
-                            updateCompanyField('companyType', v);
-                            setEditingField(null);
-                          }}
-                          open={true}
-                          onOpenChange={(open) => !open && setEditingField(null)}
-                        >
-                          <SelectTrigger className="pr-10 bg-background border-primary shadow-sm transition-all rounded-lg h-11">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COMPANY_TYPE_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div
-                          className="pr-10 border-transparent bg-muted/20 hover:bg-muted/40 transition-all rounded-lg h-11 flex items-center px-3 text-sm cursor-pointer"
-                          onClick={() => canEditCompany && setEditingField('companyType')}
-                        >
-                          {COMPANY_TYPE_OPTIONS.find(opt => opt.value === companyProfile.companyType)?.label || companyProfile.companyType}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Founded year</Label>
-                    <div className="relative group">
-                      <Input
-                        type="number"
-                        value={String(companyProfile.foundedYear)}
-                        onChange={(e) => updateCompanyField('foundedYear', Number(e.target.value))}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'foundedYear'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'foundedYear'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'foundedYear'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'foundedYear' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('foundedYear')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Phone number</Label>
-                    <div className="relative group">
-                      <Input
-                        value={companyProfile.phoneNumber ?? ''}
-                        onChange={(e) => updateCompanyField('phoneNumber', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'phoneNumber'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'phoneNumber'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'phoneNumber'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'phoneNumber' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('phoneNumber')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Website</Label>
-                    <div className="relative group">
-                      <Input
-                        value={companyProfile.companyWebsite}
-                        onChange={(e) => updateCompanyField('companyWebsite', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'companyWebsite'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'companyWebsite'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'companyWebsite'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'companyWebsite' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('companyWebsite')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Official address</Label>
-                    <div className="relative group">
-                      <Input
-                        value={companyProfile.officialCompanyAddress}
-                        onChange={(e) => updateCompanyField('officialCompanyAddress', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'officialCompanyAddress'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'officialCompanyAddress'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'officialCompanyAddress'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'officialCompanyAddress' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('officialCompanyAddress')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Company logo</Label>
-                    <div className="flex gap-4 items-start">
-                      <div className="relative group flex-1">
-                        <div className={`flex items-center gap-3 pr-20 border transition-all rounded-lg h-11 px-3 ${editingField === 'companyLogo'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 border-transparent hover:bg-muted/40'
-                          }`}>
-                          <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
-                          {companyProfile.companyLogo ? (
-                            <span className="text-sm text-muted-foreground truncate flex-1">{companyProfile.companyLogo}</span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground italic flex-1">No logo uploaded</span>
-                          )}
-
-                          {canEditCompany && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                              <input
-                                type="file"
-                                id="company-logo-upload"
-                                className="hidden"
-                                accept="image/*,.svg"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    setEditingField('companyLogo');
-                                    try {
-                                      const res = await companyApi.uploadLogo(file);
-                                      updateCompanyField('companyLogo', res.url);
-                                    } catch (err) {
-                                      toast({
-                                        title: 'Upload failed',
-                                        description: err instanceof Error ? err.message : 'Unable to upload logo.',
-                                        variant: 'destructive',
-                                      });
-                                    } finally {
-                                      setEditingField(null);
-                                    }
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => document.getElementById('company-logo-upload')?.click()}
-                                className="p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                                title="Upload new logo"
-                              >
-                                <Pencil className="h-4 w-4 text-muted-foreground" />
-                              </button>
-                              {companyProfile.companyLogo && (
-                                <button
-                                  type="button"
-                                  onClick={() => updateCompanyField('companyLogo', '')}
-                                  className="p-1.5 hover:bg-destructive/10 rounded-md transition-all opacity-0 group-hover:opacity-100 text-destructive"
-                                  title="Remove logo"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {companyProfile.companyLogo && (
-                        <div className="h-11 w-11 shrink-0 rounded-lg border bg-white p-1.5 overflow-hidden shadow-sm">
-                          <img src={companyProfile.companyLogo} alt="Logo Preview" className="h-full w-full object-contain" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Short description</Label>
-                    <div className="relative group">
-                      <Textarea
-                        value={companyProfile.shortDescription}
-                        onChange={(e) => updateCompanyField('shortDescription', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'shortDescription'}
-                        className={`pr-10 border-transparent transition-all rounded-lg min-h-[120px] ${editingField === 'shortDescription'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'shortDescription'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'shortDescription' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('shortDescription')}
-                          className="absolute right-3 top-4 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>LinkedIn</Label>
-                    <div className="relative group">
-                      <Input
-                        value={companyProfile.linkedinUrl ?? ''}
-                        onChange={(e) => updateCompanyField('linkedinUrl', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'linkedinUrl'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'linkedinUrl'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'linkedinUrl'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'linkedinUrl' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('linkedinUrl')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Twitter</Label>
-                    <div className="relative group">
-                      <Input
-                        value={companyProfile.twitterUrl ?? ''}
-                        onChange={(e) => updateCompanyField('twitterUrl', e.target.value)}
-                        onBlur={() => setEditingField(null)}
-                        autoFocus={editingField === 'twitterUrl'}
-                        className={`pr-10 border-transparent transition-all rounded-lg h-11 ${editingField === 'twitterUrl'
-                          ? 'bg-background border-primary shadow-sm'
-                          : 'bg-muted/20 hover:bg-muted/40'
-                          }`}
-                        readOnly={editingField !== 'twitterUrl'}
-                        disabled={!canEditCompany}
-                      />
-                      {editingField !== 'twitterUrl' && (
-                        <button
-                          type="button"
-                          onClick={() => canEditCompany && setEditingField('twitterUrl')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted-foreground/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Floating Save Changes Button */}
-                {canEditCompany && hasCompanyChanges && (
-                  <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="rounded-full shadow-2xl px-4 py-2 h-auto text-xs font-semibold bg-primary hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border-2 border-white dark:border-slate-900"
-                      disabled={isSaving}
-                    >
-                      {isSaving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4" />
-                      )}
-                      Save Changes
-                    </Button>
-                  </div>
-                )}
-              </form>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return null;
   }
 
   // Candidate Profile UI (continues below)
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 pb-24">
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        onClick={() => router.back()}
+        className="mb-2 w-fit p-0 h-auto hover:bg-transparent hover:text-primary"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back
+      </Button>
       <div>
         <h1 className="text-3xl font-bold font-headline">{isNewUser ? 'Complete Your Profile' : 'My Profile'}</h1>
         <p className="text-muted-foreground">
@@ -968,7 +434,7 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      <form onSubmit={handleSaveChanges}>
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Personal Information</CardTitle>
@@ -989,7 +455,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between">
                 <Label>Phone Number</Label>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 <div className="flex-1">
                   <PhoneInternationalField
                     phoneCountryIso={phoneCountryIso}
@@ -1024,17 +490,22 @@ export default function ProfilePage() {
                     Done
                   </Button>
                 )}
+                {isPhoneChanged && !isPhoneVerified && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isVerifyingPhone}
+                    onClick={handleVerifyPhoneWithMsg91}
+                    className="h-10 px-4 shrink-0"
+                  >
+                    {isVerifyingPhone && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Verify Phone
+                  </Button>
+                )}
               </div>
 
               {isPhoneChanged && !isPhoneVerified && (
-                <div className="mt-2 flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground">You changed your phone number. Verify it to save.</p>
-                    <Button type="button" size="sm" onClick={handleVerifyPhoneWithMsg91}>
-                      Verify Phone
-                    </Button>
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground mt-1 text-amber-600 dark:text-amber-500"></p>
               )}
               {isPhoneChanged && isPhoneVerified && (
                 <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mt-1">✓ Phone number verified</p>
@@ -1061,14 +532,23 @@ export default function ProfilePage() {
                 />
                 {isParsing && (
                   <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
-                    <Loader2 className="h-4 w-4 animate-spin" /> AI is reading your resume and filling out fields below...
+                    <Loader2 className="h-4 w-4 animate-spin" /> Uploading your resume to your profile...
                   </div>
                 )}
                 {user.resumeUrl && !resumeFile && <p className="text-sm text-muted-foreground">Current file: {user.resumeUrl}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cover-letter">Cover Letter</Label>
-                <Textarea id="cover-letter" placeholder="Tell us about yourself..." value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} className="min-h-[150px]" />
+                <Label htmlFor="cover-letter">About / Professional summary *</Label>
+                <Textarea
+                  id="cover-letter"
+                  placeholder="Tell us about yourself, your experience, and what you're looking for..."
+                  value={coverLetter}
+                  onChange={(e) => setCoverLetter(e.target.value)}
+                  className="min-h-[150px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Required to apply for jobs (at least 20 characters).
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -1264,7 +744,8 @@ export default function ProfilePage() {
         {/* Floating Save Button */}
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
           <Button
-            type="submit"
+            type="button"
+            onClick={(e) => { e.preventDefault(); saveChanges(undefined, true); }}
             disabled={isSaving || !hasChanges}
             className="h-12 px-8 rounded-full shadow-2xl hover:shadow-primary/20 transition-all duration-300 border border-primary/20 backdrop-blur-md disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
@@ -1281,7 +762,7 @@ export default function ProfilePage() {
             )}
           </Button>
         </div>
-      </form>
+      </div>
       <Script src="https://verify.msg91.com/otp-provider.js" strategy="lazyOnload" />
       <Script src="https://verify.phone91.com/otp-provider.js" strategy="lazyOnload" />
     </div>

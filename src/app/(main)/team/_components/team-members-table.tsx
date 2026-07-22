@@ -8,9 +8,12 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import type { User, CompanyRole } from '@/lib/types';
-import { updateStaffUserRole, removeStaffUser, updateStaffUserStatus } from '@/lib/admin-api';
+import { removeStaffUser, staffInviteStatusLabel, updateStaffUserRole, updateStaffUserStatus } from '@/lib/admin-api';
+import { UserTableRowsSkeleton } from '@/components/loading/user-table-rows-skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +35,7 @@ const getInitials = (name: string) => {
 }
 
 const roleVariantMap: { [key: string]: "default" | "secondary" | "destructive" } = {
-    'HR Admin': 'default',
+    'Company Admin': 'default',
     'Hiring Manager': 'secondary',
     'Interviewer': 'secondary'
 };
@@ -40,10 +43,12 @@ const roleVariantMap: { [key: string]: "default" | "secondary" | "destructive" }
 
 interface TeamMembersTableProps {
     users: User[];
+    loading?: boolean;
 }
 
-export default function TeamMembersTable({ users: initialUsers }: TeamMembersTableProps) {
-    const { toast } = useToast();
+export default function TeamMembersTable({ users: initialUsers, loading = false }: TeamMembersTableProps) {
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+    const { showError } = useApiErrorToast();
     const [users, setUsers] = useState(initialUsers);
 
     useEffect(() => {
@@ -56,21 +61,17 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
         try {
             // Map CompanyRole to backend role names
             let backendRole = 'recruiter';
-            if (newRole === 'HR Admin') backendRole = 'hr_manager';
+            if (newRole === 'Company Admin') backendRole = 'hr_manager';
             else if (newRole === 'Interviewer') backendRole = 'interviewer';
             
             await updateStaffUserRole(userId, backendRole);
             setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, companyRole: newRole } : u));
-            toast({
+            toastSuccess({
                 title: "User role updated",
                 description: `The user's role has been changed to ${newRole}.`,
             });
         } catch (error) {
-            toast({
-                title: "Failed to update role",
-                description: error instanceof Error ? error.message : "An error occurred",
-                variant: 'destructive'
-            });
+            showError(error);
         }
     }
 
@@ -84,17 +85,12 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
          try {
              await removeStaffUser(selectedUser.uid);
              setUsers(prevUsers => prevUsers.filter(u => u.uid !== selectedUser.uid));
-             toast({
+             toastSuccess({
                  title: "User Removed",
-                 description: `${selectedUser.name} has been removed from the team.`,
-                 variant: 'destructive'
+                 description: `${selectedUser.name} has been removed from the team.`
              });
          } catch (error) {
-             toast({
-                 title: "Failed to remove user",
-                 description: error instanceof Error ? error.message : "An error occurred",
-                 variant: 'destructive'
-             });
+             showError(error);
          } finally {
              setIsAlertOpen(false);
              setSelectedUser(null);
@@ -105,16 +101,12 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
         try {
             await updateStaffUserStatus(userId, status);
             setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, status } : u));
-            toast({
+            toastSuccess({
                 title: `User ${status}`,
                 description: `The user has been ${status}.`,
             });
         } catch (error) {
-            toast({
-                title: `Failed to ${status === 'active' ? 'reactivate' : 'suspend'} user`,
-                description: error instanceof Error ? error.message : "An error occurred",
-                variant: 'destructive'
-            });
+            showError(error);
         }
     }
 
@@ -133,7 +125,9 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {users.map((user) => (
+                            {loading ? (
+                                <UserTableRowsSkeleton rows={5} />
+                            ) : users.map((user) => (
                                 <TableRow key={user.uid}>
                                     <TableCell>
                                         <div className="flex items-center gap-4">
@@ -152,14 +146,23 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="secondary" className={`${user.status === 'active' ? 'bg-green-500/20 text-green-700' : 'bg-yellow-500/20 text-yellow-700'} capitalize`}>
-                                            {user.status}
+                                        <Badge
+                                            variant="secondary"
+                                            className={`${
+                                                user.status === 'active'
+                                                    ? 'bg-green-500/20 text-green-700'
+                                                    : user.status === 'suspended'
+                                                      ? 'bg-red-500/20 text-red-700'
+                                                      : 'bg-yellow-500/20 text-yellow-700'
+                                            } capitalize`}
+                                        >
+                                            {staffInviteStatusLabel(user.status)}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
                                          <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="outline" size="sm" disabled={user.companyRole === 'HR Admin'}>
+                                                <Button variant="outline" size="sm" disabled={user.companyRole === 'Company Admin'}>
                                                     Manage
                                                     <ChevronDown className="ml-2 h-4 w-4" />
                                                 </Button>
@@ -188,7 +191,7 @@ export default function TeamMembersTable({ users: initialUsers }: TeamMembersTab
                                     </TableCell>
                                 </TableRow>
                             ))}
-                             {users.length === 0 && (
+                             {!loading && users.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
                                         No team members found.

@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { cn } from '@/lib/utils';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
@@ -19,14 +20,23 @@ import { apiRequest } from '@/lib/api-client';
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
+const getSafeRedirect = (url: string | null) => {
+  if (!url) return '/find-jobs';
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    return url;
+  }
+  return '/find-jobs';
+};
+
 function CandidateAuthContent() {
   const { loginCandidate, loginCandidateWithGoogle, registerCandidate } = useAuth();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const router = useRouter();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const searchParams = useSearchParams();
   const mode = useMemo(() => (searchParams.get('mode') === 'signup' ? 'signup' : 'login'), [searchParams]);
+  const redirectPath = useMemo(() => getSafeRedirect(searchParams.get('redirect')), [searchParams]);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -66,7 +76,7 @@ function CandidateAuthContent() {
   const handleSendOtp = async () => {
     const raw = email.trim();
     if (!isValidEmailShape(raw)) {
-      toast({ title: 'Invalid email', description: 'Enter a valid email address.', variant: 'destructive' });
+      toastWarning({ title: 'Invalid email', description: 'Enter a valid email address.' });
       return;
     }
     setSendOtpLoading(true);
@@ -79,7 +89,7 @@ function CandidateAuthContent() {
       setOtpCode('');
       setVerifiedAtEmail(null);
       setEmailVerificationToken(null);
-      toast({ title: 'Code sent', description: 'Check your email for a 6-digit verification code.' });
+      toastInfo({ title: 'Code sent', description: 'Check your email for a 6-digit verification code.' });
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors((prev) => ({ ...prev, ...mapped }));
@@ -92,7 +102,7 @@ function CandidateAuthContent() {
     const raw = email.trim();
     const code = otpCode.trim();
     if (!isValidEmailShape(raw) || !/^\d{6}$/.test(code)) {
-      toast({ title: 'Invalid code', description: 'Enter the 6-digit code from your email.', variant: 'destructive' });
+      toastWarning({ title: 'Invalid code', description: 'Enter the 6-digit code from your email.' });
       return;
     }
     setConfirmOtpLoading(true);
@@ -103,7 +113,7 @@ function CandidateAuthContent() {
       );
       setEmailVerificationToken(token);
       setVerifiedAtEmail(normalizeEmail(raw));
-      toast({ title: 'Email verified', description: 'Creating your account...' });
+      toastSuccess({ title: 'Email verified', description: 'Creating your account...' });
 
       // Automatically attempt to complete signup if fields are filled
       const trimmed = fullName.trim();
@@ -120,8 +130,8 @@ function CandidateAuthContent() {
           password,
           emailVerificationToken: token
         });
-        toast({ title: 'Account created', description: 'Welcome to Kofeko!' });
-        router.push('/find-jobs');
+        toastSuccess({ title: 'Account created', description: 'Welcome to Kofeko!' });
+        router.push(redirectPath);
       }
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
@@ -167,12 +177,12 @@ function CandidateAuthContent() {
           password,
           emailVerificationToken
         });
-        toast({ title: 'Candidate account created', description: 'Welcome to Kofeko candidate portal.' });
+        toastSuccess({ title: 'Candidate account created', description: 'Welcome to Kofeko candidate portal.' });
       } else {
         await loginCandidate({ email: normalizeEmail(email), password });
-        toast({ title: 'Login successful', description: 'Welcome back.' });
+        toastSuccess({ title: 'Login successful', description: 'Welcome back.' });
       }
-      router.push('/find-jobs');
+      router.push(redirectPath);
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors(mapped);
@@ -187,8 +197,8 @@ function CandidateAuthContent() {
       const cred = await signInWithPopup(firebaseAuth, googleAuthProvider);
       const idToken = await cred.user.getIdToken();
       await loginCandidateWithGoogle({ idToken });
-      toast({ title: 'Login successful', description: 'Signed in with Google.' });
-      router.push('/find-jobs');
+      toastSuccess({ title: 'Login successful', description: 'Signed in with Google.' });
+      router.push(redirectPath);
     } catch (error) {
       const { fieldErrors: mapped } = showError(error);
       setFieldErrors(mapped);
@@ -200,7 +210,7 @@ function CandidateAuthContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/20 px-4 relative">
       <div className="absolute top-6 right-6 text-sm">
-        Are you a company? <Link href="/login" className="underline font-medium">Login here</Link>
+        Are you a company? <Link href="/company-login" className="underline font-medium">Login here</Link>
       </div>
       <Card className="w-full max-w-md shadow-lg border-primary/10">
         <CardHeader className="space-y-1">

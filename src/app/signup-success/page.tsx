@@ -10,6 +10,33 @@ function SuccessContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const status = searchParams.get('status');
+    const slug = searchParams.get('slug') || '';
+
+    if (status === 'approved') {
+        return (
+            <Card className="max-w-md w-full border-emerald-200/50 shadow-md">
+                <CardHeader className="text-center">
+                    <CheckCircle className="mx-auto h-12 w-12 text-emerald-500 mb-4" />
+                    <CardTitle className="text-2xl font-bold">Registration Approved!</CardTitle>
+                    <CardDescription className="text-emerald-600/80 font-medium">
+                        Your company has been auto-approved.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                    <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
+                        Welcome to Kofeko! Your workspace is ready. You can log in using your admin credentials.
+                    </p>
+                    <div className="bg-muted/50 p-3 rounded-lg border border-dashed text-left mb-6">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide">Workspace Slug</span>
+                        <p className="font-semibold text-sm text-foreground">{slug}</p>
+                    </div>
+                    <Button onClick={() => router.push(`/company-login?slug=${slug}`)} className="w-full bg-emerald-600 hover:bg-emerald-700">
+                        Go to Workspace Login
+                    </Button>
+                </CardContent>
+            </Card>
+        );
+    }
 
     if (status === 'pending') {
         return (

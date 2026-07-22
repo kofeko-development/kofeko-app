@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { ApiError } from '@/lib/api-client';
@@ -18,7 +19,7 @@ const strongPassword = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
   const [password, setPassword] = useState('');
@@ -31,27 +32,26 @@ function ResetPasswordContent() {
     setFieldErrors({});
 
     if (!token) {
-      toast({ title: 'Missing reset token', description: 'Open this page from the reset email link.', variant: 'destructive' });
+      toastWarning({ title: 'Missing reset token', description: 'Open this page from the reset email link.' });
       return;
     }
     if (!strongPassword.test(password)) {
-      toast({
+      toastWarning({
         title: 'Weak password',
         description: 'Password must be at least 8 characters with one uppercase letter and one number.',
-        variant: 'destructive',
       });
       return;
     }
     if (password !== confirmPassword) {
-      toast({ title: 'Passwords do not match', description: 'Please confirm the same password.', variant: 'destructive' });
+      toastWarning({ title: 'Passwords do not match', description: 'Please confirm the same password.' });
       return;
     }
 
     try {
       setIsSubmitting(true);
       await stageOneApi.resetPassword({ token, password });
-      toast({ title: 'Password reset successful', description: 'Please login with your new password.' });
-      router.push('/login');
+      toastSuccess({ title: 'Password reset successful', description: 'Please login with your new password.' });
+      router.push('/company-login');
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errorCode === 'RESET_TOKEN_EXPIRED') {
@@ -103,7 +103,7 @@ function ResetPasswordContent() {
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Resetting...' : 'Reset Password'}</Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Back to <Link href="/login" className="underline">Login</Link>
+            Back to <Link href="/company-login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>

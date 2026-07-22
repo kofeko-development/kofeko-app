@@ -1,6 +1,6 @@
 
 export type UserRole = 'recruiter' | 'candidate' | 'operator';
-export type CompanyRole = 'HR Admin' | 'Hiring Manager' | 'Recruiter' | 'Interviewer';
+export type CompanyRole = 'Company Admin' | 'Hiring Manager' | 'Recruiter' | 'Interviewer';
 
 export interface WorkExperience {
   company: string;
@@ -26,6 +26,8 @@ export interface User {
   uid: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: UserRole;
   permissions?: string[];
   backendRoles?: string[];
@@ -38,6 +40,7 @@ export interface User {
   hobbies?: string[];
   company?: string; // For recruiters
   companyRole?: CompanyRole; // For recruiters
+  appliedRole?: string; // For candidates
   resumeUrl?: string; // For candidates
   resumeMimeType?: string; // For candidates
   linkedinProfileUrl?: string; // For recruiters

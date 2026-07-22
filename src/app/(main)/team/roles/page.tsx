@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlusCircle, ShieldCheck, FileEdit, Trash2, ArrowLeft, Briefcase } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import {
   CUSTOM_ROLE_PERMISSION_KEYS,
   type PositionTemplateId,
@@ -48,7 +49,9 @@ function sortKeys(keys: string[]) {
 
 export default function RoleManagementPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const pathname = usePathname();
+  const teamBasePath = pathname.startsWith('/admin/team') ? '/admin/team' : '/team';
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
 
   const [orgRoles, setOrgRoles] = useState<SavedOrgRole[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -98,17 +101,16 @@ export default function RoleManagementPage() {
   const handleSave = () => {
     const name = roleName.trim();
     if (!name) {
-      toast({ title: 'Name required', description: 'Enter a role name.', variant: 'destructive' });
+      toastWarning({ title: 'Name required', description: 'Enter a role name.' });
       return;
     }
     const keys =
       positionTemplate === 'custom' ? sortKeys(Array.from(customPerms)) : sortKeys(permissionsForTemplate(positionTemplate));
 
     if (positionTemplate === 'custom' && keys.length === 0) {
-      toast({
+      toastError({
         title: 'Pick permissions',
         description: 'Select at least one permission for a custom role.',
-        variant: 'destructive',
       });
       return;
     }
@@ -119,10 +121,10 @@ export default function RoleManagementPage() {
           r.id === editingId ? { ...r, name, positionTemplate, permissionKeys: keys } : r,
         ),
       );
-      toast({ title: 'Role updated', description: `"${name}" saved.` });
+      toastSuccess({ title: 'Role updated', description: `"${name}" saved.` });
     } else {
       setOrgRoles((prev) => [...prev, { id: crypto.randomUUID(), name, positionTemplate, permissionKeys: keys }]);
-      toast({ title: 'Role created', description: `"${name}" added. Use it when describing access in your team processes.` });
+      toastSuccess({ title: 'Role created', description: `"${name}" added. Use it when describing access in your team processes.` });
     }
     setDialogOpen(false);
     resetDialog();
@@ -130,7 +132,7 @@ export default function RoleManagementPage() {
 
   const handleDelete = (id: string) => {
     setOrgRoles((prev) => prev.filter((r) => r.id !== id));
-    toast({ title: 'Role removed' });
+    toastSuccess({ title: 'Role removed' });
   };
 
   const toggleCustomPerm = (key: string, checked: boolean) => {
@@ -146,7 +148,7 @@ export default function RoleManagementPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Button variant="ghost" size="sm" onClick={() => router.push('/team')} className="mb-1 w-fit px-2">
+          <Button variant="ghost" size="sm" onClick={() => router.push(teamBasePath)} className="mb-1 w-fit px-2">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Team
           </Button>
           <h1 className="font-headline text-3xl font-bold">Roles & access</h1>

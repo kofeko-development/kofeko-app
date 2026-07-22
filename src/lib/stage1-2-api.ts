@@ -1,4 +1,4 @@
-import { apiRequest, ApiError, API_BASE_URL, parseApiError } from './api-client';
+import { apiRequest, API_BASE_URL, getAccessToken, parseApiError } from './api-client';
 
 export type CompanyProfilePayload = {
   companyName: string;
@@ -20,6 +20,15 @@ export type CompanyProfileResponse = {
   tenant: { id: string; name: string; slug: string };
   company: CompanyProfilePayload & { id: string; createdAt: string; updatedAt: string };
 };
+
+function sanitizeCompanyPayload<T extends Record<string, unknown>>(payload: T): Partial<T> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === '' || value === null || value === undefined) continue;
+    result[key] = typeof value === 'string' ? value.trim() : value;
+  }
+  return result as Partial<T>;
+}
 
 export const stageOneApi = {
   inviteUser: (payload: {
@@ -44,11 +53,19 @@ export const stageOneApi = {
 export const companyApi = {
   get: () => apiRequest<CompanyProfileResponse>('/company', { auth: true }),
   create: (payload: CompanyProfilePayload) =>
-    apiRequest<CompanyProfileResponse>('/company', { method: 'POST', auth: true, body: payload }),
+    apiRequest<CompanyProfileResponse>('/company', {
+      method: 'POST',
+      auth: true,
+      body: sanitizeCompanyPayload(payload as Record<string, unknown>),
+    }),
   update: (payload: Partial<CompanyProfilePayload>) =>
-    apiRequest<CompanyProfileResponse>('/company', { method: 'PATCH', auth: true, body: payload }),
+    apiRequest<CompanyProfileResponse>('/company', {
+      method: 'PATCH',
+      auth: true,
+      body: sanitizeCompanyPayload(payload as Record<string, unknown>),
+    }),
   uploadLogo: async (file: File): Promise<{ url: string; mimeType: string; filename: string }> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kofeko_access_token') : null;
+    const token = getAccessToken('staff');
     const formData = new FormData();
     formData.append('logo', file);
     const res = await fetch(`${API_BASE_URL}/company/upload-logo`, {
@@ -84,8 +101,74 @@ export const aiApi = {
     location?: string;
     jobType?: string;
     employmentType?: string;
-  }) => apiRequest<{ html: string; plainText: string; suggestedSkills: SkillWeight[] }>('/ai/jd', { method: 'POST', auth: true, body: payload }),
+  }) => apiRequest<{ html: string; plainText: string; suggestedSkills: SkillWeight[] }>('/ai/jd', { method: 'POST', auth: true, authType: 'staff', body: payload }),
+
+  runEvaluationLab: async (payload: {
+    jobTitle: string;
+    description: string;
+    skillWeights: SkillWeight[];
+    resumes: File[];
+  }): Promise<{ results: EvaluationLabResultItem[] }> => {
+    const token = getAccessToken('staff');
+    const formData = new FormData();
+    formData.append('jobTitle', payload.jobTitle);
+    formData.append('description', payload.description);
+    formData.append('skillWeights', JSON.stringify(payload.skillWeights));
+    payload.resumes.forEach((file) => formData.append('resumes', file));
+
+    const res = await fetch(`${API_BASE_URL}/ai/evaluation-lab`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Evaluation lab failed' }));
+      throw new Error((err as { message?: string }).message || 'Evaluation lab failed');
+    }
+
+    const envelope = (await res.json()) as { data: { results: EvaluationLabResultItem[] } };
+    return envelope.data;
+  },
 };
+
+export type EvaluationLabResultItem =
+  | {
+      fileName: string;
+      success: true;
+      overallScore: number;
+      rankingSummary: string;
+      analysis: {
+        scores: {
+          overall: number;
+          sections: Record<string, number>;
+          skillMatches: Array<{
+            skill: string;
+            weight: number;
+            matched: boolean;
+            contribution: number;
+            evidence?: string;
+          }>;
+          roleFitNotes: string;
+        };
+        rankingSummary: string;
+        hiringIntelligence?: {
+          applicationSummary?: string;
+          keyStrengths?: string[];
+          areasForGrowth?: string[];
+          riskFlags?: string[];
+          interviewRecommendation?: { classification: string; reasoning: string };
+          suggestedInterviewQuestions?: string[];
+          relevanceToRole?: { matchScorePercent: number; strongMatchAreas?: string[]; missingCapabilities?: string[] };
+        };
+        parsedResume?: { summary?: string; skills?: string[] };
+      };
+    }
+  | {
+      fileName: string;
+      success: false;
+      error: string;
+    };
 
 /** Matches backend `skillWeights` JSON — weights are integers 0–10. */
 export type SkillWeight = { skill: string; weight: number; yearsOfExperience?: number };
@@ -134,7 +217,7 @@ export const jobsApi = {
     if (params?.status) qs.set('status', params.status);
     if (params?.department) qs.set('department', params.department);
     const q = qs.toString();
-    return apiRequest<PaginatedJobsResponse>(`/jobs${q ? `?${q}` : ''}`, { auth: true });
+    return apiRequest<PaginatedJobsResponse>(`/jobs${q ? `?${q}` : ''}`, { auth: true, authType: 'staff' });
   },
 
   create: (payload: {
@@ -247,11 +330,10 @@ export const candidatesApi = {
     apiRequest<ApiCandidate>(`/candidates/${id}/status`, { method: 'PATCH', auth: true, body: { status } }),
 
   uploadResume: async (file: File): Promise<{ url: string; mimeType: string; filename: string }> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kofeko_access_token') : null;
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+    const token = getAccessToken('staff');
     const formData = new FormData();
     formData.append('resume', file);
-    const res = await fetch(`${API_BASE}/candidates/upload-resume`, {
+    const res = await fetch(`${API_BASE_URL}/candidates/upload-resume`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,

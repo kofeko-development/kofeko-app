@@ -8,8 +8,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Briefcase, MapPin, ArrowUpRight, Search } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { portalApi, type PortalJobListItem } from "@/lib/portal-api";
+import { useAppToast } from '@/lib/toast-helpers';
+
+import { useAuth } from "@/lib/auth";
+import { resolveJobEmploymentType, resolveJobWorkMode } from "@/lib/job-display";
+import { FindJobsListSkeleton } from "@/components/loading/find-jobs-list-skeleton";
+import { useMyApplications, usePortalJobs } from "@/hooks/use-portal";
 
 const locationValue = (raw: string | null | undefined) => (raw ?? '').trim();
 
@@ -18,43 +22,34 @@ export default function FindJobsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [locationFilter, setLocationFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
-    const [jobs, setJobs] = useState<PortalJobListItem[]>([]);
-    const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
-    const [isLoading, setIsLoading] = useState(false);
-    const { toast } = useToast();
+    const { user } = useAuth();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+
+    const {
+        data: jobsData,
+        isLoading: jobsLoading,
+        isError: jobsError,
+        error: jobsErrorObj,
+    } = usePortalJobs({ page: 1, limit: 100 });
+    const { data: appsData, isLoading: appsLoading } = useMyApplications(
+        { page: 1, limit: 100 },
+        { enabled: Boolean(user) },
+    );
+
+    const isLoading = jobsLoading || (Boolean(user) && appsLoading);
+    const jobs = jobsData?.items ?? [];
+    const appliedJobIds = useMemo(
+        () => new Set((appsData?.items ?? []).map((item) => item.job.id)),
+        [appsData],
+    );
 
     useEffect(() => {
-        let cancelled = false;
-        setIsLoading(true);
-        Promise.all([
-            portalApi.listAllJobs({ limit: 100 }),
-            portalApi.getMyApplications({ limit: 100 }).catch(() => ({ items: [] }))
-        ])
-            .then(([jobsRes, appsRes]) => {
-                if (!cancelled) {
-                    setJobs(jobsRes.items ?? []);
-                    const appliedIds = new Set((appsRes.items ?? []).map((item) => item.job.id));
-                    setAppliedJobIds(appliedIds);
-                }
-            })
-            .catch((err) => {
-                if (!cancelled) {
-                    toast({
-                        title: "Unable to load jobs",
-                        description: err instanceof Error ? err.message : "Please refresh and try again.",
-                        variant: "destructive",
-                    });
-                    setJobs([]);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setIsLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; toast is unstable across renders
-    }, []);
+        if (!jobsError) return;
+        toastError({
+            title: "Unable to load jobs",
+            description: jobsErrorObj instanceof Error ? jobsErrorObj.message : "Please refresh and try again.",
+        });
+    }, [jobsError, jobsErrorObj, toastError]);
 
     const filteredJobs = useMemo(() => {
         return jobs.filter((job) => {
@@ -70,19 +65,19 @@ export default function FindJobsPage() {
             const matchesLocation =
                 locationFilter === 'all' || jobLocation.includes(locationFilter.toLowerCase());
 
-            const dept = (job.department ?? '').toLowerCase();
-            let workMode: 'remote' | 'hybrid' | 'onsite' = 'onsite';
-            if (dept.includes('remote') || jobLocation === 'remote' || jobLocation.includes('remote')) {
-                workMode = 'remote';
-            } else if (dept.includes('hybrid') || jobLocation.includes('hybrid')) {
-                workMode = 'hybrid';
+            const workMode = resolveJobWorkMode(job.department);
+            let workModeFilter: 'remote' | 'hybrid' | 'onsite' = 'onsite';
+            if (workMode?.toLowerCase() === 'remote' || jobLocation === 'remote' || jobLocation.includes('remote')) {
+                workModeFilter = 'remote';
+            } else if (workMode?.toLowerCase() === 'hybrid' || jobLocation.includes('hybrid')) {
+                workModeFilter = 'hybrid';
             }
 
             const matchesType =
                 typeFilter === 'all' ||
-                (typeFilter === 'remote' && workMode === 'remote') ||
-                (typeFilter === 'hybrid' && workMode === 'hybrid') ||
-                (typeFilter === 'onsite' && workMode === 'onsite');
+                (typeFilter === 'remote' && workModeFilter === 'remote') ||
+                (typeFilter === 'hybrid' && workModeFilter === 'hybrid') ||
+                (typeFilter === 'onsite' && workModeFilter === 'onsite');
 
             return matchesSearch && matchesLocation && matchesType;
         });
@@ -108,9 +103,10 @@ export default function FindJobsPage() {
                                 className="pl-10"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
+                                disabled={isLoading}
                              />
                         </div>
-                        <Select value={locationFilter} onValueChange={setLocationFilter}>
+                        <Select value={locationFilter} onValueChange={setLocationFilter} disabled={isLoading}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filter by location" />
                             </SelectTrigger>
@@ -122,12 +118,12 @@ export default function FindJobsPage() {
                                 <SelectItem value="austin">Austin, TX</SelectItem>
                             </SelectContent>
                         </Select>
-                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                        <Select value={typeFilter} onValueChange={setTypeFilter} disabled={isLoading}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Filter by job type" />
+                                <SelectValue placeholder="Filter by work mode" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Job Types</SelectItem>
+                                <SelectItem value="all">All Work Modes</SelectItem>
                                 <SelectItem value="remote">Remote</SelectItem>
                                 <SelectItem value="onsite">Onsite</SelectItem>
                                 <SelectItem value="hybrid">Hybrid</SelectItem>
@@ -137,8 +133,15 @@ export default function FindJobsPage() {
                 </CardContent>
             </Card>
 
+            {isLoading ? (
+                <FindJobsListSkeleton rows={4} />
+            ) : (
             <div className="flex flex-col gap-4">
-                {filteredJobs.length > 0 ? filteredJobs.map(job => (
+                {filteredJobs.length > 0
+                  ? filteredJobs.map((job) => {
+                    const workMode = resolveJobWorkMode(job.department);
+                    const employmentType = resolveJobEmploymentType(job.employmentType, job.department);
+                    return (
                     <Card key={job.id} className="hover:bg-muted/50 transition-colors">
                         <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                             <div className="flex-1">
@@ -148,6 +151,8 @@ export default function FindJobsPage() {
                                 <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
                                     <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.tenant.name}</span>
                                     <span className="flex items-center gap-2"><MapPin className="size-4" /> {locationValue(job.location) || '—'}</span>
+                                    {workMode ? <span>{workMode}</span> : null}
+                                    {employmentType ? <span>{employmentType}</span> : null}
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.description}</p>
                             </div>
@@ -164,17 +169,20 @@ export default function FindJobsPage() {
                             )}
                         </CardContent>
                     </Card>
-                )) : (
+                    );
+                  })
+                  : (
                      <Card>
                         <CardContent className="p-12 text-center text-muted-foreground">
-                            <p className="font-semibold">{isLoading ? 'Loading jobs...' : 'No jobs available'}</p>
+                            <p className="font-semibold">No jobs available</p>
                             <p className="text-sm">
-                              {isLoading ? 'Please wait.' : 'New jobs will appear here once companies post openings.'}
+                              New jobs will appear here once companies post openings.
                             </p>
                         </CardContent>
                     </Card>
-                )}
+                  )}
             </div>
+            )}
         </div>
     );
 }

@@ -57,13 +57,13 @@ async function pickSearchableOption(
 
 test.describe("Module 1 signup — smoke (no API mocks)", () => {
   test("signup page shows company registration step 1", async ({ page }) => {
-    await page.goto("/signup");
+    await page.goto("/company-signup");
     await expect(page.getByRole("heading", { name: "Company registration" })).toBeVisible();
     await expect(page.getByLabel("Company admin email")).toBeVisible();
   });
 
   test("Verify stays disabled when admin email shape is invalid", async ({ page }) => {
-    await page.goto("/signup");
+    await page.goto("/company-signup");
     await page.getByLabel("Company admin email").fill("foo@bar");
     await expect(page.getByRole("button", { name: "Verify", exact: true })).toBeDisabled();
   });
@@ -77,7 +77,7 @@ test.describe("Module 1 signup — browser flow (mocked API)", () => {
   test("completes step 1–2 and lands on signup success", async ({ page }) => {
     test.setTimeout(120_000);
 
-    await page.goto("/signup");
+    await page.goto("/company-signup");
 
     await page.getByLabel("Company admin email").fill("browser-e2e@example.test");
     await page.getByRole("button", { name: "Verify", exact: true }).click();

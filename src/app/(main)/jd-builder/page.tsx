@@ -7,13 +7,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { Loader2, Sparkles, Copy, Save, Plus, Trash2, Clock } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import sanitizeHtml from 'sanitize-html';
 import { z } from 'zod';
 import { aiApi, jobsApi, type SkillWeight } from '@/lib/stage1-2-api';
+import { useAuth } from '@/lib/auth';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+import { useInvalidateJobs } from '@/hooks/use-jobs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,11 +122,15 @@ export default function JdBuilderPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<any>(null);
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+  const { showError } = useApiErrorToast();
+  const { user, loading: authLoading } = useAuth();
+  const invalidateJobs = useInvalidateJobs();
 
   useEffect(() => {
+    if (authLoading || !user) return;
     loadDrafts();
-  }, []);
+  }, [authLoading, user]);
 
   const loadDrafts = async () => {
     try {
@@ -160,7 +168,7 @@ export default function JdBuilderPage() {
       setSkillWeights(job.skillWeights);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast({ title: 'Draft loaded', description: `Editing: ${job.title}` });
+    toastInfo({ title: 'Draft loaded', description: `Editing: ${job.title}` });
     setShowConfirmDialog(false);
     setPendingDraft(null);
   };
@@ -179,10 +187,9 @@ export default function JdBuilderPage() {
 
   const handleFinalSave = async (status: 'open' | 'draft') => {
     if (!jobTitle.trim() || !requirements.trim()) {
-      toast({
+      toastWarning({
         title: 'Missing information',
         description: 'Please provide a job title and requirements.',
-        variant: 'destructive',
       });
       return;
     }
@@ -221,11 +228,12 @@ export default function JdBuilderPage() {
         await jobsApi.publish(created.id);
       }
 
-      toast({
+      await invalidateJobs();
+      toastSuccess({
         title: status === 'open' ? 'Job Posted!' : 'Draft Saved!',
         description: status === 'open' ? 'Your job is now live.' : 'You can find it in your drafts.',
       });
-      loadDrafts();
+      void loadDrafts();
       if (status === 'open') {
         setEditingId(null);
         setJobTitle('');
@@ -233,11 +241,7 @@ export default function JdBuilderPage() {
         setSkillWeights([]);
       }
     } catch (error) {
-      toast({
-        title: 'Save failed',
-        description: error instanceof Error ? error.message : 'Could not save the job.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsSaving(false);
     }
@@ -245,10 +249,9 @@ export default function JdBuilderPage() {
 
   const handleGenerateWithAI = async () => {
     if (!jobTitle.trim()) {
-      toast({
+      toastWarning({
         title: 'Title required',
         description: 'Please enter a job title first.',
-        variant: 'destructive',
       });
       return;
     }
@@ -267,16 +270,12 @@ export default function JdBuilderPage() {
         setSkillWeights(result.suggestedSkills);
       }
 
-      toast({
+      toastSuccess({
         title: 'JD Generated!',
         description: 'Description and skills have been populated.',
       });
     } catch (error) {
-      toast({
-        title: 'Generation failed',
-        description: error instanceof Error ? error.message : 'AI could not generate the JD.',
-        variant: 'destructive',
-      });
+      showError(error);
     } finally {
       setIsGenerating(false);
     }

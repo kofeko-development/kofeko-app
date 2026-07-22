@@ -1,6 +1,7 @@
 
 'use client';
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useParams, usePathname } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -35,7 +36,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { useAuth } from '@/lib/auth';
 import { Applicant } from '@/lib/data';
@@ -45,7 +47,18 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
-import { LinkedInShareModal } from '@/components/linkedin-share-modal';
+import { useJobDetail, useJobApplicantsData, useInvalidateJobDetail } from '@/hooks/use-job-detail';
+import { JobApplicantsTableSkeleton, JobDetailHeaderSkeleton } from '@/components/loading/job-detail-skeleton';
+import { resolveHiringStageLabel } from '@/lib/hiring-stages';
+
+const LinkedInShareModal = dynamic(
+    () => import('@/components/linkedin-share-modal').then((m) => ({ default: m.LinkedInShareModal })),
+    { ssr: false },
+);
+const EditJobDialog = dynamic(
+    () => import('@/components/edit-job-dialog').then((m) => ({ default: m.EditJobDialog })),
+    { ssr: false },
+);
 import {
     parseHiringIntelligence,
     hasAiEvaluation,
@@ -55,6 +68,7 @@ import {
     buildRankMap,
     formatBatchEvaluationMessage,
 } from '@/lib/evaluation-utils';
+import { cn } from '@/lib/utils';
 
 const getInitials = (name: string) => {
     const names = name.split(' ');
@@ -154,13 +168,28 @@ export default function JobApplicantsPage() {
     const isAdmin = pathname.startsWith('/admin');
     const routePrefix = isAdmin ? '/admin' : '';
     const id = params.id as string;
-    const { user, hasPermission } = useAuth();
-    const { toast } = useToast();
+    const { user, hasPermission, loading: authLoading } = useAuth();
+    const { toastSuccess, toastWarning, toastError } = useAppToast();
     const { showError } = useApiErrorToast();
+    const invalidateJobDetail = useInvalidateJobDetail();
+    const queriesEnabled = Boolean(id) && !!user && !authLoading;
+    const { data: job = null, isPending: jobPending, isFetching: jobFetching } = useJobDetail(id, queriesEnabled);
+    const {
+        data: applicantsData,
+        isPending: applicantsPending,
+        isFetching: applicantsFetching,
+        refetch: refetchApplicantsData,
+    } = useJobApplicantsData(id, queriesEnabled);
+    const isJobLoading =
+        authLoading ||
+        !queriesEnabled ||
+        jobPending ||
+        (jobFetching && job === null);
+    const isApplicantsLoading =
+        applicantsPending || (applicantsFetching && applicantsData === undefined);
+    const actionsDisabled = isJobLoading || isApplicantsLoading;
 
-    const [job, setJob] = useState<CreatedJob | null>(null);
     const [applicants, setApplicants] = useState<Applicant[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
 
     const defaultFlowStages = useMemo(() => [
         { stage: 'applied', label: 'Applied', order: 1, enabled: true },
@@ -173,6 +202,7 @@ export default function JobApplicantsPage() {
     ], []);
 
     const [isCustomizeFlowDialogOpen, setIsCustomizeFlowDialogOpen] = useState(false);
+    const [isEditJobDialogOpen, setIsEditJobDialogOpen] = useState(false);
     const [flowStages, setFlowStages] = useState<any[]>([]);
     const [isSavingFlow, setIsSavingFlow] = useState(false);
 
@@ -191,8 +221,45 @@ export default function JobApplicantsPage() {
     const getStageLabel = useCallback((stageKey: string | null) => {
         if (!stageKey) return '';
         const stageObj = customStagesConfig.find(s => s.stage === stageKey);
-        return stageObj ? stageObj.label : stageKey;
+        return stageObj ? resolveHiringStageLabel(stageObj) : resolveHiringStageLabel({ stage: stageKey, label: null });
     }, [customStagesConfig]);
+
+    const renderStageDropdownItems = useCallback(
+        (currentStatus: string, onStageSelect: (stage: string) => void) =>
+            activeHiringStages.map((stageKey) => {
+                const isCurrent = stageKey === currentStatus;
+                return (
+                    <DropdownMenuItem
+                        key={stageKey}
+                        disabled={isCurrent}
+                        onSelect={(e) => {
+                            if (isCurrent) {
+                                e.preventDefault();
+                                return;
+                            }
+                            onStageSelect(stageKey);
+                        }}
+                        className={cn(
+                            isCurrent &&
+                                'bg-primary/10 font-semibold text-primary opacity-100 focus:bg-primary/10 focus:text-primary data-[disabled]:opacity-100',
+                        )}
+                    >
+                        <span className="flex w-full items-center justify-between gap-3">
+                            <span className="flex items-center gap-2">
+                                {isCurrent ? <CheckCircle className="h-4 w-4 shrink-0" /> : null}
+                                {getStageLabel(stageKey)}
+                            </span>
+                            {isCurrent ? (
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-primary/80">
+                                    Current
+                                </span>
+                            ) : null}
+                        </span>
+                    </DropdownMenuItem>
+                );
+            }),
+        [activeHiringStages, getStageLabel],
+    );
 
     const openCustomizeFlowDialog = () => {
         if (job) {
@@ -270,18 +337,14 @@ export default function JobApplicantsPage() {
         setIsSavingFlow(true);
         try {
             await jobsApi.update(id, { customStages: flowStages });
-            toast({
+            toastSuccess({
                 title: 'Hiring Flow Updated',
                 description: 'The customizable recruitment flow has been successfully saved.',
             });
             setIsCustomizeFlowDialogOpen(false);
             void loadData();
         } catch (error) {
-            toast({
-                title: 'Failed to save flow',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setIsSavingFlow(false);
         }
@@ -302,6 +365,10 @@ export default function JobApplicantsPage() {
     const [dateFilter, setDateFilter] = useState('all');
 
     const [evaluatingPipelineId, setEvaluatingPipelineId] = useState<string | null>(null);
+    const [stageChangeState, setStageChangeState] = useState<{
+        pipelineId: string;
+        targetStage: string;
+    } | null>(null);
     const [stageChangeNote, setStageChangeNote] = useState('');
     const [newNote, setNewNote] = useState('');
     const [isComparisonDialogOpen, setIsComparisonDialogOpen] = useState(false);
@@ -314,43 +381,38 @@ export default function JobApplicantsPage() {
         try {
             setIsClosingJob(true);
             await jobsApi.close(id);
-            toast({
+            toastSuccess({
                 title: 'Job Closed',
                 description: 'This job has been closed and moved to the closed section.',
             });
             void loadData();
         } catch (error) {
-            toast({
-                title: 'Failed to close job',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setIsClosingJob(false);
         }
     };
 
     const loadData = useCallback(async () => {
-        setIsLoading(true);
+        await invalidateJobDetail(id);
+    }, [id, invalidateJobDetail]);
+
+    const refreshApplicants = useCallback(async () => {
         try {
-            const [jobRes, pipeRes, rankingsRes] = await Promise.all([
-                jobsApi.get(id),
-                pipelinesApi.list({ jobId: id, limit: 100 }),
-                evaluationsApi.getRankings(id).catch(() => []),
-            ]);
-            const rankMap = buildRankMap(rankingsRes);
-            setJob(jobRes);
-            setApplicants(pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
+            const { data } = await refetchApplicantsData();
+            if (!data) return;
+            const rankMap = buildRankMap(data.rankingsRes);
+            setApplicants(data.pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
         } catch (error) {
             showError(error);
-        } finally {
-            setIsLoading(false);
         }
-    }, [id, showError]);
+    }, [refetchApplicantsData, showError]);
 
-    useEffect(() => {
-        void loadData();
-    }, [loadData]);
+    useLayoutEffect(() => {
+        if (!applicantsData) return;
+        const rankMap = buildRankMap(applicantsData.rankingsRes);
+        setApplicants(applicantsData.pipeRes.items.map((p) => mapPipelineToApplicant(p, rankMap)));
+    }, [applicantsData]);
 
     useEffect(() => {
         if (selectedApplicant) {
@@ -361,8 +423,8 @@ export default function JobApplicantsPage() {
         }
     }, [applicants, selectedApplicant?.id]);
 
-    const canManageJob = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
-    const canChangeStatus = user?.companyRole === 'HR Admin' || user?.companyRole === 'Hiring Manager';
+    const canManageJob = user?.companyRole === 'Company Admin' || user?.companyRole === 'Hiring Manager';
+    const canChangeStatus = user?.companyRole === 'Company Admin' || user?.companyRole === 'Hiring Manager';
     const canShareLinkedIn = hasPermission('linkedin:post');
     const canRunAiEvaluation = hasPermission('evaluation:create');
     const hasJobSkillWeights =
@@ -444,32 +506,47 @@ export default function JobApplicantsPage() {
     };
 
     const handleStageChangeClick = (applicant: Applicant, stage: string) => {
+        if (stageChangeState?.pipelineId === applicant.id) return;
         setSelectedApplicant(applicant);
         setSelectedStage(stage);
         setIsStageChangeDialogOpen(true);
     };
 
     const handleConfirmStageChange = async () => {
-        if (!selectedApplicant || !selectedStage) return;
+        if (!selectedApplicant || !selectedStage || stageChangeState) return;
+
+        const pipelineId = selectedApplicant.id;
+        const newStage = selectedStage;
+
+        setIsStageChangeDialogOpen(false);
+        setStageChangeState({ pipelineId, targetStage: newStage });
 
         try {
-            await pipelinesApi.advance(selectedApplicant.id, {
-                stage: selectedStage,
-                note: stageChangeNote.trim() || undefined
+            await pipelinesApi.advance(pipelineId, {
+                stage: newStage,
+                note: stageChangeNote.trim() || undefined,
             });
-            toast({
+
+            setApplicants((prev) =>
+                prev.map((a) =>
+                    a.id === pipelineId ? { ...a, status: newStage as Applicant['status'] } : a,
+                ),
+            );
+            setSelectedApplicant((prev) =>
+                prev?.id === pipelineId ? { ...prev, status: newStage as Applicant['status'] } : prev,
+            );
+
+            toastSuccess({
                 title: 'Stage Updated',
-                description: `Candidate moved to ${selectedStage}.`,
+                description: `Candidate moved to ${getStageLabel(newStage)}.`,
             });
-            setIsStageChangeDialogOpen(false);
             setStageChangeNote('');
-            void loadData();
+            setSelectedStage(null);
+            void refreshApplicants();
         } catch (error) {
-            toast({
-                title: 'Action Failed',
-                description: error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-            });
+            showError(error);
+        } finally {
+            setStageChangeState(null);
         }
     };
 
@@ -487,38 +564,34 @@ export default function JobApplicantsPage() {
     const handleAIEvaluate = async (pipelineId: string) => {
         const pipe = applicants.find((a) => a.id === pipelineId);
         if (!pipe?.candidateId) {
-            toast({ title: 'Candidate not found', variant: 'destructive' });
+            toastWarning({ title: 'Candidate not found' });
             return;
         }
         if (!jobIsOpen) {
-            toast({
+            toastWarning({
                 title: 'Job not open',
                 description: 'AI evaluation is only available for open job postings.',
-                variant: 'destructive',
             });
             return;
         }
         if (!pipe.resumeUrl) {
-            toast({
+            toastWarning({
                 title: 'No Resume',
                 description: 'Please upload a resume before running AI evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (!hasJobSkillWeights) {
-            toast({
+            toastWarning({
                 title: 'No Skill Weights',
                 description: 'Add skill priorities to the job before running AI evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (isBatchEvaluating) {
-            toast({
+            toastWarning({
                 title: 'Batch in progress',
                 description: 'Wait for batch evaluation to finish before evaluating one candidate.',
-                variant: 'destructive',
             });
             return;
         }
@@ -530,11 +603,11 @@ export default function JobApplicantsPage() {
                 candidateId: pipe.candidateId,
                 pipelineId,
             });
-            toast({
+            await loadData();
+            toastSuccess({
                 title: 'Evaluation Complete',
                 description: 'AI has analyzed the resume.',
             });
-            await loadData();
         } catch (error) {
             showError(error);
         } finally {
@@ -544,39 +617,42 @@ export default function JobApplicantsPage() {
 
     const handleEvaluateAll = async () => {
         if (applicants.length === 0) {
-            toast({
+            toastWarning({
                 title: 'No candidates',
                 description: 'Add candidates to this job before running batch evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (!hasJobSkillWeights) {
-            toast({
+            toastWarning({
                 title: 'No Skill Weights',
                 description: 'Add skill priorities to the job before running batch evaluation.',
-                variant: 'destructive',
             });
             return;
         }
         if (!jobIsOpen) {
-            toast({
+            toastWarning({
                 title: 'Job not open',
                 description: 'Batch evaluation is only available for open job postings.',
-                variant: 'destructive',
             });
             return;
         }
         setIsBatchEvaluating(true);
         try {
             const result = await evaluationsApi.evaluateAll(id);
-            const msg = formatBatchEvaluationMessage(result, applicants.length);
-            toast({
-                title: msg.title,
-                description: msg.description,
-                variant: result.failed > 0 && result.evaluated === 0 ? 'destructive' : 'default',
-            });
             await loadData();
+            const msg = formatBatchEvaluationMessage(result, applicants.length);
+            if (result.failed > 0 && result.evaluated === 0) {
+                toastError({
+                    title: msg.title,
+                    description: msg.description,
+                });
+            } else {
+                toastSuccess({
+                    title: msg.title,
+                    description: msg.description,
+                });
+            }
         } catch (error) {
             showError(error);
         } finally {
@@ -586,24 +662,17 @@ export default function JobApplicantsPage() {
 
 
     const handleStageChangeDialogClose = (open: boolean) => {
+        if (!open && stageChangeState) return;
+        setIsStageChangeDialogOpen(open);
         if (!open) {
-            // This timeout ensures the dialog's closing animation completes
-            // before we reset the state, preventing the UI from freezing.
             setTimeout(() => {
-                const justChangedStage = selectedStage;
                 setStageChangeNote('');
-
-                // If the profile dialog is open, update its state, otherwise clear the selection
-                if (isProfileDialogOpen && selectedApplicant && justChangedStage) {
-                    setSelectedApplicant(prev => prev ? { ...prev, status: justChangedStage as Applicant['status'] } : null);
-                } else {
+                setSelectedStage(null);
+                if (!isProfileDialogOpen) {
                     setSelectedApplicant(null);
                 }
-                setSelectedStage(null);
-
             }, 150);
         }
-        setIsStageChangeDialogOpen(open);
     };
 
 
@@ -618,7 +687,7 @@ export default function JobApplicantsPage() {
 
         try {
             await pipelinesApi.addNote(selectedApplicant.id, newNote);
-            toast({ title: 'Note saved successfully!' });
+            toastSuccess({ title: 'Note saved successfully!' });
             setNewNote('');
             void loadData(); // Re-fetch to get updated notes
 
@@ -638,17 +707,17 @@ export default function JobApplicantsPage() {
                 };
             });
         } catch (error) {
-            toast({ title: 'Failed to save note', variant: 'destructive' });
+            showError(error);
         }
     };
 
     const handleShareJob = () => {
         if (!job) return;
-        const jobUrl = `${window.location.origin}/jobs/${job.id}`;
+        const jobUrl = `${window.location.origin}/open-positions/${job.id}`;
         navigator.clipboard.writeText(jobUrl);
-        toast({
+        toastSuccess({
             title: 'Link Copied!',
-            description: 'The job link has been copied to your clipboard.',
+            description: 'Candidate job link copied. Share it so applicants can view and apply.',
         });
     };
 
@@ -697,20 +766,9 @@ export default function JobApplicantsPage() {
     }, [selectedApplicant]);
 
 
-    if (isLoading) {
+    if (!isJobLoading && !job) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                    <p className="text-muted-foreground mt-2">Loading job details...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!job) {
-        return (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center py-16">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold">Job not found</h2>
                     <p className="text-muted-foreground">The job posting you are looking for does not exist.</p>
@@ -726,10 +784,12 @@ export default function JobApplicantsPage() {
         const scoreLabel = formatMatchScoreLabel(!!applicant.hasEvaluation, applicant.hasEvaluation ? applicant.matchScore : null);
         const progressValue = getMatchScoreProgress(!!applicant.hasEvaluation, applicant.hasEvaluation ? applicant.matchScore : null);
         const isRowEvaluating = evaluatingPipelineId === applicant.id;
+        const isChangingStage = stageChangeState?.pipelineId === applicant.id;
+        const pendingStage = isChangingStage ? stageChangeState.targetStage : null;
 
         return (
         <TableBody key={applicant.id} className="group hover:bg-muted/50 border-b">
-            <TableRow className="border-b-0 group-hover:bg-transparent">
+            <TableRow className={cn('border-b-0 group-hover:bg-transparent', isChangingStage && 'opacity-70')}>
                 <TableCell className="pl-4 w-12">
                     <Checkbox
                         id={`select-${applicant.id}`}
@@ -774,12 +834,22 @@ export default function JobApplicantsPage() {
                 </TableCell>
                 {!isGrouped && (
                     <TableCell>
-                        <Badge
-                            variant={statusVariantMap[applicant.status] || 'secondary'}
-                            className={`${statusClassMap[applicant.status]} hover:${statusClassMap[applicant.status]}`}
-                        >
-                            {getStageLabel(applicant.status)}
-                        </Badge>
+                        {isChangingStage ? (
+                            <Badge
+                                variant="outline"
+                                className="gap-1.5 border-primary/30 bg-primary/5 font-normal text-primary"
+                            >
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Moving to {getStageLabel(pendingStage)}
+                            </Badge>
+                        ) : (
+                            <Badge
+                                variant={statusVariantMap[applicant.status] || 'secondary'}
+                                className={`${statusClassMap[applicant.status]} hover:${statusClassMap[applicant.status]}`}
+                            >
+                                {getStageLabel(applicant.status)}
+                            </Badge>
+                        )}
                     </TableCell>
                 )}
                 <TableCell className='text-right'>
@@ -790,17 +860,18 @@ export default function JobApplicantsPage() {
                         {canChangeStatus && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm">
+                                    <Button variant="outline" size="sm" disabled={isChangingStage}>
+                                        {isChangingStage ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : null}
                                         Change Stage
                                         <ChevronDown className="ml-2 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    {activeHiringStages.filter(s => s !== applicant.status).map(s => (
-                                        <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(applicant, s)}>
-                                            {getStageLabel(s)}
-                                        </DropdownMenuItem>
-                                    ))}
+                                <DropdownMenuContent className="min-w-[12rem]">
+                                    {renderStageDropdownItems(applicant.status, (s) =>
+                                        handleStageChangeClick(applicant, s),
+                                    )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         )}
@@ -820,34 +891,47 @@ export default function JobApplicantsPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm text-muted-foreground">Job Post</p>
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
-                        <Badge
-                            variant="secondary"
-                            className={`capitalize font-bold text-xs px-2.5 py-0.5 border ${job.status === 'open' ? 'bg-green-50 text-green-700 border-green-200' :
-                                job.status === 'draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                    'bg-slate-50 text-slate-700 border-slate-200'
-                                }`}
-                        >
-                            {job.status}
-                        </Badge>
-                    </div>
-                </div>
-                <div className='flex gap-2'>
-                    <Button variant="outline" onClick={() => router.back()}>
-                        <ArrowLeft className="mr-2 h-4 w-4" />
+            <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="-ml-2 h-8 px-2 text-muted-foreground hover:text-foreground"
+                        onClick={() => router.back()}
+                    >
+                        <ArrowLeft className="mr-1.5 h-4 w-4" />
                         Back
                     </Button>
+                    <div>
+                        <p className="text-sm text-muted-foreground">Job Post</p>
+                        {!job ? (
+                            <JobDetailHeaderSkeleton />
+                        ) : (
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-3xl font-bold font-headline">{job.title}</h1>
+                                <Badge
+                                    variant="secondary"
+                                    className={`capitalize font-bold text-xs px-2.5 py-0.5 border ${job.status === 'open' ? 'bg-green-50 text-green-700 border-green-200' :
+                                        job.status === 'draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                            'bg-slate-50 text-slate-700 border-slate-200'
+                                        }`}
+                                >
+                                    {job.status}
+                                </Badge>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
                     {canRunAiEvaluation && (
                         <Button
                             variant="outline"
                             onClick={() => void handleEvaluateAll()}
-                            disabled={!canBatchEvaluate || isBatchEvaluating || evaluatingPipelineId !== null}
+                            disabled={actionsDisabled || !canBatchEvaluate || isBatchEvaluating || evaluatingPipelineId !== null}
                             title={
-                                !jobIsOpen
+                                actionsDisabled
+                                    ? 'Loading candidates...'
+                                    : !jobIsOpen
                                     ? 'Batch evaluation is only available for open jobs'
                                     : applicants.length === 0
                                       ? 'Add candidates before batch evaluation'
@@ -867,16 +951,16 @@ export default function JobApplicantsPage() {
                         </Button>
                     )}
                     {canShareLinkedIn && (
-                        <Button onClick={handlePostToLinkedIn}>
+                        <Button onClick={handlePostToLinkedIn} disabled={actionsDisabled}>
                             <Linkedin className="mr-2 h-4 w-4" />
                             Share to LinkedIn
                         </Button>
                     )}
-                    {canManageJob && (
+                    {job && canManageJob && (
                         <>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" disabled={isClosingJob}>
+                                    <Button variant="outline" disabled={actionsDisabled || isClosingJob}>
                                         {isClosingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Actions
                                         <ChevronDown className="ml-2 h-4 w-4" />
@@ -885,11 +969,12 @@ export default function JobApplicantsPage() {
                                 <DropdownMenuContent align="end">
                                     {job.status !== 'closed' ? (
                                         <>
-                                            <DropdownMenuItem asChild>
-                                                <Link href={`${routePrefix}/job-postings?edit=${job.id}`}>
-                                                    <FileEdit className="mr-2 h-4 w-4" />
-                                                    Edit Job
-                                                </Link>
+                                            <DropdownMenuItem
+                                                className="cursor-pointer"
+                                                onClick={() => setIsEditJobDialogOpen(true)}
+                                            >
+                                                <FileEdit className="mr-2 h-4 w-4" />
+                                                Edit Job
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 className="cursor-pointer"
@@ -917,7 +1002,7 @@ export default function JobApplicantsPage() {
                             {!canShareLinkedIn ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline">
+                                        <Button variant="outline" disabled={actionsDisabled}>
                                             <Share2 className="mr-2 h-4 w-4" />
                                             Share
                                             <ChevronDown className="ml-2 h-4 w-4" />
@@ -931,7 +1016,7 @@ export default function JobApplicantsPage() {
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             ) : (
-                                <Button variant="outline" onClick={handleShareJob}>
+                                <Button variant="outline" onClick={handleShareJob} disabled={actionsDisabled}>
                                     <Share2 className="mr-2 h-4 w-4" />
                                     Copy link
                                 </Button>
@@ -941,13 +1026,15 @@ export default function JobApplicantsPage() {
                 </div>
             </div>
 
-            <LinkedInShareModal
-                open={isLinkedInDialogOpen}
-                onOpenChange={setIsLinkedInDialogOpen}
-                jobId={job.id}
-            />
+            {job && (
+                <LinkedInShareModal
+                    open={isLinkedInDialogOpen}
+                    onOpenChange={setIsLinkedInDialogOpen}
+                    jobId={job.id}
+                />
+            )}
 
-            {canRunAiEvaluation && !hasJobSkillWeights && (
+            {job && canRunAiEvaluation && !hasJobSkillWeights && (
                 <Card className="border-amber-200 bg-amber-50/50">
                     <CardContent className="py-4 flex items-start gap-3">
                         <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
@@ -961,7 +1048,7 @@ export default function JobApplicantsPage() {
                 </Card>
             )}
 
-            {canRunAiEvaluation && hasJobSkillWeights && !jobIsOpen && (
+            {job && canRunAiEvaluation && hasJobSkillWeights && !jobIsOpen && (
                 <Card className="border-slate-200 bg-slate-50/50">
                     <CardContent className="py-4 flex items-start gap-3">
                         <Info className="h-5 w-5 text-slate-600 shrink-0 mt-0.5" />
@@ -1054,7 +1141,7 @@ export default function JobApplicantsPage() {
                 <CardFooter className="py-3 px-6 justify-end">
                     <Button
                         onClick={() => setIsComparisonDialogOpen(true)}
-                        disabled={selectedForComparison.length < 2}
+                        disabled={actionsDisabled || selectedForComparison.length < 2}
                     >
                         <Users className="mr-2 h-4 w-4" />
                         Compare ({selectedForComparison.length})
@@ -1063,7 +1150,9 @@ export default function JobApplicantsPage() {
             </Card>
 
             <div className="space-y-4">
-                {applicants.length === 0 && (
+                {isApplicantsLoading ? (
+                    <JobApplicantsTableSkeleton cols={isGrouped ? 4 : 5} />
+                ) : applicants.length === 0 ? (
                     <Card className="border-dashed border-2">
                         <CardContent className="py-12 flex flex-col items-center text-center gap-2">
                             <Users className="h-10 w-10 text-muted-foreground opacity-60" />
@@ -1073,9 +1162,9 @@ export default function JobApplicantsPage() {
                             </p>
                         </CardContent>
                     </Card>
-                )}
+                ) : null}
 
-                {applicants.length > 0 && isGrouped && groupedApplicants && activeHiringStages.map(stage => {
+                {!isApplicantsLoading && applicants.length > 0 && isGrouped && groupedApplicants && activeHiringStages.map(stage => {
                     const stageApplicants = groupedApplicants[stage];
                     if (!stageApplicants || stageApplicants.length === 0) return null;
                     const isOpen = openCollapsibles.includes(stage);
@@ -1120,7 +1209,7 @@ export default function JobApplicantsPage() {
                     )
                 })}
 
-                {applicants.length > 0 && !isGrouped && (
+                {!isApplicantsLoading && applicants.length > 0 && !isGrouped && (
                     <Card>
                         <CardContent className="p-0 border-t">
                             <Table className="min-w-[800px]">
@@ -1158,6 +1247,15 @@ export default function JobApplicantsPage() {
             </div>
 
 
+            {job ? (
+                <EditJobDialog
+                    open={isEditJobDialogOpen}
+                    onOpenChange={setIsEditJobDialogOpen}
+                    job={job}
+                    onSaved={loadData}
+                />
+            ) : null}
+
             <Dialog open={isCustomizeFlowDialogOpen} onOpenChange={setIsCustomizeFlowDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6 overflow-hidden">
                     <DialogHeader className="pb-4 border-b">
@@ -1177,13 +1275,24 @@ export default function JobApplicantsPage() {
                             <div className=" ml-2">
                                 <h3 className="text-xs font-bold text-muted-foreground tracking-wider uppercase mb-5 ml-1">Active Pipeline Flow</h3>
                                 <div className="space-y-0 relative">
-                                    {flowStages.map((stageItem, index) => {
-                                        const isFirst = index === 0;
-                                        const isTerminal = index >= flowStages.length - 2;
-                                        const isLocked = isFirst || isTerminal;
-                                        const isLast = index === flowStages.length - 1;
+                                    {(() => {
+                                        const visibleCount = flowStages.filter((s) => s.stage !== 'rejected').length;
+                                        let displayNumber = 0;
 
-                                        return (
+                                        return flowStages.map((stageItem, index) => {
+                                            if (stageItem.stage === 'rejected') return null;
+
+                                            displayNumber += 1;
+                                            const rejectedStage = flowStages.find((s) => s.stage === 'rejected');
+                                            const isOutcomeStage = stageItem.stage === 'hired' && Boolean(rejectedStage);
+                                            const isFirst = index === 0;
+                                            const isLocked = isFirst || isOutcomeStage;
+                                            const isLastVisible = displayNumber === visibleCount;
+                                            const outcomeLabel = isOutcomeStage
+                                                ? `${stageItem.label} / ${rejectedStage!.label}`
+                                                : stageItem.label;
+
+                                            return (
                                             <div
                                                 key={stageItem.stage}
                                                 className="relative flex items-stretch gap-4 pb-6 group"
@@ -1191,9 +1300,9 @@ export default function JobApplicantsPage() {
                                                 {/* Left Side: Connecting Timeline & Circle */}
                                                 <div className="flex flex-col items-center w-9 shrink-0 relative mt-1">
                                                     <div className={`flex items-center justify-center h-9 w-9 rounded-full font-bold text-xs shadow-sm z-10 ${isLocked ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-primary text-primary-foreground'}`}>
-                                                        {index + 1}
+                                                        {displayNumber}
                                                     </div>
-                                                    {!isLast && (
+                                                    {!isLastVisible && (
                                                         <div className="absolute top-9 bottom-[-1.5rem] w-[2px] bg-slate-200 z-0" />
                                                     )}
                                                 </div>
@@ -1231,15 +1340,28 @@ export default function JobApplicantsPage() {
 
                                                     {/* Inputs */}
                                                     <div className="flex-1 grid gap-0.5 ml-1">
-                                                        <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
-                                                            {stageItem.stage.startsWith('custom_') ? 'Custom Round' : `Original Round: ${stageItem.stage.replace('_', ' ')}`}
-                                                        </Label>
-                                                        <Input
-                                                            value={stageItem.label}
-                                                            onChange={(e) => handleRenameStage(index, e.target.value)}
-                                                            placeholder="Stage Name"
-                                                            className="h-8 font-semibold text-base border-transparent hover:border-input focus:border-primary bg-transparent px-2 -ml-2 shadow-none transition-colors"
-                                                        />
+                                                        {isOutcomeStage && (
+                                                            <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
+                                                                Final outcome: hired or rejected
+                                                            </Label>
+                                                        )}
+                                                        {isOutcomeStage ? (
+                                                            <p className="px-2 -ml-2 text-base font-semibold text-foreground">
+                                                                {outcomeLabel}
+                                                            </p>
+                                                        ) : (
+                                                            <Input
+                                                                value={stageItem.label}
+                                                                onChange={(e) => handleRenameStage(index, e.target.value)}
+                                                                placeholder="Stage Name"
+                                                                className="h-8 font-semibold text-base border-transparent hover:border-input focus:border-primary bg-transparent px-2 -ml-2 shadow-none transition-colors"
+                                                            />
+                                                        )}
+                                                        {isOutcomeStage && (
+                                                            <p className="px-2 -ml-2 text-xs text-muted-foreground">
+                                                                Candidates end here as either hired or rejected — not as sequential steps.
+                                                            </p>
+                                                        )}
                                                     </div>
 
                                                     {/* Delete and Lock Action */}
@@ -1264,8 +1386,9 @@ export default function JobApplicantsPage() {
                                                     )}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                            );
+                                        });
+                                    })()}
                                 </div>
                             </div>
                         </div>
@@ -1327,8 +1450,23 @@ export default function JobApplicantsPage() {
                         />
                     </div>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmStageChange}>Confirm</AlertDialogAction>
+                        <AlertDialogCancel disabled={Boolean(stageChangeState)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={Boolean(stageChangeState)}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                void handleConfirmStageChange();
+                            }}
+                        >
+                            {stageChangeState ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Updating...
+                                </>
+                            ) : (
+                                'Confirm'
+                            )}
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -1339,7 +1477,7 @@ export default function JobApplicantsPage() {
                         <>
                             <DialogHeader>
                                 <DialogTitle className="font-headline text-2xl">{selectedApplicant.name}</DialogTitle>
-                                <DialogDescription>Applying for {job.title}</DialogDescription>
+                                <DialogDescription>Applying for {job?.title ?? 'this role'}</DialogDescription>
                             </DialogHeader>
                             <div className="grid lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
                                 <div className="lg:col-span-1 space-y-6 flex flex-col">
@@ -1355,7 +1493,7 @@ export default function JobApplicantsPage() {
                                             {canRunAiEvaluation && (
                                                 <Button
                                                     variant="outline"
-                                                    className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                                                    className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
                                                     onClick={() => void handleAIEvaluate(selectedApplicant.id)}
                                                     disabled={Boolean(getAiEvaluateDisabledReason(selectedApplicant)) || evaluatingPipelineId === selectedApplicant.id}
                                                     title={getAiEvaluateDisabledReason(selectedApplicant)}
@@ -1396,7 +1534,7 @@ export default function JobApplicantsPage() {
                                                 <Button
                                                     variant="outline"
                                                     className="w-full"
-                                                    onClick={() => toast({ title: "No resume attached", description: "Candidate did not provide a resume file.", variant: "destructive" })}
+                                                    onClick={() => toastWarning({ title: "No resume attached", description: "Candidate did not provide a resume file." })}
                                                 >
                                                     <FileText className="mr-2 h-4 w-4" /> No Resume
                                                 </Button>
@@ -1404,17 +1542,21 @@ export default function JobApplicantsPage() {
                                             {canChangeStatus && (
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
-                                                        <Button className="w-full">
+                                                        <Button
+                                                            className="w-full"
+                                                            disabled={stageChangeState?.pipelineId === selectedApplicant.id}
+                                                        >
+                                                            {stageChangeState?.pipelineId === selectedApplicant.id ? (
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            ) : null}
                                                             Change Stage
                                                             <ChevronDown className="ml-2 h-4 w-4" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
-                                                    <DropdownMenuContent>
-                                                        {activeHiringStages.filter(s => s !== selectedApplicant.status).map(s => (
-                                                            <DropdownMenuItem key={s} onSelect={() => handleStageChangeClick(selectedApplicant, s)}>
-                                                                {getStageLabel(s)}
-                                                            </DropdownMenuItem>
-                                                        ))}
+                                                    <DropdownMenuContent className="min-w-[12rem]">
+                                                        {renderStageDropdownItems(selectedApplicant.status, (s) =>
+                                                            handleStageChangeClick(selectedApplicant, s),
+                                                        )}
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             )}

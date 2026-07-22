@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { FormEvent, Suspense, useMemo, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { ApiError } from '@/lib/api-client';
@@ -18,11 +20,13 @@ const strongPassword = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -31,31 +35,30 @@ function AcceptInviteContent() {
     setFieldErrors({});
 
     if (!token) {
-      toast({ title: 'Missing invite token', description: 'Open this page from the invite email link.', variant: 'destructive' });
+      toastWarning({ title: 'Missing invite token', description: 'Open this page from the invite email link.' });
       return;
     }
     if (!strongPassword.test(password)) {
-      toast({
+      toastWarning({
         title: 'Weak password',
         description: 'Password must be at least 8 characters with one uppercase letter and one number.',
-        variant: 'destructive',
       });
       return;
     }
     if (password !== confirmPassword) {
-      toast({ title: 'Passwords do not match', description: 'Please confirm the same password.', variant: 'destructive' });
+      toastWarning({ title: 'Passwords do not match', description: 'Please confirm the same password.' });
       return;
     }
 
     try {
       setIsSubmitting(true);
       await stageOneApi.acceptInvite({ token, password });
-      toast({ title: 'Invite accepted', description: 'Your account is active now. Please login.' });
-      router.push('/login');
+      toastSuccess({ title: 'Invite accepted', description: 'Your account is active now. Please login.' });
+      router.push('/company-login');
     } catch (error) {
       if (error instanceof ApiError && error.errorCode === 'INVITE_TOKEN_USED') {
         showError(error);
-        router.push('/login');
+        router.push('/company-login');
         return;
       }
       const { fieldErrors: mapped } = showError(error);
@@ -76,32 +79,61 @@ function AcceptInviteContent() {
           <form className="grid gap-4" onSubmit={onSubmit}>
             <div className="grid gap-2">
               <Label htmlFor="password">New Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className={cn(fieldErrors.password && 'border-destructive')}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className={cn('pr-10', fieldErrors.password && 'border-destructive')}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowPassword((v) => !v)}
+                  disabled={isSubmitting}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </Button>
+              </div>
               {fieldErrors.password ? (
                 <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
               ) : null}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  disabled={isSubmitting}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  aria-pressed={showConfirmPassword}
+                >
+                  {showConfirmPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Activating...' : 'Activate Account'}</Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Already active? <Link href="/login" className="underline">Login</Link>
+            Already active? <Link href="/company-login" className="underline">Login</Link>
           </p>
         </CardContent>
       </Card>

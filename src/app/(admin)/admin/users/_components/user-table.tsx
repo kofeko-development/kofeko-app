@@ -10,9 +10,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import type { User } from '@/lib/types';
-import { displayStatusToStaffStatus, updateStaffUserStatus } from '@/lib/admin-api';
+import { displayStatusToStaffStatus, staffInviteStatusLabel, updateStaffUserStatus } from '@/lib/admin-api';
+import { UserTableRowsSkeleton } from '@/components/loading/user-table-rows-skeleton';
 
 
 const getInitials = (name: string) => {
@@ -56,7 +59,8 @@ export default function UserTable({
     onStaffStatusUpdated,
     headerAction,
 }: UserTableProps) {
-    const { toast } = useToast();
+    const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+    const { showError } = useApiErrorToast();
     const [users, setUsers] = useState(initialUsers);
     const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
 
@@ -90,18 +94,14 @@ export default function UserTable({
         try {
             setStatusUpdatingId(userId);
             await updateStaffUserStatus(userId, displayStatusToStaffStatus(newStatus));
-            toast({
+            toastSuccess({
                 title: 'User status updated',
                 description: `The user has been moved to ${newStatus}.`,
             });
             onStaffStatusUpdated?.();
         } catch (error) {
             setUsers(prevSnapshot);
-            toast({
-                title: 'Update failed',
-                description: error instanceof Error ? error.message : 'Could not update status.',
-                variant: 'destructive',
-            });
+            showError(error);
         } finally {
             setStatusUpdatingId(null);
         }
@@ -129,18 +129,19 @@ export default function UserTable({
                                 className="pl-10"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
+                                disabled={loading}
                             />
                         </div>
                     </div>
                      <div className="space-y-2">
                         <label htmlFor="status" className="text-sm font-medium">Status</label>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <Select value={statusFilter} onValueChange={setStatusFilter} disabled={loading}>
                             <SelectTrigger id='status'>
                                 <SelectValue placeholder="Filter by status" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Statuses</SelectItem>
-                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="active">Accepted</SelectItem>
                                 <SelectItem value="pending">Pending</SelectItem>
                                 <SelectItem value="suspended">Suspended</SelectItem>
                             </SelectContent>
@@ -162,14 +163,9 @@ export default function UserTable({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                             {loading && (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                        Loading…
-                                    </TableCell>
-                                </TableRow>
-                             )}
-                             {!loading && filteredUsers.map((user) => (
+                             {loading ? (
+                                <UserTableRowsSkeleton rows={6} actionVariant={allowStatusActions ? 'manage' : 'minimal'} />
+                             ) : filteredUsers.map((user) => (
                                 <TableRow key={user.uid}>
                                     <TableCell>
                                         <div className="flex items-center gap-4">
@@ -184,13 +180,13 @@ export default function UserTable({
                                         </div>
                                     </TableCell>
                                      <TableCell>
-                                        <Badge variant={roleVariantMap[user.role]} className="capitalize">
-                                            {user.role}
+                                        <Badge variant={roleVariantMap[user.role]} className={user.appliedRole ? "" : "capitalize"}>
+                                            {user.appliedRole ?? user.companyRole ?? user.role}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className={`${statusVariantMap[user.status ?? 'pending']} capitalize`}>
-                                            {user.status ?? 'pending'}
+                                            {staffInviteStatusLabel(user.status)}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
@@ -209,9 +205,11 @@ export default function UserTable({
                                                 <DropdownMenuItem onSelect={() => void handleStatusChange(user.uid, 'suspended')}>
                                                     <UserX className="mr-2 h-4 w-4" /> Suspend User
                                                 </DropdownMenuItem>
+                                                {user.status === 'pending' ? null : (
                                                 <DropdownMenuItem onSelect={() => void handleStatusChange(user.uid, 'pending')}>
                                                    <Clock className="mr-2 h-4 w-4" /> Move to Pending
                                                 </DropdownMenuItem>
+                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                         ) : (

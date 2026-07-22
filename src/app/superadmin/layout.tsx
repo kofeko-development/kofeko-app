@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { getAuthType } from '@/lib/api-client';
+import { PageContentSkeleton } from '@/components/loading/page-content-skeleton';
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const { superAdmin, loading } = useAuth();
@@ -14,8 +15,12 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
     const authType = getAuthType();
     const isLoginPage = pathname === '/superadmin/login';
+    const isPublicAuthPage =
+      pathname === '/superadmin/login' ||
+      pathname === '/superadmin/forgot-password' ||
+      pathname === '/superadmin/reset-password';
 
-    if (!isLoginPage && (authType !== 'super_admin' || !superAdmin)) {
+    if (!isPublicAuthPage && (authType !== 'super_admin' || !superAdmin)) {
       router.push('/superadmin/login');
     }
     
@@ -26,14 +31,19 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent" />
+      <div className="min-h-screen bg-muted/40 p-6">
+        <PageContentSkeleton />
       </div>
     );
   }
 
+  const isPublicAuthPage =
+    pathname === '/superadmin/login' ||
+    pathname === '/superadmin/forgot-password' ||
+    pathname === '/superadmin/reset-password';
+
   // Allow login page to render even if !superAdmin
-  if (!superAdmin && pathname !== '/superadmin/login') {
+  if (!superAdmin && !isPublicAuthPage) {
     return null; // Will redirect via useEffect
   }
 

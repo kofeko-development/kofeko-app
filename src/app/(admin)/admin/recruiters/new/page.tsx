@@ -14,7 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
 import { stageOneApi } from '@/lib/stage1-2-api';
 import {
   INVITE_ACCESS_MAIN_OPTIONS,
@@ -27,7 +29,8 @@ import { InvitePermissionCheckboxes } from '@/components/invite-permission-check
 
 export default function AddRecruiterPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning } = useAppToast();
+  const { showError } = useApiErrorToast();
   const [submitting, setSubmitting] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -47,29 +50,27 @@ export default function AddRecruiterPage() {
 
     if (accessChoice === INVITE_ACCESS_OTHER) {
       if (!otherRoleTitle.trim()) {
-        toast({
+        toastWarning({
           title: 'Position / role name required',
           description: 'Enter how this role should be labeled (e.g. “Lead Talent Partner”).',
-          variant: 'destructive',
         });
         return;
       }
       if (otherPermissionKeys.length === 0) {
-        toast({
+        toastWarning({
           title: 'Pick permissions',
           description: 'Select at least one permission, or use a preset button.',
-          variant: 'destructive',
         });
         return;
       }
     }
 
     if (fn.length < 2 || ln.length < 1) {
-      toast({ title: 'Check name', description: 'Enter first and last name.', variant: 'destructive' });
+      toastWarning({ title: 'Check name', description: 'Enter first and last name.' });
       return;
     }
     if (!em || !em.includes('@')) {
-      toast({ title: 'Check email', description: 'Enter the recruiter’s own work email.', variant: 'destructive' });
+      toastWarning({ title: 'Check email', description: 'Enter the recruiter’s own work email.' });
       return;
     }
 
@@ -83,7 +84,7 @@ export default function AddRecruiterPage() {
           position: otherRoleTitle.trim(),
           permissionKeys: otherPermissionKeys,
         });
-        toast({
+        toastSuccess({
           title: 'Recruiter invited',
           description: `We emailed an invitation link to ${em} to set up their password. Custom role: “${otherRoleTitle.trim()}”. Ask them to check their inbox and spam.`,
         });
@@ -95,18 +96,14 @@ export default function AddRecruiterPage() {
           email: em,
           roleName,
         });
-        toast({
+        toastSuccess({
           title: 'Recruiter invited',
           description: `We emailed an invitation link to ${em} to set up their password (${inviteBackendRoleLabel(roleName)}). Ask them to check their inbox and spam.`,
         });
       }
       router.push('/admin/recruiters');
     } catch (err) {
-      toast({
-        title: 'Invite failed',
-        description: err instanceof Error ? err.message : 'Try again later.',
-        variant: 'destructive',
-      });
+      showError(err);
     } finally {
       setSubmitting(false);
     }

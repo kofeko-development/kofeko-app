@@ -6,7 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { useAuth } from '@/lib/auth';
 import { evaluationsApi, type EvaluationRecord } from '@/lib/stage1-2-api';
@@ -49,7 +50,7 @@ function getConfidenceLabel(hi: Record<string, unknown> | null): string {
 }
 
 export default function AssessmentsPage() {
-  const { toast } = useToast();
+  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const { hasPermission } = useAuth();
   const canUpdateEvaluation = hasPermission('evaluation:update');
@@ -104,7 +105,7 @@ export default function AssessmentsPage() {
         score: parsed,
         whyCard: editWhyCard,
       });
-      toast({
+      toastSuccess({
         title: 'Evaluation updated',
         description: 'Candidate score and breakdown updated successfully.',
       });

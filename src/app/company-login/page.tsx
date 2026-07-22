@@ -27,6 +27,12 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
+
+    if (password.length < 8) {
+      setFieldErrors({ password: 'Password must be at least 8 characters.' });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -47,12 +53,10 @@ export default function LoginPage() {
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errorCode === 'APPROVAL_PENDING') {
-          showError(error);
           router.push('/signup-success?status=pending');
           return;
         }
         if (error.errorCode === 'APPROVAL_REJECTED') {
-          showError(error);
           router.push('/signup-success?status=rejected');
           return;
         }
@@ -113,6 +117,7 @@ export default function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 required
+                minLength={8}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -161,7 +166,7 @@ export default function LoginPage() {
         </form>
         <div className="mt-4 text-center text-sm">
           Don&apos;t have a company account?{" "}
-          <Link href="/signup" className="underline">
+          <Link href="/company-signup" className="underline">
             Company Sign Up
           </Link>
         </div>

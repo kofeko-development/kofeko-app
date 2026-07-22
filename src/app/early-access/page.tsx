@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
 import { Loader2, Send } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -26,7 +26,7 @@ const features = [
 
 export default function EarlyAccessPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const { toastSuccess } = useAppToast();
   const router = useRouter();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -39,7 +39,7 @@ export default function EarlyAccessPage() {
     // Simulate API call
     setTimeout(() => {
       setIsLoading(false);
-      toast({
+      toastSuccess({
         title: 'Thank you for your interest!',
         description: "You've been added to our early access list. We'll be in touch soon.",
       });

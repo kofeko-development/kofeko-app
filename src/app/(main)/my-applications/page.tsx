@@ -1,38 +1,36 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, Loader2 } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
-import { portalApi } from '@/lib/portal-api';
+import { resolveHiringStageLabel } from '@/lib/hiring-stages';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { useAppToast } from '@/lib/toast-helpers';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
+
+import { useAuth } from '@/lib/auth';
+import { MyApplicationsTableSkeleton } from '@/components/loading/my-applications-table-skeleton';
+import { useMyApplications } from '@/hooks/use-portal';
 
 export default function MyApplicationsPage() {
-    const { toast } = useToast();
-    const [applications, setApplications] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { showError } = useApiErrorToast();
+    const { user, loading: authLoading } = useAuth();
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+    } = useMyApplications({ page: 1, limit: 100 }, { enabled: !authLoading && !!user });
+
+    const applications = data?.items ?? [];
 
     useEffect(() => {
-        const load = async () => {
-            setIsLoading(true);
-            try {
-                const res = await portalApi.getMyApplications();
-                setApplications(res.items);
-            } catch (error) {
-                toast({
-                    title: 'Failed to load applications',
-                    description: error instanceof Error ? error.message : 'Please ensure you are logged in.',
-                    variant: 'destructive',
-                });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        void load();
-    }, [toast]);
+        if (!isError) return;
+        showError(error);
+    }, [isError, error, showError]);
 
     const statusVariantMap: { [key: string]: string } = {
         applied: 'bg-yellow-500/20 text-yellow-700',
@@ -49,9 +47,9 @@ export default function MyApplicationsPage() {
         const customStages = app.job?.customStages;
         if (customStages && Array.isArray(customStages)) {
             const stageObj = customStages.find((s: any) => s.stage === stageKey);
-            if (stageObj) return stageObj.label;
+            if (stageObj) return resolveHiringStageLabel(stageObj);
         }
-        return stageKey.replace('_', ' ');
+        return resolveHiringStageLabel({ stage: stageKey, label: null });
     };
 
     return (
@@ -75,11 +73,7 @@ export default function MyApplicationsPage() {
                     </TableHeader>
                     <TableBody>
                       {isLoading ? (
-                          <TableRow>
-                              <TableCell colSpan={6} className="h-24 text-center">
-                                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                              </TableCell>
-                          </TableRow>
+                          <MyApplicationsTableSkeleton rows={5} />
                       ) : applications.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">

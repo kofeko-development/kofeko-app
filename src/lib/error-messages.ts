@@ -1,9 +1,61 @@
 // Maps backend errorCode → user-facing message + optional action hint
+import {
+  ERROR_CATEGORIES,
+  ERROR_CODES,
+  getErrorCategory,
+  type ErrorCategory,
+} from '@/lib/error-categories';
+
 export type ErrorDisplay = {
   title: string;
   description: string;
-  action?: string;          // e.g. "Request new invite", "Contact support"
-  actionHref?: string;      // e.g. "/forgot-password"
+  action?: string;
+  actionHref?: string;
+  category?: ErrorCategory;
+};
+
+export type ResolveApiErrorInput = {
+  errorCategory?: ErrorCategory;
+  errorCode?: string;
+  message?: string;
+};
+
+const CATEGORY_DEFAULTS: Record<ErrorCategory, ErrorDisplay> = {
+  [ERROR_CATEGORIES.VALIDATION]: {
+    title: 'Check your input',
+    description: 'Please review the highlighted fields and try again.',
+    category: ERROR_CATEGORIES.VALIDATION,
+  },
+  [ERROR_CATEGORIES.AUTH]: {
+    title: 'Session expired',
+    description: 'Please log in again.',
+    category: ERROR_CATEGORIES.AUTH,
+  },
+  [ERROR_CATEGORIES.PERMISSION]: {
+    title: 'Access denied',
+    description: "You don't have permission to do this.",
+    category: ERROR_CATEGORIES.PERMISSION,
+  },
+  [ERROR_CATEGORIES.NOT_FOUND]: {
+    title: 'Not found',
+    description: 'The item you requested could not be found.',
+    category: ERROR_CATEGORIES.NOT_FOUND,
+  },
+  [ERROR_CATEGORIES.NETWORK]: {
+    title: 'Connection problem',
+    description: "Couldn't reach the server, check your connection.",
+    category: ERROR_CATEGORIES.NETWORK,
+  },
+  [ERROR_CATEGORIES.SERVER]: {
+    title: 'Something went wrong on our end',
+    description: 'Try again in a moment.',
+    category: ERROR_CATEGORIES.SERVER,
+  },
+  [ERROR_CATEGORIES.BUSINESS]: {
+    title: 'Action not allowed',
+    description: 'This action cannot be completed right now.',
+    category: ERROR_CATEGORIES.BUSINESS,
+  },
 };
 
 export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
@@ -29,6 +81,10 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
   ACCOUNT_INVITED_ONLY: {
     title: 'Invite Not Accepted Yet',
     description: 'Please accept your invitation first. Check your email for the invite link.',
+  },
+  ACCOUNT_PENDING: {
+    title: 'Account Pending',
+    description: 'Your account is waiting for company admin approval. Ask your admin to activate your account — you do not need a new invite email.',
   },
   USER_SUSPENDED: {
     title: 'Account Suspended',
@@ -56,7 +112,7 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
     title: 'Invite Already Accepted',
     description: 'This invite link has already been used. Try logging in instead.',
     action: 'Go to Login',
-    actionHref: '/login',
+    actionHref: '/company-login',
   },
   INVITE_TOKEN_INVALID: {
     title: 'Invalid Invite Link',
@@ -88,11 +144,11 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
   },
   OTP_EXPIRED: {
     title: 'Code Expired',
-    description: 'Verification code has expired. Request a new one.',
+    description: 'Your verification code expired after 1 minute. Tap Resend to get a new code.',
   },
   OTP_INVALID: {
-    title: 'Incorrect Code',
-    description: 'Incorrect verification code. Check the email and try again.',
+    title: 'Invalid OTP',
+    description: 'Please check again.',
   },
   OTP_MAX_ATTEMPTS: {
     title: 'Too Many Attempts',
@@ -128,41 +184,60 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
     title: 'Already Exists',
     description: 'This item already exists. Check for duplicates.',
   },
+  EMAIL_ALREADY_IN_USE: {
+    title: 'Email already in use',
+    description: 'This email address has already been used. Please use a different email.',
+  },
   NOT_FOUND: {
-    title: 'Not Found',
+    title: 'Not found',
     description: 'The item you\'re looking for could not be found.',
   },
   FORBIDDEN: {
-    title: 'Access Denied',
-    description: 'You don\'t have permission to do that.',
+    title: 'Access denied',
+    description: "You don't have permission to do this.",
   },
   UNAUTHORIZED: {
-    title: 'Invalid Credentials',
+    title: 'Invalid credentials',
     description: 'The email or password is incorrect. Please try again.',
   },
+  EMAIL_NOT_FOUND: {
+    title: 'No account found',
+    description: 'No account found with this email.',
+    action: 'Register your company',
+    actionHref: '/company-signup',
+  },
+  SESSION_EXPIRED: {
+    title: 'Session expired',
+    description: 'Please log in again.',
+  },
+  TOKEN_EXPIRED: {
+    title: 'Session expired',
+    description: 'Please log in again.',
+  },
+  INVALID_TOKEN: {
+    title: 'Session expired',
+    description: 'Please log in again.',
+  },
+  NETWORK_ERROR: {
+    title: 'Connection problem',
+    description: "Couldn't reach the server, check your connection.",
+  },
   INTERNAL_SERVER_ERROR: {
-    title: 'Something Went Wrong',
-    description: 'A server error occurred. Please try again in a moment.',
+    title: 'Something went wrong on our end',
+    description: 'Try again in a moment.',
   },
   EMAIL_FAILED: {
     title: 'Email Could Not Be Sent',
     description: 'We could not send the email right now. Please try again later.',
-  },
-  TOKEN_EXPIRED: {
-    title: 'Link Expired',
-    description: 'This link has expired. Request a new one to continue.',
-  },
-  INVALID_TOKEN: {
-    title: 'Invalid Link',
-    description: 'This link is not valid. Open the original email or request a new one.',
   },
   VALIDATION_ERROR: {
     title: 'Validation Error',
     description: 'Please check your input and try again.',
   },
   AI_EVALUATION_FAILED: {
-    title: 'AI Evaluation Failed',
-    description: 'The AI evaluation service encountered an error. Please try again in a moment.',
+    title: 'AI generation failed',
+    description:
+      'The AI service could not generate the job description. Check that REPLICATE_API_TOKEN is set correctly in the backend .env, then restart the server.',
   },
   STORAGE_ERROR: {
     title: 'Upload Failed',
@@ -220,13 +295,65 @@ export const ERROR_DISPLAY: Partial<Record<string, ErrorDisplay>> = {
   },
 };
 
-// Helper: get display info from ApiError
-export function getErrorDisplay(errorCode?: string, fallbackMessage?: string): ErrorDisplay {
+function isSpecificNotFoundMessage(message?: string): boolean {
+  if (!message?.trim()) return false;
+  const normalized = message.trim().toLowerCase();
+  return normalized !== 'not found' && normalized.endsWith(' not found');
+}
+
+export function resolveApiErrorDisplay(input: ResolveApiErrorInput): ErrorDisplay {
+  const { errorCode, message } = input;
+  const category =
+    input.errorCategory ??
+    getErrorCategory(errorCode ?? ERROR_CODES.INTERNAL_SERVER_ERROR, 500);
+
   if (errorCode && ERROR_DISPLAY[errorCode]) {
-    return ERROR_DISPLAY[errorCode]!;
+    const mapped = ERROR_DISPLAY[errorCode]!;
+    if (errorCode === ERROR_CODES.NOT_FOUND && isSpecificNotFoundMessage(message)) {
+      return {
+        ...mapped,
+        title: message!.trim(),
+        description: message!.trim(),
+        category,
+      };
+    }
+    return { ...mapped, category };
   }
-  return {
-    title: 'Error',
-    description: fallbackMessage ?? 'Something went wrong. Please try again.',
-  };
+
+  if (category === ERROR_CATEGORIES.NOT_FOUND && message?.trim()) {
+    return {
+      title: message.trim(),
+      description: message.trim(),
+      category,
+    };
+  }
+
+  if (category === ERROR_CATEGORIES.SERVER && message?.trim()) {
+    return {
+      ...CATEGORY_DEFAULTS[category],
+      description: message.trim(),
+      category,
+    };
+  }
+
+  if (message?.trim() && category !== ERROR_CATEGORIES.SERVER) {
+    const defaults = CATEGORY_DEFAULTS[category];
+    return {
+      title: defaults.title,
+      description: message.trim(),
+      category,
+    };
+  }
+
+  return { ...CATEGORY_DEFAULTS[category], category };
+}
+
+export function getErrorDisplay(errorCode?: string, fallbackMessage?: string): ErrorDisplay {
+  return resolveApiErrorDisplay({
+    errorCode,
+    message: fallbackMessage,
+    errorCategory: errorCode
+      ? getErrorCategory(errorCode, 400)
+      : undefined,
+  });
 }
