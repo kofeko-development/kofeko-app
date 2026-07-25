@@ -29,6 +29,7 @@ import {
     Mic,
     Settings,
     BrainCircuit,
+    ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
@@ -251,6 +252,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 </Link>
                             </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem asChild>
+                            <Link href={hasPermission('rbac:manage') ? '/admin/security' : '/security'}>
+                                <ShieldCheck className="mr-2 h-4 w-4" />
+                                <span>Security & Login</span>
+                            </Link>
+                        </DropdownMenuItem>
                         {hasPermission('company:update') && (
                             <DropdownMenuItem asChild>
                                 <Link href={hasPermission('rbac:manage') ? '/admin/subscription' : '/subscription'}>

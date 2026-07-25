@@ -57,10 +57,20 @@ export function useApiErrorToast() {
       const hasMappedFields = hasFieldErrors(fieldErrors);
 
       if (
-        (category === ERROR_CATEGORIES.VALIDATION || error.errorCode === ERROR_CODES.EMAIL_NOT_FOUND) &&
+        category === ERROR_CATEGORIES.VALIDATION &&
         hasMappedFields
       ) {
         return { display, fieldErrors };
+      }
+
+      if (error.errorCode === ERROR_CODES.EMAIL_NOT_FOUND) {
+        toast({
+          title: display.title,
+          description: display.description,
+          variant: toastVariantForCategory(category),
+          action: toastActionFor(display),
+        });
+        return { display, fieldErrors: {} };
       }
 
       const title =

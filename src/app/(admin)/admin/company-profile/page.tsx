@@ -1,5 +1,8 @@
 'use client';
 
-import CompanyProfilePage from '@/components/company-profile-page';
+import React from 'react';
+import { SettingsHub } from '@/components/settings/settings-hub';
 
-export default CompanyProfilePage;
+export default function CompanyProfileAdminPage() {
+  return <SettingsHub defaultTab="profile" />;
+}

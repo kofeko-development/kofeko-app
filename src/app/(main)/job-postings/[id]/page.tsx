@@ -47,6 +47,7 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { jobsApi, pipelinesApi, evaluationsApi, ApiPipeline, CreatedJob } from '@/lib/stage1-2-api';
+import { API_BASE_URL, getAccessToken } from '@/lib/api-client';
 import { useJobDetail, useJobApplicantsData, useInvalidateJobDetail } from '@/hooks/use-job-detail';
 import { JobApplicantsTableSkeleton, JobDetailHeaderSkeleton } from '@/components/loading/job-detail-skeleton';
 import { resolveHiringStageLabel } from '@/lib/hiring-stages';
@@ -138,8 +139,8 @@ function mapPipelineToApplicant(
         riskFlags: Array.isArray(hi?.riskFlags)
             ? (hi.riskFlags as string[]).join(', ')
             : typeof hi?.riskFlags === 'string'
-              ? hi.riskFlags
-              : undefined,
+                ? hi.riskFlags
+                : undefined,
         interviewQuestions: Array.isArray(hi?.suggestedInterviewQuestions)
             ? (hi.suggestedInterviewQuestions as string[])
             : undefined,
@@ -241,7 +242,7 @@ export default function JobApplicantsPage() {
                         }}
                         className={cn(
                             isCurrent &&
-                                'bg-primary/10 font-semibold text-primary opacity-100 focus:bg-primary/10 focus:text-primary data-[disabled]:opacity-100',
+                            'bg-primary/10 font-semibold text-primary opacity-100 focus:bg-primary/10 focus:text-primary data-[disabled]:opacity-100',
                         )}
                     >
                         <span className="flex w-full items-center justify-between gap-3">
@@ -422,6 +423,67 @@ export default function JobApplicantsPage() {
             }
         }
     }, [applicants, selectedApplicant?.id]);
+
+    useEffect(() => {
+        const token = getAccessToken('staff');
+        if (!id || !token) return;
+
+        const abortController = new AbortController();
+
+        async function connectRealtime() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/realtime/jobs/${id}/stream`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'text/event-stream',
+                    },
+                    signal: abortController.signal,
+                });
+
+                if (!res.ok || !res.body) return;
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.event === 'applications_updated') {
+                                    void refetchApplicantsData();
+                                    toastSuccess({
+                                        title: 'Live Update',
+                                        description: '✨ New applicant activity detected — table refreshed!',
+                                    });
+                                }
+                            } catch {
+                                // ignore parse errors from heartbeats or malformed lines
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                if (!abortController.signal.aborted) {
+                    // Stream closed or failed; silent fallback
+                }
+            }
+        }
+
+        void connectRealtime();
+
+        return () => {
+            abortController.abort();
+        };
+    }, [id, refetchApplicantsData, toastSuccess]);
 
     const canManageJob = user?.companyRole === 'Company Admin' || user?.companyRole === 'Hiring Manager';
     const canChangeStatus = user?.companyRole === 'Company Admin' || user?.companyRole === 'Hiring Manager';
@@ -788,104 +850,104 @@ export default function JobApplicantsPage() {
         const pendingStage = isChangingStage ? stageChangeState.targetStage : null;
 
         return (
-        <TableBody key={applicant.id} className="group hover:bg-muted/50 border-b">
-            <TableRow className={cn('border-b-0 group-hover:bg-transparent', isChangingStage && 'opacity-70')}>
-                <TableCell className="pl-4 w-12">
-                    <Checkbox
-                        id={`select-${applicant.id}`}
-                        checked={selectedForComparison.includes(applicant.id)}
-                        onCheckedChange={(checked) => handleSelectForComparison(applicant.id, !!checked)}
-                        aria-label={`Select ${applicant.name}`}
-                    />
-                </TableCell>
-                <TableCell className="font-medium">
-                    <div className="flex items-center gap-4">
-                        <Avatar className="h-10 w-10">
-                            <AvatarFallback>{getInitials(applicant.name)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <p className="font-semibold flex items-center gap-2 flex-wrap">
-                                {applicant.name}
-                                {!applicant.resumeUrl && (
-                                    <Badge variant="outline" className="text-xs font-normal">No resume</Badge>
-                                )}
-                                {applicant.evaluationRank != null && (
-                                    <Badge variant="secondary" className="text-xs">Rank #{applicant.evaluationRank}</Badge>
-                                )}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{applicant.email}</p>
-                        </div>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex items-center gap-2">
-                        <span className={`font-bold text-lg ${!applicant.hasEvaluation ? 'text-muted-foreground' : ''}`}>
-                            {scoreLabel}
-                        </span>
-                        {applicant.hasEvaluation && (
-                            <Progress
-                                value={progressValue}
-                                className="h-2 w-[100px] bg-slate-200"
-                                indicatorClassName={getScoreColor(applicant.matchScore)}
-                            />
-                        )}
-                        {isRowEvaluating && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-                    </div>
-                </TableCell>
-                {!isGrouped && (
-                    <TableCell>
-                        {isChangingStage ? (
-                            <Badge
-                                variant="outline"
-                                className="gap-1.5 border-primary/30 bg-primary/5 font-normal text-primary"
-                            >
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                Moving to {getStageLabel(pendingStage)}
-                            </Badge>
-                        ) : (
-                            <Badge
-                                variant={statusVariantMap[applicant.status] || 'secondary'}
-                                className={`${statusClassMap[applicant.status]} hover:${statusClassMap[applicant.status]}`}
-                            >
-                                {getStageLabel(applicant.status)}
-                            </Badge>
-                        )}
+            <TableBody key={applicant.id} className="group hover:bg-muted/50 border-b">
+                <TableRow className={cn('border-b-0 group-hover:bg-transparent', isChangingStage && 'opacity-70')}>
+                    <TableCell className="pl-4 w-12">
+                        <Checkbox
+                            id={`select-${applicant.id}`}
+                            checked={selectedForComparison.includes(applicant.id)}
+                            onCheckedChange={(checked) => handleSelectForComparison(applicant.id, !!checked)}
+                            aria-label={`Select ${applicant.name}`}
+                        />
                     </TableCell>
-                )}
-                <TableCell className='text-right'>
-                    <div className='flex gap-2 justify-end'>
-                        <Button variant="outline" size="sm" onClick={() => openProfileDialog(applicant)}>
-                            <Eye className="mr-2 h-4 w-4" /> View Profile
-                        </Button>
-                        {canChangeStatus && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" disabled={isChangingStage}>
-                                        {isChangingStage ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        ) : null}
-                                        Change Stage
-                                        <ChevronDown className="ml-2 h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="min-w-[12rem]">
-                                    {renderStageDropdownItems(applicant.status, (s) =>
-                                        handleStageChangeClick(applicant, s),
+                    <TableCell className="font-medium">
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-10 w-10">
+                                <AvatarFallback>{getInitials(applicant.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="font-semibold flex items-center gap-2 flex-wrap">
+                                    {applicant.name}
+                                    {!applicant.resumeUrl && (
+                                        <Badge variant="outline" className="text-xs font-normal">No resume</Badge>
                                     )}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
-                    </div>
-                </TableCell>
-            </TableRow>
-            {applicant.summary && (
-                <TableRow className="group-hover:bg-transparent">
-                    <TableCell colSpan={isGrouped ? 4 : 5} className="py-2 px-4 pt-0 pl-16">
-                        <p className="text-sm text-muted-foreground">{applicant.summary}</p>
+                                    {applicant.evaluationRank != null && (
+                                        <Badge variant="secondary" className="text-xs">Rank #{applicant.evaluationRank}</Badge>
+                                    )}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{applicant.email}</p>
+                            </div>
+                        </div>
+                    </TableCell>
+                    <TableCell>
+                        <div className="flex items-center gap-2">
+                            <span className={`font-bold text-lg ${!applicant.hasEvaluation ? 'text-muted-foreground' : ''}`}>
+                                {scoreLabel}
+                            </span>
+                            {applicant.hasEvaluation && (
+                                <Progress
+                                    value={progressValue}
+                                    className="h-2 w-[100px] bg-slate-200"
+                                    indicatorClassName={getScoreColor(applicant.matchScore)}
+                                />
+                            )}
+                            {isRowEvaluating && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                        </div>
+                    </TableCell>
+                    {!isGrouped && (
+                        <TableCell>
+                            {isChangingStage ? (
+                                <Badge
+                                    variant="outline"
+                                    className="gap-1.5 border-primary/30 bg-primary/5 font-normal text-primary"
+                                >
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Moving to {getStageLabel(pendingStage)}
+                                </Badge>
+                            ) : (
+                                <Badge
+                                    variant={statusVariantMap[applicant.status] || 'secondary'}
+                                    className={`${statusClassMap[applicant.status]} hover:${statusClassMap[applicant.status]}`}
+                                >
+                                    {getStageLabel(applicant.status)}
+                                </Badge>
+                            )}
+                        </TableCell>
+                    )}
+                    <TableCell className='text-right'>
+                        <div className='flex gap-2 justify-end'>
+                            <Button variant="outline" size="sm" onClick={() => openProfileDialog(applicant)}>
+                                <Eye className="mr-2 h-4 w-4" /> View Profile
+                            </Button>
+                            {canChangeStatus && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" disabled={isChangingStage}>
+                                            {isChangingStage ? (
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : null}
+                                            Change Stage
+                                            <ChevronDown className="ml-2 h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="min-w-[12rem]">
+                                        {renderStageDropdownItems(applicant.status, (s) =>
+                                            handleStageChangeClick(applicant, s),
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                        </div>
                     </TableCell>
                 </TableRow>
-            )}
-        </TableBody>
+                {applicant.summary && (
+                    <TableRow className="group-hover:bg-transparent">
+                        <TableCell colSpan={isGrouped ? 4 : 5} className="py-2 px-4 pt-0 pl-16">
+                            <p className="text-sm text-muted-foreground">{applicant.summary}</p>
+                        </TableCell>
+                    </TableRow>
+                )}
+            </TableBody>
         );
     };
 
@@ -932,14 +994,14 @@ export default function JobApplicantsPage() {
                                 actionsDisabled
                                     ? 'Loading candidates...'
                                     : !jobIsOpen
-                                    ? 'Batch evaluation is only available for open jobs'
-                                    : applicants.length === 0
-                                      ? 'Add candidates before batch evaluation'
-                                      : !hasJobSkillWeights
-                                        ? 'Add skill weights on the job before batch AI evaluation'
-                                        : evaluatingPipelineId
-                                          ? 'Wait for the current evaluation to finish'
-                                          : undefined
+                                        ? 'Batch evaluation is only available for open jobs'
+                                        : applicants.length === 0
+                                            ? 'Add candidates before batch evaluation'
+                                            : !hasJobSkillWeights
+                                                ? 'Add skill weights on the job before batch AI evaluation'
+                                                : evaluatingPipelineId
+                                                    ? 'Wait for the current evaluation to finish'
+                                                    : undefined
                             }
                         >
                             {isBatchEvaluating ? (
@@ -1293,99 +1355,99 @@ export default function JobApplicantsPage() {
                                                 : stageItem.label;
 
                                             return (
-                                            <div
-                                                key={stageItem.stage}
-                                                className="relative flex items-stretch gap-4 pb-6 group"
-                                            >
-                                                {/* Left Side: Connecting Timeline & Circle */}
-                                                <div className="flex flex-col items-center w-9 shrink-0 relative mt-1">
-                                                    <div className={`flex items-center justify-center h-9 w-9 rounded-full font-bold text-xs shadow-sm z-10 ${isLocked ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-primary text-primary-foreground'}`}>
-                                                        {displayNumber}
+                                                <div
+                                                    key={stageItem.stage}
+                                                    className="relative flex items-stretch gap-4 pb-6 group"
+                                                >
+                                                    {/* Left Side: Connecting Timeline & Circle */}
+                                                    <div className="flex flex-col items-center w-9 shrink-0 relative mt-1">
+                                                        <div className={`flex items-center justify-center h-9 w-9 rounded-full font-bold text-xs shadow-sm z-10 ${isLocked ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-primary text-primary-foreground'}`}>
+                                                            {displayNumber}
+                                                        </div>
+                                                        {!isLastVisible && (
+                                                            <div className="absolute top-9 bottom-[-1.5rem] w-[2px] bg-slate-200 z-0" />
+                                                        )}
                                                     </div>
-                                                    {!isLastVisible && (
-                                                        <div className="absolute top-9 bottom-[-1.5rem] w-[2px] bg-slate-200 z-0" />
-                                                    )}
-                                                </div>
 
-                                                {/* Right Side: The Content Card */}
-                                                <div className={`flex-1 flex items-center gap-3 p-3 rounded-xl border transition-all bg-white shadow-sm hover:shadow-md hover:border-primary/40`}>
+                                                    {/* Right Side: The Content Card */}
+                                                    <div className={`flex-1 flex items-center gap-3 p-3 rounded-xl border transition-all bg-white shadow-sm hover:shadow-md hover:border-primary/40`}>
 
-                                                    {/* Re-order arrows */}
-                                                    <div className="flex flex-col items-center justify-center w-6 shrink-0">
-                                                        {!isLocked ? (
-                                                            <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                                                                <button
+                                                        {/* Re-order arrows */}
+                                                        <div className="flex flex-col items-center justify-center w-6 shrink-0">
+                                                            {!isLocked ? (
+                                                                <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="h-6 w-6 rounded hover:bg-slate-100 flex items-center justify-center disabled:opacity-30 disabled:hover:bg-transparent"
+                                                                        disabled={index === 1}
+                                                                        onClick={() => handleMoveStage(index, 'up')}
+                                                                        title="Move Up"
+                                                                    >
+                                                                        <ArrowUp className="h-3 w-3" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="h-6 w-6 rounded hover:bg-slate-100 flex items-center justify-center disabled:opacity-30 disabled:hover:bg-transparent"
+                                                                        disabled={index === flowStages.length - 3}
+                                                                        onClick={() => handleMoveStage(index, 'down')}
+                                                                        title="Move Down"
+                                                                    >
+                                                                        <ArrowDown className="h-3 w-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <Lock className="h-4 w-4 text-slate-300" />
+                                                            )}
+                                                        </div>
+
+                                                        {/* Inputs */}
+                                                        <div className="flex-1 grid gap-0.5 ml-1">
+                                                            {isOutcomeStage && (
+                                                                <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
+                                                                    Final outcome: hired or rejected
+                                                                </Label>
+                                                            )}
+                                                            {isOutcomeStage ? (
+                                                                <p className="px-2 -ml-2 text-base font-semibold text-foreground">
+                                                                    {outcomeLabel}
+                                                                </p>
+                                                            ) : (
+                                                                <Input
+                                                                    value={stageItem.label}
+                                                                    onChange={(e) => handleRenameStage(index, e.target.value)}
+                                                                    placeholder="Stage Name"
+                                                                    className="h-8 font-semibold text-base border-transparent hover:border-input focus:border-primary bg-transparent px-2 -ml-2 shadow-none transition-colors"
+                                                                />
+                                                            )}
+                                                            {isOutcomeStage && (
+                                                                <p className="px-2 -ml-2 text-xs text-muted-foreground">
+                                                                    Candidates end here as either hired or rejected — not as sequential steps.
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Delete and Lock Action */}
+                                                        {!isLocked && (
+                                                            <div className="flex items-center gap-2 pl-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                                <Button
                                                                     type="button"
-                                                                    className="h-6 w-6 rounded hover:bg-slate-100 flex items-center justify-center disabled:opacity-30 disabled:hover:bg-transparent"
-                                                                    disabled={index === 1}
-                                                                    onClick={() => handleMoveStage(index, 'up')}
-                                                                    title="Move Up"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+                                                                    onClick={() => handleDeleteStage(index)}
+                                                                    title="Delete Stage"
                                                                 >
-                                                                    <ArrowUp className="h-3 w-3" />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    className="h-6 w-6 rounded hover:bg-slate-100 flex items-center justify-center disabled:opacity-30 disabled:hover:bg-transparent"
-                                                                    disabled={index === flowStages.length - 3}
-                                                                    onClick={() => handleMoveStage(index, 'down')}
-                                                                    title="Move Down"
-                                                                >
-                                                                    <ArrowDown className="h-3 w-3" />
-                                                                </button>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
                                                             </div>
-                                                        ) : (
-                                                            <Lock className="h-4 w-4 text-slate-300" />
+                                                        )}
+                                                        {isLocked && (
+                                                            <div className="text-xs text-muted-foreground/60 font-semibold px-3 py-1 bg-slate-50 border rounded-full">
+                                                                Locked
+                                                            </div>
                                                         )}
                                                     </div>
-
-                                                    {/* Inputs */}
-                                                    <div className="flex-1 grid gap-0.5 ml-1">
-                                                        {isOutcomeStage && (
-                                                            <Label className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
-                                                                Final outcome: hired or rejected
-                                                            </Label>
-                                                        )}
-                                                        {isOutcomeStage ? (
-                                                            <p className="px-2 -ml-2 text-base font-semibold text-foreground">
-                                                                {outcomeLabel}
-                                                            </p>
-                                                        ) : (
-                                                            <Input
-                                                                value={stageItem.label}
-                                                                onChange={(e) => handleRenameStage(index, e.target.value)}
-                                                                placeholder="Stage Name"
-                                                                className="h-8 font-semibold text-base border-transparent hover:border-input focus:border-primary bg-transparent px-2 -ml-2 shadow-none transition-colors"
-                                                            />
-                                                        )}
-                                                        {isOutcomeStage && (
-                                                            <p className="px-2 -ml-2 text-xs text-muted-foreground">
-                                                                Candidates end here as either hired or rejected — not as sequential steps.
-                                                            </p>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Delete and Lock Action */}
-                                                    {!isLocked && (
-                                                        <div className="flex items-center gap-2 pl-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
-                                                                onClick={() => handleDeleteStage(index)}
-                                                                title="Delete Stage"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                    {isLocked && (
-                                                        <div className="text-xs text-muted-foreground/60 font-semibold px-3 py-1 bg-slate-50 border rounded-full">
-                                                            Locked
-                                                        </div>
-                                                    )}
                                                 </div>
-                                            </div>
                                             );
                                         });
                                     })()}
@@ -1621,8 +1683,8 @@ export default function JobApplicantsPage() {
                                                                 {selectedApplicant.riskFlags
                                                                     ? 'See details below'
                                                                     : selectedApplicant.hasEvaluation
-                                                                      ? 'None noted'
-                                                                      : '--'}
+                                                                        ? 'None noted'
+                                                                        : '--'}
                                                             </span>
                                                         </div>
                                                     </div>

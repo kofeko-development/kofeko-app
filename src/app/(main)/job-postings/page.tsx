@@ -615,16 +615,16 @@ export default function JobPostingsPage() {
                 </Label>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="h-auto p-0 text-[11px] text-primary hover:text-primary/80"
+                  className="h-8 px-3.5 py-1 text-xs font-semibold rounded-md bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-pink-500/10 hover:from-purple-500/20 hover:via-indigo-500/20 hover:to-pink-500/20 text-purple-700 dark:text-purple-300 border border-purple-300/60 dark:border-purple-700/60 shadow-xs hover:shadow-sm transition-all duration-200 flex items-center gap-1.5"
                   onClick={handleGenerateWithAI}
                   disabled={isGenerating}
                 >
                   {isGenerating ? (
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600 dark:text-purple-400" />
                   ) : (
-                    <Sparkles className="mr-1 h-3 w-3" />
+                    <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
                   )}
                   {formState.description.length > 0 ? 'Enhance with AI' : 'Generate with AI'}
                 </Button>
@@ -633,8 +633,9 @@ export default function JobPostingsPage() {
                 id="description"
                 name="description"
                 placeholder="Write or paste the job description here..."
-                className="min-h-[180px] leading-relaxed"
+                className="min-h-[240px] leading-relaxed"
                 value={formState.description}
+                autoResize={true}
                 onChange={handleFormChange}
                 required
               />

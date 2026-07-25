@@ -72,11 +72,16 @@ function SuccessContent() {
                 </CardHeader>
                 <CardContent className="text-center">
                     <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
-                        Unfortunately, your registration request could not be approved at this time. Please contact <span className="font-semibold text-foreground">support@kofeko.ai</span> for further details or to appeal.
+                        Unfortunately, your registration request could not be approved at this time. Please check your email for the review notes or contact <span className="font-semibold text-foreground">support@kofeko.ai</span>.
                     </p>
-                    <Button onClick={() => router.push('/')} className="w-full" variant="outline">
-                        Return to Home
-                    </Button>
+                    <div className="flex flex-col gap-3">
+                        <Button onClick={() => router.push('/company-signup')} className="w-full font-semibold">
+                            Apply Again with Updated Details
+                        </Button>
+                        <Button onClick={() => router.push('/')} className="w-full" variant="outline">
+                            Return to Home
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
         );

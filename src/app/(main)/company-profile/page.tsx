@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import CompanyProfilePage from '@/components/company-profile-page';
+import { SettingsHub } from '@/components/settings/settings-hub';
 
 export default function StaffCompanyProfileRoute() {
   const { user, loading, hasPermission } = useAuth();
@@ -25,5 +25,5 @@ export default function StaffCompanyProfileRoute() {
     );
   }
 
-  return <CompanyProfilePage />;
+  return <SettingsHub defaultTab="profile" />;
 }

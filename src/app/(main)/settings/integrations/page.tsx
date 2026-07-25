@@ -1,5 +1,8 @@
 'use client';
 
-import IntegrationsPage from '@/components/integrations-page';
+import React from 'react';
+import { SettingsHub } from '@/components/settings/settings-hub';
 
-export default IntegrationsPage;
+export default function IntegrationsMainPage() {
+  return <SettingsHub defaultTab="integrations" />;
+}

@@ -23,6 +23,7 @@ import {
   rbacModuleTitle,
 } from '@/lib/staff-profile';
 import { MyProfileSkeleton } from '@/components/loading/my-profile-skeleton';
+import { ChangeCompanyAdminEmail } from '@/components/change-company-admin-email';
 
 export default function MyProfilePage() {
   const { user, updateCurrentUser, loading } = useAuth();
@@ -152,19 +153,7 @@ export default function MyProfilePage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="email"
-                  value={user.email}
-                  readOnly
-                  className="bg-muted pl-10 cursor-not-allowed"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Email cannot be changed.</p>
-            </div>
+            <ChangeCompanyAdminEmail user={user} mode="inline" />
 
             {user.company && (
               <div className="space-y-2">

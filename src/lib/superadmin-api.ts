@@ -67,4 +67,27 @@ export const superadminApi = {
       auth: true,
       authType: 'super_admin',
     }),
+
+  restrictTenant: (id: string, reason: string, days?: number) =>
+    apiRequest<void>(`/superadmin/tenants/${id}/restrict`, {
+      method: 'POST',
+      body: { reason, days },
+      auth: true,
+      authType: 'super_admin',
+    }),
+
+  deleteTenant: (id: string, reason: string) =>
+    apiRequest<void>(`/superadmin/tenants/${id}`, {
+      method: 'DELETE',
+      body: { reason },
+      auth: true,
+      authType: 'super_admin',
+    }),
+
+  activateTenant: (id: string) =>
+    apiRequest<void>(`/superadmin/tenants/${id}/activate`, {
+      method: 'POST',
+      auth: true,
+      authType: 'super_admin',
+    }),
 };

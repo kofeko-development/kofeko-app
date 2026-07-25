@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { User } from './types';
+export type { User } from './types';
 import type { CompanySizeValue } from './company-size';
 import {
   API_BASE_URL,

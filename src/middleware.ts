@@ -8,6 +8,7 @@ const ADMIN_PREFIX_ROUTES = [
   '/company-profile',
   '/subscription',
   '/settings',
+  '/security',
   '/applicants',
   '/jd-builder',
 ];
@@ -52,6 +53,7 @@ export const config = {
     '/company-profile/:path*',
     '/subscription/:path*',
     '/settings/:path*',
+    '/security/:path*',
     '/applicants/:path*',
     '/jd-builder/:path*',
   ],
