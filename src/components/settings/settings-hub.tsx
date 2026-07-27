@@ -104,7 +104,7 @@ export function SettingsHub({ defaultTab = 'profile' }: SettingsHubProps) {
                   <h2 className="font-headline font-bold text-lg text-foreground tracking-tight truncate">
                     Company Settings
                   </h2>
-                  
+
                 </div>
                 <p className="text-xs text-muted-foreground truncate pl-1">
                   Manage workspace & preferences
@@ -122,23 +122,20 @@ export function SettingsHub({ defaultTab = 'profile' }: SettingsHubProps) {
                   <button
                     key={tab.key}
                     onClick={() => handleTabClick(tab.key)}
-                    className={`w-full flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 group relative ${
-                      isActive
-                        ? 'bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground font-medium'
-                    }`}
+                    className={`w-full flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 group relative ${isActive
+                      ? 'bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground font-medium'
+                      }`}
                   >
                     <Icon
-                      className={`h-5 w-5 shrink-0 transition-transform group-hover:scale-110 ${
-                        isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'
-                      }`}
+                      className={`h-5 w-5 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'
+                        }`}
                     />
                     <div className="flex flex-col min-w-0 overflow-hidden">
                       <span className="text-sm truncate leading-snug">{tab.label}</span>
                       <span
-                        className={`text-[11px] truncate leading-tight ${
-                          isActive ? 'text-primary-foreground/80' : 'text-muted-foreground/70'
-                        }`}
+                        className={`text-[11px] truncate leading-tight ${isActive ? 'text-primary-foreground/80' : 'text-muted-foreground/70'
+                          }`}
                       >
                         {tab.description}
                       </span>

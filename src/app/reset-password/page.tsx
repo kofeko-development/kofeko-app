@@ -22,6 +22,7 @@ function ResetPasswordContent() {
   const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
+  const isCandidate = useMemo(() => searchParams.get('from') === 'candidate', [searchParams]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,7 +33,7 @@ function ResetPasswordContent() {
     setFieldErrors({});
 
     if (!token) {
-      toastWarning({ title: 'Missing reset token', description: 'Open this page from the reset email link.' });
+      toastError({ title: 'Missing reset token', description: 'Please use a valid reset link from your email.' });
       return;
     }
     if (!strongPassword.test(password)) {
@@ -51,12 +52,12 @@ function ResetPasswordContent() {
       setIsSubmitting(true);
       await stageOneApi.resetPassword({ token, password });
       toastSuccess({ title: 'Password reset successful', description: 'Please login with your new password.' });
-      router.push('/company-login');
+      router.push(isCandidate ? '/candidate-auth?mode=login' : '/company-login');
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errorCode === 'RESET_TOKEN_EXPIRED') {
           showError(error);
-          router.push('/forgot-password');
+          router.push(isCandidate ? '/forgot-password?from=candidate' : '/forgot-password');
           return;
         }
       }
@@ -72,7 +73,7 @@ function ResetPasswordContent() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Reset Password</CardTitle>
-          <CardDescription>Enter your new password to complete the reset process.</CardDescription>
+          <CardDescription>Enter a new password for your {isCandidate ? 'candidate profile' : 'account'}.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" onSubmit={onSubmit}>
@@ -103,7 +104,7 @@ function ResetPasswordContent() {
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Resetting...' : 'Reset Password'}</Button>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
-            Back to <Link href="/company-login" className="underline">Login</Link>
+            Back to <Link href={isCandidate ? "/candidate-auth?mode=login" : "/company-login"} className="underline hover:text-primary">{isCandidate ? "Candidate Login" : "Login"}</Link>
           </p>
         </CardContent>
       </Card>

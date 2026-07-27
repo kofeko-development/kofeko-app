@@ -265,7 +265,17 @@ function CandidateAuthContent() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                {mode === 'login' ? (
+                  <Link
+                    href="/forgot-password?from=candidate"
+                    className="text-xs underline text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                ) : null}
+              </div>
               <div className="relative">
                 <Input
                   id="password"

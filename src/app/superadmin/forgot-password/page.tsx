@@ -23,7 +23,7 @@ export default function SuperAdminForgotPasswordPage() {
     setFieldErrors({});
     try {
       setIsSubmitting(true);
-      await superadminApi.forgotPassword(email);
+      await superadminApi.forgotPassword(email.trim().toLowerCase());
       toastInfo({
         title: 'Reset email sent',
         description: 'If that email exists, you will receive a password reset email shortly.',
