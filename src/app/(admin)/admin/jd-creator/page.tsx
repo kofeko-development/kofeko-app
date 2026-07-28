@@ -17,6 +17,7 @@ import { aiApi, jobsApi, type CreatedJob } from '@/lib/stage1-2-api';
 import { useAuth } from '@/lib/auth';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { useInvalidateJobs } from '@/hooks/use-jobs';
+import { LinkedInShareModal } from '@/components/linkedin-share-modal';
 
 const MIN_MANUAL_SKILLS = 2;
 
@@ -90,11 +91,12 @@ export default function AdminJdCreatorPage() {
 
   const [generatedJD, setGeneratedJD] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [savingAction, setSavingAction] = useState<'draft' | 'open' | null>(null);
+  const [savingAction, setSavingAction] = useState<'open' | 'draft' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<JdFormErrors>({});
-  const [drafts, setDrafts] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<CreatedJob[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showLinkedInModalForJobId, setShowLinkedInModalForJobId] = useState<string | null>(null);
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
@@ -327,6 +329,7 @@ export default function AdminJdCreatorPage() {
 
       if (status === 'open') {
         await jobsApi.publish(created.id);
+        setEditingId(created.id); // set it so LinkedIn modal knows which job
       }
 
       await invalidateJobs();
@@ -336,14 +339,7 @@ export default function AdminJdCreatorPage() {
       });
       void loadDrafts();
       if (status === 'open') {
-        setEditingId(null);
-        setJobTitle('');
-        setRequirements('');
-        setJobType('');
-        setEmploymentType('');
-        setSkillWeights(defaultSkillRows());
-        setFieldErrors({});
-        setSavedSnapshot(null);
+        setShowLinkedInModalForJobId(created.id);
       } else {
         setEditingId(created.id);
         setSavedSnapshot(JSON.stringify({
@@ -706,6 +702,26 @@ export default function AdminJdCreatorPage() {
           </CardContent>
         </Card>
       </div>
+
+      {showLinkedInModalForJobId && (
+        <LinkedInShareModal
+          open={!!showLinkedInModalForJobId}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setShowLinkedInModalForJobId(null);
+              setEditingId(null);
+              setJobTitle('');
+              setRequirements('');
+              setJobType('');
+              setEmploymentType('');
+              setSkillWeights(defaultSkillRows());
+              setFieldErrors({});
+              setSavedSnapshot(null);
+            }
+          }}
+          jobId={showLinkedInModalForJobId}
+        />
+      )}
     </div>
   );
 }

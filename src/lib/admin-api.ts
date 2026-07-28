@@ -165,6 +165,43 @@ export async function removeStaffUser(userId: string) {
   });
 }
 
+export type ApiRole = {
+  id: string;
+  name: string;
+  description: string;
+  rolePermissions: { permission: { key: string } }[];
+};
+
+export async function getRoles() {
+  return apiRequest<ApiRole[]>('/rbac/roles', {
+    method: 'GET',
+    auth: true,
+  });
+}
+
+export async function createRole(data: { name: string; description?: string; permissionKeys: string[] }) {
+  return apiRequest<ApiRole>('/rbac/roles', {
+    method: 'POST',
+    auth: true,
+    body: data,
+  });
+}
+
+export async function updateRole(roleId: string, data: { name: string; description?: string; permissionKeys: string[] }) {
+  return apiRequest<ApiRole>(`/rbac/roles/${roleId}`, {
+    method: 'PUT',
+    auth: true,
+    body: data,
+  });
+}
+
+export async function deleteRole(roleId: string) {
+  return apiRequest<void>(`/rbac/roles/${roleId}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
 // Proxies to candidatesApi
 import { candidatesApi, CreateCandidatePayload } from './stage1-2-api';
 

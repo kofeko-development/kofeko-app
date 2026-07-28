@@ -18,6 +18,7 @@ import { aiApi, jobsApi, type SkillWeight } from '@/lib/stage1-2-api';
 import { useAuth } from '@/lib/auth';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { useInvalidateJobs } from '@/hooks/use-jobs';
+import { LinkedInShareModal } from '@/components/linkedin-share-modal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,6 +121,7 @@ export default function JdBuilderPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showLinkedInModalForJobId, setShowLinkedInModalForJobId] = useState<string | null>(null);
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<any>(null);
@@ -277,6 +279,7 @@ export default function JdBuilderPage() {
 
       if (status === 'open') {
         await jobsApi.publish(created.id);
+        setEditingId(created.id); // Set it so it can be picked up
       }
 
       await invalidateJobs();
@@ -286,11 +289,7 @@ export default function JdBuilderPage() {
       });
       void loadDrafts();
       if (status === 'open') {
-        setEditingId(null);
-        setJobTitle('');
-        setRequirements('');
-        setSkillWeights([]);
-        setSavedSnapshot(null);
+        setShowLinkedInModalForJobId(created.id);
       } else {
         setEditingId(created.id);
         setSavedSnapshot(JSON.stringify({
@@ -645,6 +644,23 @@ export default function JdBuilderPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {showLinkedInModalForJobId && (
+        <LinkedInShareModal
+          open={!!showLinkedInModalForJobId}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setShowLinkedInModalForJobId(null);
+              setEditingId(null);
+              setJobTitle('');
+              setRequirements('');
+              setSkillWeights([]);
+              setSavedSnapshot(null);
+            }
+          }}
+          jobId={showLinkedInModalForJobId}
+        />
+      )}
     </div>
   );
 }

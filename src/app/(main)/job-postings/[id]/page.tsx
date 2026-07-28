@@ -1557,8 +1557,8 @@ export default function JobApplicantsPage() {
                                                     variant="outline"
                                                     className="mt-2 w-full border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
                                                     onClick={() => void handleAIEvaluate(selectedApplicant.id)}
-                                                    disabled={Boolean(getAiEvaluateDisabledReason(selectedApplicant)) || evaluatingPipelineId === selectedApplicant.id}
-                                                    title={getAiEvaluateDisabledReason(selectedApplicant)}
+                                                    disabled={selectedApplicant.hasEvaluation || Boolean(getAiEvaluateDisabledReason(selectedApplicant)) || evaluatingPipelineId === selectedApplicant.id}
+                                                    title={selectedApplicant.hasEvaluation ? "Already evaluated" : getAiEvaluateDisabledReason(selectedApplicant)}
                                                 >
                                                     {evaluatingPipelineId === selectedApplicant.id ? (
                                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1566,7 +1566,7 @@ export default function JobApplicantsPage() {
                                                         <Sparkles className="mr-2 h-4 w-4" />
                                                     )}
                                                     {selectedApplicant.hasEvaluation
-                                                        ? 'Re-Evaluate with AI'
+                                                        ? 'Evaluated'
                                                         : 'Evaluate with AI'}
                                                 </Button>
                                             )}

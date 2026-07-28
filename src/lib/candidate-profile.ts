@@ -19,10 +19,12 @@ export function getCandidateProfileCompletion(user: User | null | undefined): Ca
     missing.push('Resume');
   }
 
-  const about = user.coverLetter?.trim() ?? '';
-  if (about.length < MIN_ABOUT_LENGTH) {
-    missing.push('About (professional summary)');
+  if (!user.phone?.trim()) {
+    missing.push('Phone Number');
   }
+
+  // Note: Work experience, skills, education, project, hobbies, and cover letter are optional
+  // Only Email (handled at auth level), Phone Number, and Resume are mandatory
 
   return {
     isComplete: missing.length === 0,

@@ -15,6 +15,7 @@ import { apiErrorFromResponse } from '@/lib/api-client';
 import {
   Loader2,
   Shield,
+  ShieldAlert,
   Building2,
   CheckCircle2,
   XCircle,
@@ -127,6 +128,8 @@ type CompanyRequest = {
   reviewNotes?: string | null;
   tenantSlug?: string | null;
   approvedTenantId?: string | null;
+  tenantStatus?: 'active' | 'suspended' | null;
+  suspendedUntil?: string | null;
 };
 
 export default function SuperAdminDashboardPage() {
@@ -563,8 +566,8 @@ export default function SuperAdminDashboardPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 border ${activeTab === tab.id
-                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                    : 'bg-background hover:bg-muted text-muted-foreground border-muted'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background hover:bg-muted text-muted-foreground border-muted'
                   }`}
               >
                 {tab.label}
@@ -614,25 +617,40 @@ export default function SuperAdminDashboardPage() {
                 <Card
                   key={request.id}
                   className={`hover:shadow-md transition-all border flex flex-col justify-between overflow-hidden group ${request.status === 'approved' ? 'hover:border-emerald-500/30' :
-                      request.status === 'rejected' ? 'hover:border-rose-500/30' :
-                        'hover:border-amber-500/30'
+                    request.status === 'rejected' ? 'hover:border-rose-500/30' :
+                      'hover:border-amber-500/30'
                     }`}
                 >
                   <div>
                     {/* Status header strip */}
-                    <div className={`px-4 py-2 border-b text-xs font-bold uppercase tracking-wider flex items-center justify-between ${request.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600' :
+                    <div className={`px-4 py-2 border-b text-xs font-bold uppercase tracking-wider flex items-center justify-between ${request.tenantStatus === 'suspended' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
+                      request.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600' :
                         request.status === 'rejected' ? 'bg-rose-500/10 text-rose-600' :
                           'bg-amber-500/10 text-amber-600'
                       }`}>
                       <span className="flex items-center gap-1">
-                        {request.status === 'approved' && <CheckCircle2 className="h-3.5 w-3.5" />}
-                        {request.status === 'rejected' && <XCircle className="h-3.5 w-3.5" />}
-                        {request.status === 'pending' && <Clock className="h-3.5 w-3.5" />}
-                        {request.status}
+                        {request.tenantStatus === 'suspended' ? (
+                          <><ShieldAlert className="h-3.5 w-3.5" /> RESTRICTED</>
+                        ) : request.status === 'approved' ? (
+                          <><CheckCircle2 className="h-3.5 w-3.5" /> APPROVED</>
+                        ) : request.status === 'rejected' ? (
+                          <><XCircle className="h-3.5 w-3.5" /> REJECTED</>
+                        ) : (
+                          <><Clock className="h-3.5 w-3.5" /> PENDING</>
+                        )}
                       </span>
                       <span className="text-muted-foreground font-light flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {formattedDate}
+                        {request.tenantStatus === 'suspended' && request.suspendedUntil ? (
+                          <>
+                            <Clock className="h-3 w-3" />
+                            {Math.max(0, Math.ceil((new Date(request.suspendedUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} Days Left
+                          </>
+                        ) : (
+                          <>
+                            <Calendar className="h-3 w-3" />
+                            {formattedDate}
+                          </>
+                        )}
                       </span>
                     </div>
 
@@ -674,6 +692,24 @@ export default function SuperAdminDashboardPage() {
                         </div>
                       )}
 
+                      {/* Display restriction status and countdown */}
+                      {request.status === 'approved' && request.tenantStatus === 'suspended' && request.suspendedUntil && (
+                        <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-amber-700 uppercase font-bold text-xs flex items-center gap-1.5">
+                              <ShieldAlert className="w-4 h-4" />
+                              Account Restricted
+                            </span>
+                            <span className="font-mono text-amber-800 font-bold bg-amber-500/20 px-2 py-0.5 rounded text-xs">
+                              {Math.max(0, Math.ceil((new Date(request.suspendedUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} Days Left
+                            </span>
+                          </div>
+                          <span className="text-amber-700/80 text-[11px] font-medium pl-5">
+                            Until {new Date(request.suspendedUntil).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Display notes if rejected */}
                       {request.status === 'rejected' && request.reviewNotes && (
                         <div className="mt-3 p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg text-xs space-y-1">
@@ -687,8 +723,8 @@ export default function SuperAdminDashboardPage() {
                   <div className="px-6 pb-6 pt-0 space-y-3">
                     <Button
                       className={`w-full font-bold shadow-sm ${request.status === 'approved' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' :
-                          request.status === 'rejected' ? 'bg-rose-500 hover:bg-rose-600 text-white' :
-                            'bg-primary hover:bg-primary/90 text-white'
+                        request.status === 'rejected' ? 'bg-rose-500 hover:bg-rose-600 text-white' :
+                          'bg-primary hover:bg-primary/90 text-white'
                         }`}
                       onClick={() => {
                         setSelectedId(request.id);

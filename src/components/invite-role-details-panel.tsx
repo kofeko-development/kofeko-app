@@ -16,10 +16,11 @@ import {
 } from '@/lib/rbac-templates';
 
 type InviteRoleDetailsPanelProps = {
-  accessChoice: InviteAccessChoice;
+  accessChoice: string;
+  role?: any; // We can use ApiRole but importing it might create circular deps or just easier to type as any here
 };
 
-export function InviteRoleDetailsPanel({ accessChoice }: InviteRoleDetailsPanelProps) {
+export function InviteRoleDetailsPanel({ accessChoice, role }: InviteRoleDetailsPanelProps) {
   if (accessChoice === INVITE_ACCESS_OTHER) {
     return (
       <div className="rounded-xl border bg-muted/40 px-5 py-4 text-sm leading-relaxed text-muted-foreground">
@@ -32,12 +33,11 @@ export function InviteRoleDetailsPanel({ accessChoice }: InviteRoleDetailsPanelP
     );
   }
 
-  const template = POSITION_TEMPLATES.find((entry) => entry.backendRoleName === accessChoice);
-  const roleOption = INVITE_BACKEND_ROLE_OPTIONS.find((entry) => entry.value === accessChoice);
-  const roleLabel = roleOption?.label ?? inviteBackendRoleLabel(accessChoice);
-  const roleSummary = roleOption?.accessDescription ?? template?.description ?? '';
-  const permissionKeys =
-    template?.permissionKeys ?? permissionsForTemplate(accessChoice as PositionTemplateId);
+  if (!role) return null;
+
+  const roleLabel = role.name;
+  const roleSummary = role.description ?? '';
+  const permissionKeys = role.rolePermissions?.map((rp: any) => rp.permission.key) ?? [];
   const groupedPermissions = groupPermissionsByModule(permissionKeys);
 
   return (
