@@ -110,8 +110,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
     { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
-    { href: '/interviews', label: 'Interviews', icon: Mic, comingSoon: true },
-    { href: '/assessments', label: 'Assessments', icon: Sparkles, comingSoon: true },
     { href: '/admin/candidates', label: 'Candidates', icon: Contact },
     ...(hasPermission('user:read')
       ? [{ href: '/admin/team', label: 'Team', icon: Users }]
