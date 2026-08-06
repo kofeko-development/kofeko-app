@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/api-client";
 import { useAppToast } from '@/lib/toast-helpers';
@@ -424,6 +425,13 @@ export default function SignupPage() {
       });
       return false;
     }
+    if (!termsAccepted) {
+      toastWarning({
+        title: 'Terms and conditions',
+        description: 'You must agree to the Terms and Conditions to continue.',
+      });
+      return false;
+    }
     return true;
   };
 
@@ -468,6 +476,15 @@ export default function SignupPage() {
         return;
       }
       const phoneNumber = phoneCheck.e164;
+
+      if (!termsAccepted) {
+        toastWarning({
+          title: "Terms and conditions",
+          description: "You must agree to the Terms and Conditions to register.",
+        });
+        setIsLoading(false);
+        return;
+      }
 
       const res = await registerAdmin({
         adminEmail: adminEmail.trim(),
@@ -538,7 +555,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
-      
+
       {/* Account Type Switcher */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between mb-8 w-full">
         <span className="text-sm text-slate-600">Are you a candidate?</span>
@@ -713,6 +730,21 @@ export default function SignupPage() {
               </p>
             ) : null}
 
+            <div className="flex items-start space-x-2 pt-2">
+              <Checkbox 
+                id="terms" 
+                checked={termsAccepted}
+                onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+              />
+              <label
+                htmlFor="terms"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                I agree to the <Link href="/terms" className="text-primary hover:underline" target="_blank">Terms and Conditions</Link> and <Link href="/privacy" className="text-primary hover:underline" target="_blank">Privacy Policy</Link>. *
+              </label>
+            </div>
+
             <div className="pt-4">
               <Button
                 type="submit"
@@ -787,12 +819,12 @@ export default function SignupPage() {
 
             <div className="grid gap-1.5">
               <Label htmlFor="full-address" className="text-sm font-semibold text-slate-700 ml-1">Company Address (Full Address) *</Label>
-              <Textarea 
-                id="full-address" 
-                value={fullAddress} 
-                onChange={e => setFullAddress(e.target.value)} 
-                required 
-                disabled={isLoading} 
+              <Textarea
+                id="full-address"
+                value={fullAddress}
+                onChange={e => setFullAddress(e.target.value)}
+                required
+                disabled={isLoading}
                 className="rounded-xl border-slate-200 focus-visible:ring-primary/20"
               />
             </div>
@@ -816,8 +848,8 @@ export default function SignupPage() {
             </div>
 
             <div className="pt-4 flex gap-4">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setStep(1)}
                 className="px-6 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
               >

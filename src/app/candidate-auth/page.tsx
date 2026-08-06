@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/lib/auth';
 import { useAppToast } from '@/lib/toast-helpers';
 
@@ -48,6 +49,7 @@ function CandidateAuthContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // OTP State
   const [otpCode, setOtpCode] = useState('');
@@ -162,6 +164,10 @@ function CandidateAuthContent() {
         const trimmed = fullName.trim();
         if (!trimmed) {
           throw new Error('Please enter your name.');
+        }
+
+        if (!termsAccepted) {
+          throw new Error('You must agree to the Terms and Conditions to register.');
         }
 
         if (!emailVerificationToken) {
@@ -364,6 +370,23 @@ function CandidateAuthContent() {
                 {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify'}
               </Button>
             </div>
+          </div>
+        )}
+
+        {mode === 'signup' && (
+          <div className="flex items-start space-x-2 pt-2">
+            <Checkbox 
+              id="terms" 
+              checked={termsAccepted}
+              onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+              disabled={isLoading || isGoogleLoading}
+            />
+            <label
+              htmlFor="terms"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              I agree to the <Link href="/terms" className="text-primary hover:underline" target="_blank">Terms and Conditions</Link> and <Link href="/privacy" className="text-primary hover:underline" target="_blank">Privacy Policy</Link>. *
+            </label>
           </div>
         )}
 
