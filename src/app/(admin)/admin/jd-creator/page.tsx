@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAppToast } from '@/lib/toast-helpers';
 
-import { Loader2, Sparkles, Copy, Save, Plus, Trash2, Clock } from 'lucide-react';
+import { Loader2, Sparkles, Copy, Save, Plus, Trash2, Clock, CheckCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import sanitizeHtml from 'sanitize-html';
@@ -17,6 +17,7 @@ import { aiApi, jobsApi, type CreatedJob } from '@/lib/stage1-2-api';
 import { useAuth } from '@/lib/auth';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { useInvalidateJobs } from '@/hooks/use-jobs';
+import { LinkedInShareModal } from '@/components/linkedin-share-modal';
 
 const MIN_MANUAL_SKILLS = 2;
 
@@ -90,11 +91,13 @@ export default function AdminJdCreatorPage() {
 
   const [generatedJD, setGeneratedJD] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [savingAction, setSavingAction] = useState<'draft' | 'open' | null>(null);
+  const [savingAction, setSavingAction] = useState<'open' | 'draft' | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<JdFormErrors>({});
-  const [drafts, setDrafts] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<CreatedJob[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showLinkedInModalForJobId, setShowLinkedInModalForJobId] = useState<string | null>(null);
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const { user, loading: authLoading } = useAuth();
@@ -103,15 +106,24 @@ export default function AdminJdCreatorPage() {
   const searchParams = useSearchParams();
   const editJobId = searchParams.get('edit');
   const loadedEditIdRef = useRef<string | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const currentSnapshot = JSON.stringify({
+    jobTitle: jobTitle.trim(),
+    requirements: requirements.trim(),
+    jobType: jobType.trim(),
+    employmentType: employmentType.trim(),
+    skillWeights,
+  });
+  const isDraftSaved = editingId !== null && savedSnapshot !== null && savedSnapshot === currentSnapshot;
 
   const loadJobIntoForm = useCallback((job: CreatedJob) => {
-    setEditingId(job.id);
-    setJobTitle(job.title ?? '');
-    setRequirements(job.requirements ?? job.description ?? '');
-    setJobType(job.department ?? '');
-    setEmploymentType(job.employmentType ?? '');
+    const loadedTitle = job.title ?? '';
+    const loadedReqs = job.requirements ?? job.description ?? '';
+    const loadedDept = job.department ?? '';
+    const loadedEmpType = job.employmentType ?? '';
+    let rows: any[] = [];
     if (job.skillWeights?.length) {
-      const rows = job.skillWeights.map((sw) => ({
+      rows = job.skillWeights.map((sw) => ({
         skill: sw.skill ?? '',
         weight: sw.weight ?? 7,
         yearsOfExperience: sw.yearsOfExperience ?? 3,
@@ -119,9 +131,25 @@ export default function AdminJdCreatorPage() {
       while (rows.length < MIN_MANUAL_SKILLS) {
         rows.push({ skill: '', weight: 7, yearsOfExperience: 3 });
       }
-      setSkillWeights(rows);
     } else {
-      setSkillWeights(defaultSkillRows());
+      rows = defaultSkillRows();
+    }
+    setEditingId(job.id);
+    setJobTitle(loadedTitle);
+    setRequirements(loadedReqs);
+    setJobType(loadedDept);
+    setEmploymentType(loadedEmpType);
+    setSkillWeights(rows);
+    if (job.status === 'draft') {
+      setSavedSnapshot(JSON.stringify({
+        jobTitle: loadedTitle.trim(),
+        requirements: loadedReqs.trim(),
+        jobType: loadedDept.trim(),
+        employmentType: loadedEmpType.trim(),
+        skillWeights: rows,
+      }));
+    } else {
+      setSavedSnapshot(null);
     }
     setFieldErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -133,26 +161,21 @@ export default function AdminJdCreatorPage() {
   }, [authLoading, user]);
 
   useEffect(() => {
-    if (authLoading || !user || !editJobId || loadedEditIdRef.current === editJobId) return;
+    if (authLoading || !user) return;
+    if (!editJobId || loadedEditIdRef.current === editJobId) return;
 
-    let cancelled = false;
+    loadedEditIdRef.current = editJobId;
     void (async () => {
       try {
         const job = await jobsApi.get(editJobId);
-        if (cancelled) return;
-        loadedEditIdRef.current = editJobId;
         loadJobIntoForm(job);
         router.replace('/admin/jd-creator', { scroll: false });
-        toastInfo({ title: 'Job loaded', description: `Editing: ${job.title}` });
+        toastInfo({ title: 'Editing Job', description: `Loaded "${job.title}".` });
       } catch (error) {
         showError(error);
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, user, editJobId, loadJobIntoForm, router, showError, toastInfo]);
+  }, [authLoading, user, editJobId, loadJobIntoForm, showError, toastInfo]);
 
   const loadDrafts = async () => {
     try {
@@ -160,6 +183,35 @@ export default function AdminJdCreatorPage() {
       setDrafts(res.items || []);
     } catch (error) {
       console.error('Failed to load drafts:', error);
+    }
+  };
+
+  const handleDeleteDraft = async (jobId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDeletingDraftId(jobId);
+    try {
+      await jobsApi.delete(jobId);
+      toastSuccess({
+        title: 'Draft Deleted',
+        description: 'The draft has been permanently removed.',
+      });
+      if (editingId === jobId) {
+        setEditingId(null);
+        loadedEditIdRef.current = null;
+        setJobTitle('');
+        setRequirements('');
+        setJobType('');
+        setEmploymentType('');
+        setSkillWeights(defaultSkillRows());
+        setFieldErrors({});
+        setSavedSnapshot(null);
+      }
+      await loadDrafts();
+      await invalidateJobs();
+    } catch (error) {
+      showError(error);
+    } finally {
+      setDeletingDraftId(null);
     }
   };
 
@@ -277,6 +329,7 @@ export default function AdminJdCreatorPage() {
 
       if (status === 'open') {
         await jobsApi.publish(created.id);
+        setEditingId(created.id); // set it so LinkedIn modal knows which job
       }
 
       await invalidateJobs();
@@ -286,13 +339,16 @@ export default function AdminJdCreatorPage() {
       });
       void loadDrafts();
       if (status === 'open') {
-        setEditingId(null);
-        setJobTitle('');
-        setRequirements('');
-        setJobType('');
-        setEmploymentType('');
-        setSkillWeights(defaultSkillRows());
-        setFieldErrors({});
+        setShowLinkedInModalForJobId(created.id);
+      } else {
+        setEditingId(created.id);
+        setSavedSnapshot(JSON.stringify({
+          jobTitle: jobTitle.trim(),
+          requirements: requirements.trim(),
+          jobType: jobType.trim(),
+          employmentType: employmentType.trim(),
+          skillWeights,
+        }));
       }
     } catch (error) {
       showError(error);
@@ -344,7 +400,7 @@ export default function AdminJdCreatorPage() {
             <p className="text-muted-foreground">{editingId ? 'Update the job details below and save.' : 'Post your requirements and generate a job description with AI.'}</p>
           </div>
           {editingId && (
-            <Button variant="outline" size="sm" onClick={() => { setEditingId(null); loadedEditIdRef.current = null; setJobTitle(''); setRequirements(''); setJobType(''); setEmploymentType(''); setSkillWeights(defaultSkillRows()); setFieldErrors({}); }}>
+            <Button variant="outline" size="sm" onClick={() => { setEditingId(null); loadedEditIdRef.current = null; setJobTitle(''); setRequirements(''); setJobType(''); setEmploymentType(''); setSkillWeights(defaultSkillRows()); setFieldErrors({}); setSavedSnapshot(null); }}>
               Create New Instead
             </Button>
           )}
@@ -435,16 +491,16 @@ export default function AdminJdCreatorPage() {
                   <Label htmlFor="requirements">Key Requirements & Skills<RequiredMark /></Label>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-auto p-0 text-[11px] text-primary hover:text-primary/80"
+                    className="h-8 px-3.5 py-1 text-xs font-semibold rounded-md bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-pink-500/10 hover:from-purple-500/20 hover:via-indigo-500/20 hover:to-pink-500/20 text-purple-700 dark:text-purple-300 border border-purple-300/60 dark:border-purple-700/60 shadow-xs hover:shadow-sm transition-all duration-200 flex items-center gap-1.5"
                     onClick={handleGenerateWithAI}
                     disabled={isGenerating || isLoading}
                   >
                     {isGenerating ? (
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600 dark:text-purple-400" />
                     ) : (
-                      <Sparkles className="mr-1 h-3 w-3" />
+                      <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
                     )}
                     {requirements.length > 0 ? 'Enhance with AI' : 'Generate with AI'}
                   </Button>
@@ -453,11 +509,12 @@ export default function AdminJdCreatorPage() {
                   id="requirements"
                   placeholder="Write the requirements, responsibilities, must-haves, nice-to-haves..."
                   value={requirements}
+                  autoResize={true}
                   onChange={(e) => {
                     setRequirements(e.target.value);
                     if (fieldErrors.requirements) setFieldErrors((prev) => ({ ...prev, requirements: undefined }));
                   }}
-                  className={`min-h-[150px] ${fieldErrors.requirements ? 'border-destructive' : ''}`}
+                  className={`min-h-[240px] ${fieldErrors.requirements ? 'border-destructive' : ''}`}
                   disabled={isLoading || isGenerating}
                   required
                 />
@@ -547,11 +604,17 @@ export default function AdminJdCreatorPage() {
                   type="button"
                   variant="outline"
                   className="flex-1 h-11"
-                  disabled={savingAction !== null || isGenerating}
+                  disabled={savingAction !== null || isGenerating || isDraftSaved}
                   onClick={() => void handleFinalSave('draft')}
                 >
-                  {savingAction === 'draft' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Save as Draft
+                  {savingAction === 'draft' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : isDraftSaved ? (
+                    <CheckCircle className="mr-2 h-4 w-4 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  {isDraftSaved ? 'Saved' : editingId ? 'Update Draft' : 'Save as Draft'}
                 </Button>
                 <Button
                   type="button"
@@ -575,7 +638,7 @@ export default function AdminJdCreatorPage() {
               <Clock className="h-4 w-4" />
               Recent Drafts
             </CardTitle>
-            <CardDescription>Click to continue editing</CardDescription>
+            <CardDescription>Manage or continue editing your drafts</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y">
@@ -585,16 +648,43 @@ export default function AdminJdCreatorPage() {
                 </div>
               ) : (
                 drafts.map((job) => (
-                  <button
+                  <div
                     key={job.id}
-                    onClick={() => loadDraft(job)}
-                    className="w-full text-left p-4 hover:bg-muted/50 transition-colors group"
+                    className="p-4 hover:bg-muted/30 transition-colors flex flex-col gap-2.5"
                   >
-                    <div className="font-medium text-sm group-hover:text-primary">{job.title}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {new Date(job.updatedAt).toLocaleDateString()}
+                    <div>
+                      <div className="font-medium text-sm line-clamp-1">{job.title || 'Untitled Job'}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(job.updatedAt).toLocaleDateString()}
+                      </div>
                     </div>
-                  </button>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3 text-xs font-medium flex-1 border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground transition-all shadow-2xs"
+                        onClick={() => loadDraft(job)}
+                      >
+                        Use
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3 text-xs font-medium border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all shadow-2xs"
+                        onClick={() => void handleDeleteDraft(job.id)}
+                        disabled={deletingDraftId === job.id}
+                      >
+                        {deletingDraftId === job.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
+                        ) : (
+                          <Trash2 className="h-3 w-3 mr-1.5" />
+                        )}
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
                 ))
               )}
             </div>
@@ -612,6 +702,26 @@ export default function AdminJdCreatorPage() {
           </CardContent>
         </Card>
       </div>
+
+      {showLinkedInModalForJobId && (
+        <LinkedInShareModal
+          open={!!showLinkedInModalForJobId}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setShowLinkedInModalForJobId(null);
+              setEditingId(null);
+              setJobTitle('');
+              setRequirements('');
+              setJobType('');
+              setEmploymentType('');
+              setSkillWeights(defaultSkillRows());
+              setFieldErrors({});
+              setSavedSnapshot(null);
+            }
+          }}
+          jobId={showLinkedInModalForJobId}
+        />
+      )}
     </div>
   );
 }

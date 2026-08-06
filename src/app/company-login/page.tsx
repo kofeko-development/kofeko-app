@@ -1,26 +1,21 @@
-"use client";
+'use client';
 
-import Link from "next/link"
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useAuth } from "@/lib/auth";
-import { useState } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { ApiError } from "@/lib/api-client";
-import { useApiErrorToast } from "@/hooks/use-api-error-toast";
-import { cn } from "@/lib/utils";
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { AuthInput } from '@/components/auth/AuthInput';
+import { AuthButton } from '@/components/auth/AuthButton';
+import { useAuth } from '@/lib/auth';
+import { ApiError } from '@/lib/api-client';
+import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 
-export default function LoginPage() {
+export default function CompanyLoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const { showError } = useApiErrorToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -69,108 +64,94 @@ export default function LoginPage() {
     }
   };
 
-
   return (
-    <Card className="mx-auto max-w-sm w-full shadow-lg border-primary/10">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Company Login</CardTitle>
-        <CardDescription>
-          Enter your email and password to access your company account.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleLogin} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="m@example.com"
-              required
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (fieldErrors.email) {
-                  setFieldErrors((prev) => {
-                    const next = { ...prev };
-                    delete next.email;
-                    return next;
-                  });
-                }
-              }}
-              disabled={isLoading}
-              className={cn("h-10", fieldErrors.email && "border-destructive")}
-            />
-            {fieldErrors.email ? (
-              <p className="text-sm text-destructive" role="alert">{fieldErrors.email}</p>
-            ) : null}
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center">
-              <Label htmlFor="password">Password</Label>
-              <Link href="/forgot-password" className="ml-auto inline-block text-xs underline text-muted-foreground hover:text-primary transition-colors">
-                Forgot your password?
-              </Link>
-            </div>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (fieldErrors.password) {
-                    setFieldErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.password;
-                      return next;
-                    });
-                  }
-                }}
-                disabled={isLoading}
-                className={cn("pr-10 h-10", fieldErrors.password && "border-destructive")}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPassword((v) => !v)}
-                disabled={isLoading}
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-transparent"
-              >
-                {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                <span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>
-              </Button>
-            </div>
-            {fieldErrors.password ? (
-              <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
-            ) : null}
-          </div>
+    <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
+      
+      {/* Account Type Switcher */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between mb-8">
+        <span className="text-sm text-slate-600">Are you a candidate?</span>
+        <Link href="/candidate-auth?mode=login" className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">
+          Candidate Login →
+        </Link>
+      </div>
 
+      <div className="mb-10 text-center md:text-left">
+        <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Company Login</h2>
+        <p className="text-slate-500 text-sm">Enter your email and password to access your company account.</p>
+      </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in…
-                </>
-              ) : (
-                'Log in'
-              )}
-            </Button>
+      <form onSubmit={handleLogin} className="space-y-5">
+        <AuthInput 
+          id="email"
+          label="Email Address" 
+          type="email" 
+          placeholder="admin@company.com" 
+          required 
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (fieldErrors.email) {
+              setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.email;
+                return next;
+              });
+            }
+          }}
+          disabled={isLoading}
+          className={fieldErrors.email ? "border-destructive" : ""}
+        />
+        {fieldErrors.email ? (
+          <p className="text-sm text-destructive mt-1" role="alert">{fieldErrors.email}</p>
+        ) : null}
+        
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="password" className="text-sm font-semibold text-slate-700 ml-1">
+              Password
+            </label>
+            <Link href="/forgot-password" className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
+              Forgot password?
+            </Link>
           </div>
-
-        </form>
-        <div className="mt-4 text-center text-sm">
-          Don&apos;t have a company account?{" "}
-          <Link href="/company-signup" className="underline">
-            Company Sign Up
-          </Link>
+          <AuthInput 
+            id="password"
+            type="password" 
+            placeholder="••••••••" 
+            required
+            minLength={8}
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (fieldErrors.password) {
+                setFieldErrors((prev) => {
+                  const next = { ...prev };
+                  delete next.password;
+                  return next;
+                });
+              }
+            }}
+            disabled={isLoading}
+            className={fieldErrors.password ? "border-destructive" : ""}
+          />
+          {fieldErrors.password ? (
+            <p className="text-sm text-destructive mt-1" role="alert">{fieldErrors.password}</p>
+          ) : null}
         </div>
-      </CardContent>
-    </Card>
-  )
+
+        <div className="pt-4">
+          <AuthButton type="submit" isLoading={isLoading}>
+            Log In
+          </AuthButton>
+        </div>
+      </form>
+
+      <div className="mt-10 text-center text-sm text-slate-500">
+        Don&apos;t have a company account?{' '}
+        <Link href="/company-signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
+          Register Company
+        </Link>
+      </div>
+    </div>
+  );
 }

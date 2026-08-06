@@ -91,9 +91,10 @@ export default function JobPostingsPage() {
   const editId = searchParams.get('edit');
   const { toastSuccess, toastWarning, toastError } = useAppToast();
   const { showError } = useApiErrorToast();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, hasPermission } = useAuth();
   const invalidateJobs = useInvalidateJobs();
   const jobsQueryEnabled = !authLoading && !!user;
+  const canEditJob = hasPermission('job:update') || hasPermission('rbac:manage');
   const { data: jobsData, isPending, isFetching } = useJobsList(
     { page: 1, limit: 100 },
     { enabled: jobsQueryEnabled },
@@ -486,31 +487,36 @@ export default function JobPostingsPage() {
                         ) : (
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" onClick={() => handleOpenDialog(job)}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit
+                              {canEditJob ? <Edit className="mr-2 h-4 w-4" /> : <ArrowUpRight className="mr-2 h-4 w-4" />}
+                              {canEditJob ? 'Edit' : 'View'}
                             </Button>
-                            <Button
-                              size="sm"
-                              disabled={publishingId === job.id}
-                              onClick={() => void handlePublishDraft(job.id)}
-                            >
-                              {publishingId === job.id ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Send className="mr-2 h-4 w-4" />
-                              )}
-                              Publish
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => {
-                                setJobToDelete(job);
-                                setIsDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {canEditJob && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  disabled={publishingId === job.id}
+                                  onClick={() => void handlePublishDraft(job.id)}
+                                >
+                                  {publishingId === job.id ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Send className="mr-2 h-4 w-4" />
+                                  )}
+                                  Publish
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() => {
+                                    setJobToDelete(job);
+                                    setIsDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         )}
                       </TableCell>
@@ -548,193 +554,211 @@ export default function JobPostingsPage() {
       <Dialog open={isManualDialogOpen} onOpenChange={handleCloseDialog}>
         <DialogContent className="flex max-h-[min(90vh,100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[640px] flex-col gap-0 overflow-hidden p-0 sm:w-full">
           <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 py-5">
-            <DialogTitle>{editingJob ? 'Edit Job Draft' : 'Create Job Manually'}</DialogTitle>
+            <DialogTitle>{editingJob ? (canEditJob ? 'Edit Job Draft' : 'View Job Draft') : 'Create Job Manually'}</DialogTitle>
             <DialogDescription>
               {editingJob
-                ? 'Update the details for this job draft.'
+                ? (canEditJob ? 'Update the details for this job draft.' : 'View the details for this job draft.')
                 : 'Fill in the details below to post a new job.'}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4">
             <div className="grid min-w-0 gap-5">
-            <div className="grid gap-2">
-              <Label htmlFor="title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Job Title
-              </Label>
-              <Input
-                id="title"
-                name="title"
-                placeholder="e.g. Senior Product Designer"
-                value={formState.title}
-                onChange={handleFormChange}
-                required
-                className="h-11"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Job Mode</Label>
-                <Select
-                  value={formState.jobType}
-                  onValueChange={(val) => setFormState((p) => ({ ...p, jobType: val }))}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Remote / On-site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Remote">Remote</SelectItem>
-                    <SelectItem value="On-site">On-site</SelectItem>
-                    <SelectItem value="Hybrid">Hybrid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Employment</Label>
-                <Select
-                  value={formState.employmentType}
-                  onValueChange={(val) => setFormState((p) => ({ ...p, employmentType: val }))}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Full-time / Part-time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Full-time">Full-time</SelectItem>
-                    <SelectItem value="Part-time">Part-time</SelectItem>
-                    <SelectItem value="Contract">Contract</SelectItem>
-                    <SelectItem value="Internship">Internship</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Description
+              <div className="grid gap-2">
+                <Label htmlFor="title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Job Title
                 </Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto p-0 text-[11px] text-primary hover:text-primary/80"
-                  onClick={handleGenerateWithAI}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-1 h-3 w-3" />
-                  )}
-                  {formState.description.length > 0 ? 'Enhance with AI' : 'Generate with AI'}
-                </Button>
-              </div>
-              <Textarea
-                id="description"
-                name="description"
-                placeholder="Write or paste the job description here..."
-                className="min-h-[180px] leading-relaxed"
-                value={formState.description}
-                onChange={handleFormChange}
-                required
-              />
-            </div>
-
-            <Separator className="my-2" />
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold">Skill priorities</h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  onClick={addSkillRow}
-                  className="h-auto p-0 text-primary font-semibold"
-                >
-                  Add skill
-                </Button>
+                <Input
+                  id="title"
+                  name="title"
+                  placeholder="e.g. Senior Product Designer"
+                  value={formState.title}
+                  onChange={handleFormChange}
+                  required
+                  disabled={!canEditJob}
+                  className="h-11"
+                />
               </div>
 
-              <div className="space-y-3">
-                {formState.skillWeights.length === 0 && (
-                  <div className="text-center py-4 rounded-lg border border-dashed text-xs text-muted-foreground">
-                    No skills added yet. Add skills to enable AI scoring.
-                  </div>
-                )}
-                {formState.skillWeights.map((row, index) => (
-                  <div
-                    key={index}
-                    className="grid min-w-0 gap-3 rounded-lg border p-3 animate-in fade-in slide-in-from-top-1 duration-200 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Job Mode</Label>
+                  <Select
+                    value={formState.jobType}
+                    onValueChange={(val) => setFormState((p) => ({ ...p, jobType: val }))}
+                    disabled={!canEditJob}
                   >
-                    <Input
-                      className="min-w-0 h-10"
-                      placeholder="e.g. React"
-                      value={row.skill}
-                      onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
-                    />
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Weight</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={10}
-                        className="w-16 h-10 text-center"
-                        value={row.weight}
-                        onChange={(e) =>
-                          updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Years</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        className="w-16 h-10 text-center"
-                        value={row.yearsOfExperience || ''}
-                        onChange={(e) =>
-                          updateSkillRow(index, { yearsOfExperience: Number.parseInt(e.target.value, 10) || 0 })
-                        }
-                      />
-                    </div>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Remote / On-site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Remote">Remote</SelectItem>
+                      <SelectItem value="On-site">On-site</SelectItem>
+                      <SelectItem value="Hybrid">Hybrid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Employment</Label>
+                  <Select
+                    value={formState.employmentType}
+                    onValueChange={(val) => setFormState((p) => ({ ...p, employmentType: val }))}
+                    disabled={!canEditJob}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Full-time / Part-time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Full-time">Full-time</SelectItem>
+                      <SelectItem value="Part-time">Part-time</SelectItem>
+                      <SelectItem value="Contract">Contract</SelectItem>
+                      <SelectItem value="Internship">Internship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Description
+                  </Label>
+                  {canEditJob && (
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => removeSkillRow(index)}
-                      className="h-10 justify-self-start text-muted-foreground hover:text-destructive hover:bg-destructive/5 sm:justify-self-auto"
+                      className="h-8 px-3.5 py-1 text-xs font-semibold rounded-md bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-pink-500/10 hover:from-purple-500/20 hover:via-indigo-500/20 hover:to-pink-500/20 text-purple-700 dark:text-purple-300 border border-purple-300/60 dark:border-purple-700/60 shadow-xs hover:shadow-sm transition-all duration-200 flex items-center gap-1.5"
+                      onClick={handleGenerateWithAI}
+                      disabled={isGenerating}
                     >
-                      Remove
+                      {isGenerating ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600 dark:text-purple-400" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                      )}
+                      {formState.description.length > 0 ? 'Enhance with AI' : 'Generate with AI'}
                     </Button>
+                  )}
+                </div>
+                <Textarea
+                  id="description"
+                  name="description"
+                  placeholder="Write or paste the job description here..."
+                  className="min-h-[240px] leading-relaxed"
+                  value={formState.description}
+                  autoResize={true}
+                  onChange={handleFormChange}
+                  required
+                  disabled={!canEditJob}
+                />
+              </div>
+
+              <Separator className="my-2" />
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-semibold">Skill priorities</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Higher weight = stronger boost when the resume shows that skill (e.g. React 10, CSS 6).
+                    </p>
                   </div>
-                ))}
+                  {canEditJob && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      onClick={addSkillRow}
+                      className="h-auto p-0 text-primary font-semibold"
+                    >
+                      Add skill
+                    </Button>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {formState.skillWeights.length === 0 && (
+                    <div className="text-center py-4 rounded-lg border border-dashed text-xs text-muted-foreground">
+                      No skills added yet. Add skills to enable AI scoring.
+                    </div>
+                  )}
+                  {formState.skillWeights.map((row, index) => (
+                    <div
+                      key={index}
+                      className="grid min-w-0 gap-3 rounded-lg border p-3 animate-in fade-in slide-in-from-top-1 duration-200 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
+                    >
+                      <Input
+                        className="min-w-0 h-10"
+                        placeholder="e.g. React"
+                        value={row.skill}
+                        onChange={(e) => updateSkillRow(index, { skill: e.target.value })}
+                        disabled={!canEditJob}
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Weight</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10}
+                          className="w-16 h-10 text-center"
+                          value={row.weight}
+                          onChange={(e) =>
+                            updateSkillRow(index, { weight: Number.parseInt(e.target.value, 10) || 0 })
+                          }
+                          disabled={!canEditJob}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Years</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          className="w-16 h-10 text-center"
+                          value={row.yearsOfExperience || ''}
+                          onChange={(e) =>
+                            updateSkillRow(index, { yearsOfExperience: Number.parseInt(e.target.value, 10) || 0 })
+                          }
+                          disabled={!canEditJob}
+                        />
+                      </div>
+                      {canEditJob && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeSkillRow(index)}
+                          className="h-10 justify-self-start text-muted-foreground hover:text-destructive hover:bg-destructive/5 sm:justify-self-auto"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-          </div>
           <DialogFooter className="shrink-0 gap-2 border-t px-6 py-4 sm:justify-end">
-            <Button type="button" variant="ghost" onClick={() => handleCloseDialog(false)}>
-              Cancel
+            <Button type="button" variant={canEditJob ? "ghost" : "default"} onClick={() => handleCloseDialog(false)}>
+              {canEditJob ? 'Cancel' : 'Close'}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSaving || loadingJobDetail}
-              onClick={() => void handleJobSave('draft')}
-            >
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {editingJob ? 'Save Changes' : 'Save as Draft'}
-            </Button>
-            <Button type="button" disabled={isSaving || loadingJobDetail} onClick={() => void handleJobSave('open')}>
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {editingJob ? 'Save & Publish' : 'Save & Post Job'}
-            </Button>
+            {canEditJob && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSaving || loadingJobDetail}
+                  onClick={() => void handleJobSave('draft')}
+                >
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {editingJob ? 'Save Changes' : 'Save as Draft'}
+                </Button>
+                <Button type="button" disabled={isSaving || loadingJobDetail} onClick={() => void handleJobSave('open')}>
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {editingJob ? 'Save & Publish' : 'Save & Post Job'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -80,11 +80,31 @@ const config = {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        stage: {
+          before: "hsl(var(--stage-before))",
+          "before-surface": "hsl(var(--stage-before-surface))",
+          evaluation: "hsl(var(--stage-evaluation))",
+          "evaluation-surface": "hsl(var(--stage-evaluation-surface))",
+          moving: "hsl(var(--stage-moving))",
+          "moving-surface": "hsl(var(--stage-moving-surface))",
+          intelligence: "hsl(var(--stage-intelligence))",
+          "intelligence-surface": "hsl(var(--stage-intelligence-surface))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        control: "var(--radius-control)",
+        card: "var(--radius-card)",
+        panel: "var(--radius-panel)",
+        cta: "var(--radius-cta)",
+      },
+      boxShadow: {
+        soft: "var(--shadow-soft)",
+        card: "var(--shadow-card)",
+        feature: "var(--shadow-feature)",
+        cta: "var(--shadow-cta)",
       },
       keyframes: {
         "accordion-down": {

@@ -53,6 +53,10 @@ export default function FindJobsPage() {
 
     const filteredJobs = useMemo(() => {
         return jobs.filter((job) => {
+            if (appliedJobIds.has(job.id)) {
+                return false;
+            }
+
             const searchLower = searchTerm.toLowerCase();
             const desc = (job.description ?? '').toLowerCase();
             const matchesSearch =
@@ -88,23 +92,23 @@ export default function FindJobsPage() {
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <div>
-                <h1 className="text-3xl font-bold font-headline">Find Your Next Opportunity</h1>
-                <p className="text-muted-foreground">Browse through our open positions and find your perfect fit.</p>
+                    <h1 className="text-3xl font-bold font-headline">Find Your Next Opportunity</h1>
+                    <p className="text-muted-foreground">Browse through our open positions and find your perfect fit.</p>
                 </div>
             </div>
-            
+
             <Card>
                 <CardContent className="pt-6">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="relative md:col-span-2">
-                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                placeholder="Search by title, company, or keyword..." 
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by title, company, or keyword..."
                                 className="pl-10"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 disabled={isLoading}
-                             />
+                            />
                         </div>
                         <Select value={locationFilter} onValueChange={setLocationFilter} disabled={isLoading}>
                             <SelectTrigger>
@@ -136,52 +140,52 @@ export default function FindJobsPage() {
             {isLoading ? (
                 <FindJobsListSkeleton rows={4} />
             ) : (
-            <div className="flex flex-col gap-4">
-                {filteredJobs.length > 0
-                  ? filteredJobs.map((job) => {
-                    const workMode = resolveJobWorkMode(job.department);
-                    const employmentType = resolveJobEmploymentType(job.employmentType, job.department);
-                    return (
-                    <Card key={job.id} className="hover:bg-muted/50 transition-colors">
-                        <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                            <div className="flex-1">
-                                <h3 className="font-semibold text-lg hover:text-primary transition-colors">
-                                    <Link href={`/open-positions/${job.id}`}>{job.title}</Link>
-                                </h3>
-                                <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
-                                    <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.tenant.name}</span>
-                                    <span className="flex items-center gap-2"><MapPin className="size-4" /> {locationValue(job.location) || '—'}</span>
-                                    {workMode ? <span>{workMode}</span> : null}
-                                    {employmentType ? <span>{employmentType}</span> : null}
-                                </div>
-                                <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.description}</p>
-                            </div>
-                            {appliedJobIds.has(job.id) ? (
-                                <Button disabled className="shrink-0 bg-muted-foreground/30 text-muted-foreground hover:bg-muted-foreground/30 border-transparent cursor-not-allowed">
-                                    Already Applied
-                                </Button>
-                            ) : (
-                                <Button asChild className="shrink-0">
-                                    <Link href={`/open-positions/${job.id}`}>
-                                    View & Apply <ArrowUpRight className="ml-2 size-4" />
-                                    </Link>
-                                </Button>
-                            )}
-                        </CardContent>
-                    </Card>
-                    );
-                  })
-                  : (
-                     <Card>
-                        <CardContent className="p-12 text-center text-muted-foreground">
-                            <p className="font-semibold">No jobs available</p>
-                            <p className="text-sm">
-                              New jobs will appear here once companies post openings.
-                            </p>
-                        </CardContent>
-                    </Card>
-                  )}
-            </div>
+                <div className="flex flex-col gap-4">
+                    {filteredJobs.length > 0
+                        ? filteredJobs.map((job) => {
+                            const workMode = resolveJobWorkMode(job.department);
+                            const employmentType = resolveJobEmploymentType(job.employmentType, job.department);
+                            return (
+                                <Card key={job.id} className="hover:bg-muted/50 transition-colors">
+                                    <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                        <div className="flex-1">
+                                            <h3 className="font-semibold text-lg hover:text-primary transition-colors">
+                                                <Link href={`/open-positions/${job.id}`}>{job.title}</Link>
+                                            </h3>
+                                            <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                                                <span className="flex items-center gap-2"><Briefcase className="size-4" /> {job.tenant.name}</span>
+                                                <span className="flex items-center gap-2"><MapPin className="size-4" /> {locationValue(job.location) || '—'}</span>
+                                                {workMode ? <span>{workMode}</span> : null}
+                                                {employmentType ? <span>{employmentType}</span> : null}
+                                            </div>
+                                            <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{job.description}</p>
+                                        </div>
+                                        {appliedJobIds.has(job.id) ? (
+                                            <Button disabled className="shrink-0 bg-muted-foreground/30 text-muted-foreground hover:bg-muted-foreground/30 border-transparent cursor-not-allowed">
+                                                Already Applied
+                                            </Button>
+                                        ) : (
+                                            <Button asChild className="shrink-0">
+                                                <Link href={`/open-positions/${job.id}`}>
+                                                    View & Apply <ArrowUpRight className="ml-2 size-4" />
+                                                </Link>
+                                            </Button>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            );
+                        })
+                        : (
+                            <Card>
+                                <CardContent className="p-12 text-center text-muted-foreground">
+                                    <p className="font-semibold">No jobs available</p>
+                                    <p className="text-sm">
+                                        New jobs will appear here once companies post openings.
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        )}
+                </div>
             )}
         </div>
     );

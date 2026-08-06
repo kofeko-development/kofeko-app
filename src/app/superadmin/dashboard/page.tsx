@@ -12,15 +12,16 @@ import { useAppToast } from '@/lib/toast-helpers';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { apiErrorFromResponse } from '@/lib/api-client';
 
-import { 
-  Loader2, 
-  Shield, 
-  Building2, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  Search, 
-  LogOut, 
+import {
+  Loader2,
+  Shield,
+  ShieldAlert,
+  Building2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Search,
+  LogOut,
   ExternalLink,
   Info,
   Calendar,
@@ -126,13 +127,16 @@ type CompanyRequest = {
   createdAt: string;
   reviewNotes?: string | null;
   tenantSlug?: string | null;
+  approvedTenantId?: string | null;
+  tenantStatus?: 'active' | 'suspended' | null;
+  suspendedUntil?: string | null;
 };
 
 export default function SuperAdminDashboardPage() {
   const router = useRouter();
   const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
-  const { logout } = useAuth();
+  const { logout, superAdmin } = useAuth();
   const [isAutoApproveEnabled, setIsAutoApproveEnabled] = useState(false);
   const [isTogglingSetting, setIsTogglingSetting] = useState(false);
   const [requests, setRequests] = useState<CompanyRequest[]>([]);
@@ -145,6 +149,16 @@ export default function SuperAdminDashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Tenant Suspension Modal State
+  const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [suspendTenantId, setSuspendTenantId] = useState<string | null>(null);
+  const [suspendCompanyName, setSuspendCompanyName] = useState<string>('');
+  const [suspendConfirmName, setSuspendConfirmName] = useState<string>('');
+  const [suspendDays, setSuspendDays] = useState<string>('');
+  const [suspendReason, setSuspendReason] = useState('');
+  const [isSuspending, setIsSuspending] = useState(false);
+  const [suspendActionTab, setSuspendActionTab] = useState<'restrict' | 'disable'>('restrict');
 
   const token = useMemo(() => (typeof window !== 'undefined' ? localStorage.getItem(SUPERADMIN_TOKEN_KEY) : null), []);
 
@@ -294,6 +308,81 @@ export default function SuperAdminDashboardPage() {
     }
   };
 
+  const handleRestrict = async () => {
+    if (!suspendTenantId || suspendConfirmName !== suspendCompanyName || !suspendReason.trim()) return;
+    setIsSuspending(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin/tenants/${suspendTenantId}/restrict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem(SUPERADMIN_TOKEN_KEY)}`,
+        },
+        body: JSON.stringify({
+          reason: suspendReason,
+          days: suspendDays ? parseInt(suspendDays, 10) : undefined
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw apiErrorFromResponse(response, result);
+
+      toastSuccess({ title: 'Tenant Restricted', description: 'The tenant has been restricted successfully.' });
+      setIsSuspendModalOpen(false);
+      setSuspendTenantId(null);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setIsSuspending(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!suspendTenantId || suspendConfirmName !== suspendCompanyName || !suspendReason.trim()) return;
+    setIsSuspending(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin/tenants/${suspendTenantId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem(SUPERADMIN_TOKEN_KEY)}`,
+        },
+        body: JSON.stringify({ reason: suspendReason }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw apiErrorFromResponse(response, result);
+
+      toastSuccess({ title: 'Tenant Deleted', description: 'The tenant and all data were permanently deleted.' });
+      setIsSuspendModalOpen(false);
+      setSuspendTenantId(null);
+      await loadRequests();
+    } catch (error) {
+      showError(error);
+    } finally {
+      setIsSuspending(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!suspendTenantId) return;
+    setIsSuspending(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/superadmin/tenants/${suspendTenantId}/activate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem(SUPERADMIN_TOKEN_KEY)}` },
+      });
+      const result = await response.json();
+      if (!response.ok) throw apiErrorFromResponse(response, result);
+
+      toastSuccess({ title: 'Tenant Activated', description: 'The tenant access has been restored.' });
+      setIsSuspendModalOpen(false);
+      setSuspendTenantId(null);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setIsSuspending(false);
+    }
+  };
+
   const selectedRequest = requests.find((request) => request.id === selectedId) ?? null;
 
   const approveDisabled =
@@ -317,9 +406,9 @@ export default function SuperAdminDashboardPage() {
     return requests.filter((r) => {
       const matchesTab = activeTab === 'all' || r.status === activeTab;
       const search = searchTerm.toLowerCase();
-      const matchesSearch = 
-        r.companyName.toLowerCase().includes(search) || 
-        r.contactEmail.toLowerCase().includes(search) || 
+      const matchesSearch =
+        r.companyName.toLowerCase().includes(search) ||
+        r.contactEmail.toLowerCase().includes(search) ||
         (r.adminEmail && r.adminEmail.toLowerCase().includes(search));
       return matchesTab && matchesSearch;
     });
@@ -356,6 +445,25 @@ export default function SuperAdminDashboardPage() {
       </header>
 
       <main className="container py-8 space-y-8">
+        {superAdmin && superAdmin.twoFactorEnabled === false && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 shrink-0 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-600">
+                <Shield className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-amber-600">Two-Factor Authentication is not enabled</h3>
+                <p className="text-sm text-amber-600/80 mt-1">
+                  Protect your super admin account by enabling Google Authenticator 2FA.
+                </p>
+              </div>
+            </div>
+            <Button asChild className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white border-0">
+              <Link href="/superadmin/settings">Enable 2FA</Link>
+            </Button>
+          </div>
+        )}
+
         {/* Banner */}
         <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border rounded-2xl p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
@@ -375,9 +483,8 @@ export default function SuperAdminDashboardPage() {
                 aria-checked={isAutoApproveEnabled}
                 onClick={toggleAutoApprove}
                 disabled={isTogglingSetting}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  isAutoApproveEnabled ? 'bg-primary' : 'bg-muted'
-                }`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${isAutoApproveEnabled ? 'bg-primary' : 'bg-muted'
+                  }`}
               >
                 {isTogglingSetting ? (
                   <span className="absolute inset-0 flex items-center justify-center">
@@ -385,9 +492,8 @@ export default function SuperAdminDashboardPage() {
                   </span>
                 ) : (
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
-                      isAutoApproveEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${isAutoApproveEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
                   />
                 )}
               </button>
@@ -459,11 +565,10 @@ export default function SuperAdminDashboardPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 border ${
-                  activeTab === tab.id
-                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                    : 'bg-background hover:bg-muted text-muted-foreground border-muted'
-                }`}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 border ${activeTab === tab.id
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background hover:bg-muted text-muted-foreground border-muted'
+                  }`}
               >
                 {tab.label}
                 <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === tab.id ? 'bg-primary-foreground/20 text-primary-foreground' : tab.color || 'bg-muted text-muted-foreground'}`}>
@@ -509,30 +614,43 @@ export default function SuperAdminDashboardPage() {
               });
 
               return (
-                <Card 
-                  key={request.id} 
-                  className={`hover:shadow-md transition-all border flex flex-col justify-between overflow-hidden group ${
-                    request.status === 'approved' ? 'hover:border-emerald-500/30' : 
-                    request.status === 'rejected' ? 'hover:border-rose-500/30' : 
-                    'hover:border-amber-500/30'
-                  }`}
+                <Card
+                  key={request.id}
+                  className={`hover:shadow-md transition-all border flex flex-col justify-between overflow-hidden group ${request.status === 'approved' ? 'hover:border-emerald-500/30' :
+                    request.status === 'rejected' ? 'hover:border-rose-500/30' :
+                      'hover:border-amber-500/30'
+                    }`}
                 >
                   <div>
                     {/* Status header strip */}
-                    <div className={`px-4 py-2 border-b text-xs font-bold uppercase tracking-wider flex items-center justify-between ${
+                    <div className={`px-4 py-2 border-b text-xs font-bold uppercase tracking-wider flex items-center justify-between ${request.tenantStatus === 'suspended' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
                       request.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600' :
-                      request.status === 'rejected' ? 'bg-rose-500/10 text-rose-600' :
-                      'bg-amber-500/10 text-amber-600'
-                    }`}>
+                        request.status === 'rejected' ? 'bg-rose-500/10 text-rose-600' :
+                          'bg-amber-500/10 text-amber-600'
+                      }`}>
                       <span className="flex items-center gap-1">
-                        {request.status === 'approved' && <CheckCircle2 className="h-3.5 w-3.5" />}
-                        {request.status === 'rejected' && <XCircle className="h-3.5 w-3.5" />}
-                        {request.status === 'pending' && <Clock className="h-3.5 w-3.5" />}
-                        {request.status}
+                        {request.tenantStatus === 'suspended' ? (
+                          <><ShieldAlert className="h-3.5 w-3.5" /> RESTRICTED</>
+                        ) : request.status === 'approved' ? (
+                          <><CheckCircle2 className="h-3.5 w-3.5" /> APPROVED</>
+                        ) : request.status === 'rejected' ? (
+                          <><XCircle className="h-3.5 w-3.5" /> REJECTED</>
+                        ) : (
+                          <><Clock className="h-3.5 w-3.5" /> PENDING</>
+                        )}
                       </span>
                       <span className="text-muted-foreground font-light flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {formattedDate}
+                        {request.tenantStatus === 'suspended' && request.suspendedUntil ? (
+                          <>
+                            <Clock className="h-3 w-3" />
+                            {Math.max(0, Math.ceil((new Date(request.suspendedUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} Days Left
+                          </>
+                        ) : (
+                          <>
+                            <Calendar className="h-3 w-3" />
+                            {formattedDate}
+                          </>
+                        )}
                       </span>
                     </div>
 
@@ -574,6 +692,24 @@ export default function SuperAdminDashboardPage() {
                         </div>
                       )}
 
+                      {/* Display restriction status and countdown */}
+                      {request.status === 'approved' && request.tenantStatus === 'suspended' && request.suspendedUntil && (
+                        <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-amber-700 uppercase font-bold text-xs flex items-center gap-1.5">
+                              <ShieldAlert className="w-4 h-4" />
+                              Account Restricted
+                            </span>
+                            <span className="font-mono text-amber-800 font-bold bg-amber-500/20 px-2 py-0.5 rounded text-xs">
+                              {Math.max(0, Math.ceil((new Date(request.suspendedUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} Days Left
+                            </span>
+                          </div>
+                          <span className="text-amber-700/80 text-[11px] font-medium pl-5">
+                            Until {new Date(request.suspendedUntil).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Display notes if rejected */}
                       {request.status === 'rejected' && request.reviewNotes && (
                         <div className="mt-3 p-2.5 bg-rose-500/5 border border-rose-500/10 rounded-lg text-xs space-y-1">
@@ -584,13 +720,12 @@ export default function SuperAdminDashboardPage() {
                     </CardContent>
                   </div>
 
-                  <div className="px-6 pb-6 pt-0">
+                  <div className="px-6 pb-6 pt-0 space-y-3">
                     <Button
-                      className={`w-full font-bold shadow-sm ${
-                        request.status === 'approved' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' :
+                      className={`w-full font-bold shadow-sm ${request.status === 'approved' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' :
                         request.status === 'rejected' ? 'bg-rose-500 hover:bg-rose-600 text-white' :
-                        'bg-primary hover:bg-primary/90 text-white'
-                      }`}
+                          'bg-primary hover:bg-primary/90 text-white'
+                        }`}
                       onClick={() => {
                         setSelectedId(request.id);
                         setAdminEmail(request.adminEmail || request.contactEmail || '');
@@ -600,6 +735,26 @@ export default function SuperAdminDashboardPage() {
                     >
                       {request.status === 'pending' ? 'Review & Decision' : 'View Request Details'}
                     </Button>
+
+                    {request.status === 'approved' && request.approvedTenantId && (
+                      <Button
+                        variant="outline"
+                        className="w-full text-amber-600 border-amber-200 hover:bg-amber-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSuspendTenantId(request.approvedTenantId!);
+                          setSuspendCompanyName(request.companyName);
+                          setSuspendConfirmName('');
+                          setSuspendDays('');
+                          setSuspendReason('');
+                          setSuspendActionTab('restrict');
+                          setIsSuspendModalOpen(true);
+                        }}
+                      >
+                        <Shield className="w-4 h-4 mr-2" />
+                        Manage Access
+                      </Button>
+                    )}
                   </div>
                 </Card>
               );
@@ -645,29 +800,29 @@ export default function SuperAdminDashboardPage() {
                 </div>
 
                 <div>
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Company Type</span> 
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Company Type</span>
                   <p className="mt-1 font-medium">{selectedRequest.companyType || '—'}</p>
                 </div>
                 <div>
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Industry</span> 
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Industry</span>
                   <p className="mt-1 font-medium">{selectedRequest.industry || '—'}</p>
                 </div>
                 <div>
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Company Size</span> 
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Company Size</span>
                   <p className="mt-1 font-medium">{selectedRequest.companySize || '—'}</p>
                 </div>
                 <div>
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Founded Year</span> 
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Founded Year</span>
                   <p className="mt-1 font-medium">{selectedRequest.foundedYear || '—'}</p>
                 </div>
-                
+
                 <div className="sm:col-span-2 border-t pt-3">
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Short Description</span> 
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Short Description</span>
                   <p className="mt-1 font-light italic">"{selectedRequest.shortDescription || 'No description provided.'}"</p>
                 </div>
-                
+
                 <div className="sm:col-span-2 border-t pt-3">
-                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Official Address</span> 
+                  <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Official Address</span>
                   <p className="mt-1 text-muted-foreground">{selectedRequest.officialCompanyAddress || '—'}</p>
                 </div>
 
@@ -678,26 +833,26 @@ export default function SuperAdminDashboardPage() {
 
                 <div className="sm:col-span-2 border-t pt-3 grid grid-cols-2 gap-4">
                   <div>
-                    <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Contact Person</span> 
+                    <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Contact Person</span>
                     <p className="mt-1 font-medium">{selectedRequest.contactName || '—'}</p>
                   </div>
                   <div>
-                    <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Contact Email</span> 
+                    <span className="font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">Contact Email</span>
                     <p className="mt-1 font-medium">{selectedRequest.contactEmail || '—'}</p>
                   </div>
                 </div>
 
                 <div className="sm:col-span-2 border-t pt-3 flex gap-4">
-                   {selectedRequest.linkedinUrl && (
-                     <a href={selectedRequest.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-semibold flex items-center gap-1 hover:underline">
-                       LinkedIn Profile <ExternalLink className="h-3 w-3" />
-                     </a>
-                   )}
-                   {selectedRequest.twitterUrl && (
-                     <a href={selectedRequest.twitterUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-semibold flex items-center gap-1 hover:underline">
-                       Twitter Profile <ExternalLink className="h-3 w-3" />
-                     </a>
-                   )}
+                  {selectedRequest.linkedinUrl && (
+                    <a href={selectedRequest.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-semibold flex items-center gap-1 hover:underline">
+                      LinkedIn Profile <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {selectedRequest.twitterUrl && (
+                    <a href={selectedRequest.twitterUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-semibold flex items-center gap-1 hover:underline">
+                      Twitter Profile <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
               </div>
 
@@ -708,9 +863,8 @@ export default function SuperAdminDashboardPage() {
                     <Info className="h-4 w-4 text-primary" />
                     Decision Record
                   </h4>
-                  <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
-                    selectedRequest.status === 'approved' ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-800' : 'bg-rose-500/5 border-rose-500/10 text-rose-800'
-                  }`}>
+                  <div className={`p-4 rounded-xl border flex flex-col gap-2 ${selectedRequest.status === 'approved' ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-800' : 'bg-rose-500/5 border-rose-500/10 text-rose-800'
+                    }`}>
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-semibold uppercase tracking-wider text-[11px]">Final Action Status:</span>
                       <span className="font-extrabold capitalize">{selectedRequest.status}</span>
@@ -744,15 +898,15 @@ export default function SuperAdminDashboardPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2 md:col-span-2">
                       <Label htmlFor="tenantSlug" className="font-semibold">Tenant Slug</Label>
-                      <Input 
-                        id="tenantSlug" 
-                        value={tenantSlug} 
-                        onChange={(e) => setTenantSlug(e.target.value)} 
-                        placeholder="8 character uppercase alphanumeric" 
+                      <Input
+                        id="tenantSlug"
+                        value={tenantSlug}
+                        onChange={(e) => setTenantSlug(e.target.value)}
+                        placeholder="8 character uppercase alphanumeric"
                         className="font-mono uppercase font-bold"
                       />
                     </div>
-                    
+
                     {selectedRequest.usesSignupCredentials ? (
                       <div className="md:col-span-2 rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">
                         <div className="font-semibold text-foreground uppercase text-[11px] tracking-wider mb-1">Signup Credentials Mode</div>
@@ -791,6 +945,108 @@ export default function SuperAdminDashboardPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend Tenant Dialog */}
+      <Dialog open={isSuspendModalOpen} onOpenChange={setIsSuspendModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-amber-500" />
+              Manage Tenant Access
+            </DialogTitle>
+            <DialogDescription>
+              Restrict or permanently disable the selected tenant account.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex bg-muted/50 p-1 rounded-lg">
+            <button
+              className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-all ${suspendActionTab === 'restrict' ? 'bg-background shadow text-amber-600' : 'text-muted-foreground hover:bg-muted'
+                }`}
+              onClick={() => setSuspendActionTab('restrict')}
+            >
+              Restrict Temporarily
+            </button>
+            <button
+              className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-all ${suspendActionTab === 'disable' ? 'bg-background shadow text-rose-600' : 'text-muted-foreground hover:bg-muted'
+                }`}
+              onClick={() => setSuspendActionTab('disable')}
+            >
+              Permanently Disable
+            </button>
+          </div>
+
+          <div className="grid gap-4 py-4">
+            {suspendActionTab === 'restrict' && (
+              <div className="grid gap-2">
+                <Label>Restriction Duration (Days)</Label>
+                <Input
+                  type="number"
+                  placeholder="Number of days to restrict..."
+                  value={suspendDays}
+                  onChange={(e) => setSuspendDays(e.target.value)}
+                  min={1}
+                />
+              </div>
+            )}
+
+            <div className="grid gap-2">
+              <Label>Reason (Required)</Label>
+              <Input
+                placeholder="E.g., Policy violation, Payment failure..."
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Confirm Company Name</Label>
+              <Input
+                placeholder={`Type "${suspendCompanyName}" to confirm`}
+                value={suspendConfirmName}
+                onChange={(e) => setSuspendConfirmName(e.target.value)}
+                className="font-bold border-rose-200 focus-visible:ring-rose-500"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {suspendActionTab === 'disable'
+                  ? 'WARNING: This will permanently delete the tenant, users, and all associated data. This cannot be undone.'
+                  : 'An email notification will be sent to the company administrator.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setIsSuspendModalOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            {suspendActionTab === 'restrict' ? (
+              <Button
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                onClick={handleRestrict}
+                disabled={isSuspending || suspendConfirmName !== suspendCompanyName || !suspendReason.trim() || !suspendDays}
+              >
+                {isSuspending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Restrict Access
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                className="flex-1 font-bold"
+                onClick={handleDelete}
+                disabled={isSuspending || suspendConfirmName !== suspendCompanyName || !suspendReason.trim()}
+              >
+                {isSuspending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Permanently Disable
+              </Button>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

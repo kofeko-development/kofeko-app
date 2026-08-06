@@ -32,10 +32,9 @@ import { stageOneApi } from '@/lib/stage1-2-api';
 import { mapStaffUserToDisplay } from '@/lib/admin-api';
 import { useAuth } from '@/lib/auth';
 import { useInvalidateTeam, useTeamList } from '@/hooks/use-team';
+import { useRolesList } from '@/hooks/use-roles';
 import {
-    INVITE_ACCESS_MAIN_OPTIONS,
     INVITE_ACCESS_OTHER,
-    type BackendRoleName,
     type InviteAccessChoice,
 } from '@/lib/rbac-templates';
 import { InvitePermissionCheckboxes } from '@/components/invite-permission-checkboxes';
@@ -50,9 +49,25 @@ export default function TeamManagementPage() {
     const teamBasePath = pathname.startsWith('/admin/team') ? '/admin/team' : '/team';
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isInviting, setIsInviting] = useState(false);
-    const [accessChoice, setAccessChoice] = useState<InviteAccessChoice>('recruiter');
+    const [accessChoice, setAccessChoice] = useState<string>('');
     const [otherRoleTitle, setOtherRoleTitle] = useState('');
     const [otherPermissionKeys, setOtherPermissionKeys] = useState<string[]>([]);
+
+    const { data: rolesData, isLoading: rolesLoading } = useRolesList();
+    
+    useEffect(() => {
+        if (!isDialogOpen) return;
+        if (!accessChoice && rolesData && rolesData.length > 0) {
+            // Default to Recruiter if available, else first role
+            const recruiterRole = rolesData.find(r => r.name.toLowerCase() === 'recruiter');
+            setAccessChoice(recruiterRole?.id ?? rolesData[0].id);
+        }
+    }, [isDialogOpen, rolesData, accessChoice]);
+
+    const selectedRole = useMemo(() => {
+        if (!rolesData || accessChoice === INVITE_ACCESS_OTHER) return null;
+        return rolesData.find((r) => r.id === accessChoice);
+    }, [rolesData, accessChoice]);
 
     const {
         data: teamData,
@@ -72,7 +87,12 @@ export default function TeamManagementPage() {
     }, [isError, error, showError]);
 
     const resetInviteForm = () => {
-        setAccessChoice('recruiter');
+        if (rolesData && rolesData.length > 0) {
+            const recruiterRole = rolesData.find(r => r.name.toLowerCase() === 'recruiter');
+            setAccessChoice(recruiterRole?.id ?? rolesData[0].id);
+        } else {
+            setAccessChoice('');
+        }
         setOtherRoleTitle('');
         setOtherPermissionKeys([]);
     };
@@ -98,6 +118,12 @@ export default function TeamManagementPage() {
                 });
                 return;
             }
+        } else if (!accessChoice) {
+            toastError({
+                title: 'Role required',
+                description: 'Please select a role for the invited user.',
+            });
+            return;
         }
 
         const [firstName, ...rest] = name.trim().split(' ');
@@ -119,12 +145,11 @@ export default function TeamManagementPage() {
                     description: `We emailed an invitation link to ${email.trim()} to set up their password. Ask them to check their inbox and spam.`,
                 });
             } else {
-                const roleName = accessChoice as BackendRoleName;
                 await stageOneApi.inviteUser({
                     firstName,
                     lastName,
                     email,
-                    roleName,
+                    roleId: accessChoice,
                 });
                 toastSuccess({
                     title: 'Invitation sent',
@@ -189,23 +214,27 @@ export default function TeamManagementPage() {
                                                 <Label htmlFor="invite-access-main">Access role</Label>
                                                 <Select
                                                     value={accessChoice}
-                                                    onValueChange={(v) => setAccessChoice(v as InviteAccessChoice)}
+                                                    onValueChange={setAccessChoice}
                                                     required
+                                                    disabled={rolesLoading}
                                                 >
                                                     <SelectTrigger id="invite-access-main" className="h-11">
                                                         <SelectValue placeholder="Select access" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {INVITE_ACCESS_MAIN_OPTIONS.map((opt) => (
-                                                            <SelectItem key={opt.value} value={opt.value}>
-                                                                {opt.label}
+                                                        {rolesData?.map((role) => (
+                                                            <SelectItem key={role.id} value={role.id}>
+                                                                {role.name}
                                                             </SelectItem>
                                                         ))}
+                                                        <SelectItem value={INVITE_ACCESS_OTHER}>
+                                                            Custom - Name & pick permissions
+                                                        </SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
 
-                                            <InviteRoleDetailsPanel accessChoice={accessChoice} />
+                                            <InviteRoleDetailsPanel accessChoice={accessChoice} role={selectedRole} />
 
                                             {accessChoice === INVITE_ACCESS_OTHER ? (
                                                 <div className="space-y-6 rounded-xl border bg-card p-5 shadow-sm">
@@ -243,7 +272,7 @@ export default function TeamManagementPage() {
                                         >
                                             Cancel
                                         </Button>
-                                        <Button type="submit" disabled={isInviting}>
+                                        <Button type="submit" disabled={isInviting || !accessChoice}>
                                             {isInviting ? 'Sending...' : 'Send Invite'}
                                         </Button>
                                     </DialogFooter>

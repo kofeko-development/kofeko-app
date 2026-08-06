@@ -16,6 +16,15 @@ export function getStaffHeaderTitle(user: User, pathname: string): string {
   if (pathname.startsWith('/company-profile') || pathname.startsWith('/admin/company-profile')) {
     return 'Company Profile';
   }
+  if (pathname.startsWith('/security') || pathname.startsWith('/admin/security')) {
+    return 'Security & Login';
+  }
+  if (pathname.startsWith('/subscription') || pathname.startsWith('/admin/subscription')) {
+    return 'Subscription';
+  }
+  if (pathname.startsWith('/settings/integrations') || pathname.startsWith('/admin/integrations')) {
+    return 'Integrations';
+  }
   return getStaffRoleTitle(user);
 }
 

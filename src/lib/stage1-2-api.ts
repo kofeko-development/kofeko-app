@@ -35,11 +35,9 @@ export const stageOneApi = {
     firstName: string;
     lastName: string;
     email: string;
-    /** Ignored when `permissionKeys` is non-empty (custom role). */
     roleName?: string;
-    /** Required when using custom `permissionKeys` — label for the role (email / audit). */
+    roleId?: string;
     position?: string;
-    /** Creates a tenant role with exactly these permission keys (invite “Other”). */
     permissionKeys?: string[];
   }) => apiRequest('/users/invite', { method: 'POST', auth: true, body: payload }),
   acceptInvite: (payload: { token: string; password: string }) =>

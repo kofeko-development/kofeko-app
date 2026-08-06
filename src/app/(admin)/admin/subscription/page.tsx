@@ -1,5 +1,8 @@
 'use client';
 
-import SubscriptionPage from '@/app/(main)/subscription/page';
+import React from 'react';
+import { SettingsHub } from '@/components/settings/settings-hub';
 
-export default SubscriptionPage;
+export default function SubscriptionAdminPage() {
+  return <SettingsHub defaultTab="subscription" />;
+}

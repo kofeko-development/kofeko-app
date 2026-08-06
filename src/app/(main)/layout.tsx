@@ -29,6 +29,7 @@ import {
     Mic,
     Settings,
     BrainCircuit,
+    ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
@@ -179,8 +180,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/jd-builder', label: 'JD Creator', icon: FilePlus2, permissions: ['job:create'] },
         { href: '/ai-evaluation-lab', label: 'AI Lab', icon: BrainCircuit, permissions: ['job:create', 'evaluation:create'] },
         { href: '/job-postings', label: 'Job Postings', icon: Briefcase, permissions: ['job:read'] },
-        { href: '/assessments', label: 'Assessments', icon: Sparkles, permissions: ['evaluation:read'], comingSoon: true },
-        { href: '/interviews', label: 'Interviews', icon: Mic, permissions: ['pipeline:read'], comingSoon: true },
         { href: '/team', label: 'Team', icon: Users, permissions: ['user:read'] },
     ];
 
@@ -191,8 +190,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
         { href: '/ai-evaluation-lab', label: 'AI Lab', icon: BrainCircuit },
         { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
-        { href: '/interviews', label: 'Interviews', icon: Mic, comingSoon: true },
-        { href: '/assessments', label: 'Assessments', icon: Sparkles, comingSoon: true },
         { href: '/admin/candidates', label: 'Candidates', icon: Contact },
         ...(hasPermission('user:read')
             ? [{ href: '/admin/team', label: 'Team', icon: Users }]
@@ -251,6 +248,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                 </Link>
                             </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem asChild>
+                            <Link href={hasPermission('rbac:manage') ? '/admin/security' : '/security'}>
+                                <ShieldCheck className="mr-2 h-4 w-4" />
+                                <span>Security & Login</span>
+                            </Link>
+                        </DropdownMenuItem>
                         {hasPermission('company:update') && (
                             <DropdownMenuItem asChild>
                                 <Link href={hasPermission('rbac:manage') ? '/admin/subscription' : '/subscription'}>

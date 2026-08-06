@@ -23,6 +23,7 @@ import {
   CreditCard,
   Users,
   Settings,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Logo, { getAppHomeHref } from '@/components/logo';
@@ -45,6 +46,7 @@ const adminRoutes = [
   '/admin/jd-creator', 
   '/admin/job-postings',
   '/admin/company-profile',
+  '/admin/security',
   '/admin/subscription',
   '/admin/team',
   '/admin/integrations',
@@ -54,6 +56,7 @@ const adminRoutes = [
 
 function getAdminHeaderTitle(pathname: string): string {
   if (pathname.startsWith('/admin/company-profile')) return 'Company Profile';
+  if (pathname.startsWith('/admin/security')) return 'Security & Login';
   if (pathname.startsWith('/admin/subscription')) return 'Subscription';
   if (pathname.startsWith('/admin/team')) return 'Team';
   if (pathname.startsWith('/admin/integrations')) return 'Integrations';
@@ -107,8 +110,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
     { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
-    { href: '/interviews', label: 'Interviews', icon: Mic, comingSoon: true },
-    { href: '/assessments', label: 'Assessments', icon: Sparkles, comingSoon: true },
     { href: '/admin/candidates', label: 'Candidates', icon: Contact },
     ...(hasPermission('user:read')
       ? [{ href: '/admin/team', label: 'Team', icon: Users }]
@@ -147,6 +148,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <DropdownMenuItem onClick={() => router.push('/admin/company-profile')}>
               <Building className="mr-2 h-4 w-4" />
               <span>Company Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/admin/security')}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              <span>Security & Login</span>
             </DropdownMenuItem>
             {hasPermission('company:update') && (
               <DropdownMenuItem onClick={() => router.push('/admin/subscription')}>
