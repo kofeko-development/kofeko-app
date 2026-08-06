@@ -19,7 +19,8 @@ import { useAppToast } from '@/lib/toast-helpers';
 
 import { useApiErrorToast } from "@/hooks/use-api-error-toast";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Upload, X, CheckCircle2 } from "lucide-react";
+import { AuthInput } from '@/components/auth/AuthInput';
 import { Textarea } from "@/components/ui/textarea";
 import { COMPANY_SIZE_OPTIONS, type CompanySizeValue } from "@/lib/company-size";
 import { validateNationalPhone } from "@/lib/phone-e164";
@@ -536,310 +537,307 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
-      {step === 2 ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className="mb-3 -ml-2 gap-1.5 px-2 text-foreground hover:bg-white/70 hover:text-foreground"
-          onClick={() => setStep(1)}
-          disabled={isLoading}
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-          Back
-        </Button>
-      ) : null}
-      <Card className="w-full overflow-hidden rounded-2xl border bg-card shadow-md">
-        <CardHeader className="border-b bg-card px-6 pb-6 pt-6">
-          <span className="sr-only">{step === 1 ? "Step 1 of 2" : "Step 2 of 2"}</span>
-          <div className="mb-5 flex gap-2" aria-hidden>
-            <div
-              className={cn(
-                "h-1 flex-1 rounded-full transition-colors",
-                step >= 1 ? "bg-primary" : "bg-muted",
-              )}
-            />
-            <div
-              className={cn(
-                "h-1 flex-1 rounded-full transition-colors",
-                step >= 2 ? "bg-primary" : "bg-muted",
-              )}
-            />
-          </div>
-          <CardTitle className="text-xl font-semibold tracking-tight">Company registration</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {step === 1 ? "Account" : "Company details"}
-          </p>
-        </CardHeader>
-        <CardContent className="px-6 pb-6 pt-6">
-          <form onSubmit={handleSignup} className="grid gap-6">
-            {step === 1 ? (
-              <div className="grid gap-5">
+    <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
+      
+      {/* Account Type Switcher */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between mb-8 w-full">
+        <span className="text-sm text-slate-600">Are you a candidate?</span>
+        <Link href="/candidate-auth?mode=signup" className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">
+          Candidate Sign Up →
+        </Link>
+      </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="admin-email">Company admin email *</Label>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                    <Input
-                      id="admin-email"
-                      type="email"
-                      autoComplete="email"
-                      value={adminEmail}
-                      onChange={(e) => handleAdminEmailChange(e.target.value)}
-                      required
-                      readOnly={emailLooksVerified}
-                      disabled={isLoading || sendOtpLoading || confirmOtpLoading || emailLooksVerified}
-                      className={cn(
-                        "h-11 min-w-0 flex-1",
-                        emailLooksVerified && "bg-muted/50",
-                        (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive",
-                      )}
-                      placeholder="you@company.com"
+      {/* Progress Indicator */}
+      <div className="flex items-center justify-center mb-10 w-full max-w-[200px] mx-auto md:mx-0">
+        <div className={`flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold transition-colors ${step >= 1 ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
+          {step > 1 ? <CheckCircle2 className="h-4 w-4" /> : '1'}
+        </div>
+        <div className={`h-1 flex-1 mx-2 rounded-full transition-colors ${step >= 2 ? 'bg-primary' : 'bg-slate-100'}`} />
+        <div className={`flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold transition-colors ${step >= 2 ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
+          2
+        </div>
+      </div>
+
+      <div className="mb-8 text-center md:text-left">
+        <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Company Sign Up</h2>
+        <p className="text-slate-500 text-sm">
+          {step === 1 ? 'Create your administrator account.' : 'Tell us about your company.'}
+        </p>
+      </div>
+
+      <form onSubmit={handleSignup} className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-500">
+        {step === 1 && (
+          <div className="space-y-5">
+            <div className="grid gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <div className="flex-1">
+                  <AuthInput
+                    id="admin-email"
+                    label="Company Admin Email *"
+                    type="email"
+                    autoComplete="email"
+                    value={adminEmail}
+                    onChange={(e) => handleAdminEmailChange(e.target.value)}
+                    required
+                    readOnly={emailLooksVerified}
+                    disabled={isLoading || sendOtpLoading || confirmOtpLoading || emailLooksVerified}
+                    className={cn(
+                      emailLooksVerified && "bg-muted/50",
+                      (fieldErrors.adminEmail || fieldErrors.email) && "border-destructive"
+                    )}
+                    placeholder="you@company.com"
+                  />
+                </div>
+                {emailLooksVerified ? (
+                  <div
+                    className="flex h-11 mt-7 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 sm:w-36"
+                    role="status"
+                    aria-label="Email verified"
+                  >
+                    Verified
+                    <CheckCircle2 className="h-4 w-4" aria-hidden />
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    className="h-[46px] mt-7 shrink-0 sm:w-36 rounded-xl"
+                    disabled={
+                      isLoading ||
+                      sendOtpLoading ||
+                      confirmOtpLoading ||
+                      !isValidEmailShape(adminEmail) ||
+                      (otpSent && !emailLooksVerified)
+                    }
+                    onClick={() => void handleSendEmailOtp()}
+                  >
+                    {sendOtpLoading && !otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Verify'}
+                  </Button>
+                )}
+              </div>
+              {(fieldErrors.adminEmail || fieldErrors.email) ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {fieldErrors.adminEmail ?? fieldErrors.email}
+                </p>
+              ) : null}
+
+              {otpSent && !emailLooksVerified ? (
+                <div className="mt-1 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-3">
+                  <div className="grid gap-2">
+                    <AuthInput
+                      id="email-otp"
+                      label="Email Code *"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      pattern="\d{6}"
+                      placeholder="000000"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      disabled={isLoading || confirmOtpLoading || emailLooksVerified || otpExpired}
+                      className="font-mono tracking-widest text-lg"
                     />
-                    {emailLooksVerified ? (
-                      <div
-                        className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 sm:w-36 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                        role="status"
-                        aria-label="Email verified"
-                      >
-                        Verified
-                        <ArrowRight className="h-4 w-4" aria-hidden />
-                      </div>
+                    {otpPending ? (
+                      <p className="text-xs text-slate-500" aria-live="polite" role="timer">
+                        Enter the 6-digit code from your email.{' '}
+                        <span className="font-semibold tabular-nums text-primary">
+                          Time remaining: {formatOtpCountdown(otpSecondsLeft)}
+                        </span>
+                      </p>
                     ) : (
-                      <Button
-                        type="button"
-                        className="h-11 shrink-0 sm:w-36"
-                        disabled={
-                          isLoading ||
-                          sendOtpLoading ||
-                          confirmOtpLoading ||
-                          !isValidEmailShape(adminEmail) ||
-                          (otpSent && !emailLooksVerified)
-                        }
-                        onClick={() => void handleSendEmailOtp()}
-                      >
-                        {sendOtpLoading && !otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Verify'}
-                      </Button>
+                      <p className="text-xs text-destructive" role="status">
+                        Your verification code has expired. Tap Resend to get a new code.
+                      </p>
                     )}
                   </div>
-                  {(fieldErrors.adminEmail || fieldErrors.email) ? (
-                    <p className="text-sm text-destructive" role="alert">
-                      {fieldErrors.adminEmail ?? fieldErrors.email}
-                    </p>
-                  ) : null}
-                  {otpSent && !emailLooksVerified ? (
-                    <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[1fr_auto] sm:items-start sm:gap-3">
-                      <div className="grid gap-2">
-                        <Label htmlFor="email-otp">Email code *</Label>
-                        <Input
-                          id="email-otp"
-                          inputMode="numeric"
-                          autoComplete="one-time-code"
-                          maxLength={6}
-                          pattern="\d{6}"
-                          placeholder="000000"
-                          value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          disabled={isLoading || confirmOtpLoading || emailLooksVerified || otpExpired}
-                          className="h-11 font-mono tracking-widest"
-                        />
-                        {otpPending ? (
-                          <p className="text-xs text-muted-foreground" aria-live="polite" role="timer">
-                            Enter the 6-digit code from your email.{' '}
-                            <span className="font-semibold tabular-nums text-primary">
-                              Time remaining: {formatOtpCountdown(otpSecondsLeft)}
-                            </span>
-                          </p>
-                        ) : (
-                          <p className="text-xs text-destructive" role="status">
-                            Your verification code has expired. Tap Resend to get a new code.
-                          </p>
-                        )}
-                      </div>
-                      {otpExpired ? (
-                        <Button
-                          type="button"
-                          className="h-11 sm:mt-7"
-                          disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                          onClick={() => void handleSendEmailOtp()}
-                        >
-                          {sendOtpLoading && otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Resend'}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          className="h-11 sm:mt-7"
-                          disabled={
-                            isLoading ||
-                            confirmOtpLoading ||
-                            otpCode.trim().length !== 6 ||
-                            emailLooksVerified ||
-                            otpExpired
-                          }
-                          onClick={() => void handleConfirmEmailOtp()}
-                        >
-                          {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Confirm'}
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
+                  {otpExpired ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-[46px] sm:mt-7 rounded-xl"
+                      disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+                      onClick={() => void handleSendEmailOtp()}
+                    >
+                      {sendOtpLoading && otpSent ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Resend'}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="h-[46px] sm:mt-7 rounded-xl"
+                      disabled={
+                        isLoading ||
+                        confirmOtpLoading ||
+                        otpCode.trim().length !== 6 ||
+                        emailLooksVerified ||
+                        otpExpired
+                      }
+                      onClick={() => void handleConfirmEmailOtp()}
+                    >
+                      {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : 'Confirm'}
+                    </Button>
+                  )}
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="admin-password">Password *</Label>
-                    <div className="relative">
-                      <Input
-                        id="admin-password"
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="new-password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        minLength={8}
-                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                        className={cn("h-11 pr-10", (showPasswordMismatch || fieldErrors.password) && "border-destructive focus-visible:ring-destructive")}
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-                        onClick={() => setShowPassword((v) => !v)}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        aria-pressed={showPassword}
-                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                      >
-                        {showPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="admin-password-confirm">Confirm password *</Label>
-                    <div className="relative">
-                      <Input
-                        id="admin-password-confirm"
-                        type={showConfirmPassword ? "text" : "password"}
-                        autoComplete="new-password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
-                        minLength={8}
-                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                        className={cn("h-11 pr-10", showPasswordMismatch && "border-destructive focus-visible:ring-destructive")}
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-0 top-0 flex h-11 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-                        onClick={() => setShowConfirmPassword((v) => !v)}
-                        aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
-                        aria-pressed={showConfirmPassword}
-                        disabled={isLoading || sendOtpLoading || confirmOtpLoading}
-                      >
-                        {showConfirmPassword ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                {showPasswordMismatch ? (
-                  <p className="text-sm text-destructive" role="alert">
-                    Passwords must match.
-                  </p>
-                ) : null}
-                {fieldErrors.password ? (
-                  <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
-                ) : null}
-                <Button
-                  type="submit"
-                  className="h-11 w-full"
-                  disabled={
-                    isLoading ||
-                    sendOtpLoading ||
-                    confirmOtpLoading ||
-                    showPasswordMismatch ||
-                    !emailLooksVerified
-                  }
-                >
-                  Continue
-                </Button>
+              ) : null}
+            </div>
+
+            <AuthInput
+              label="Password *"
+              id="admin-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+              className={cn((showPasswordMismatch || fieldErrors.password) && "border-destructive")}
+            />
+            {fieldErrors.password ? (
+              <p className="text-sm text-destructive" role="alert">{fieldErrors.password}</p>
+            ) : null}
+
+            <AuthInput
+              label="Confirm Password *"
+              id="admin-password-confirm"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+              disabled={isLoading || sendOtpLoading || confirmOtpLoading}
+              className={cn(showPasswordMismatch && "border-destructive")}
+            />
+            {showPasswordMismatch ? (
+              <p className="text-sm text-destructive" role="alert">
+                Passwords must match.
+              </p>
+            ) : null}
+
+            <div className="pt-4">
+              <Button
+                type="submit"
+                className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold"
+                disabled={
+                  isLoading ||
+                  sendOtpLoading ||
+                  confirmOtpLoading ||
+                  showPasswordMismatch ||
+                  !emailLooksVerified
+                }
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-5">
+            {hasFieldErrors(fieldErrors) ? (
+              <div
+                className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
+                role="alert"
+              >
+                <p className="font-semibold">Please fix the following:</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {Object.entries(fieldErrors).map(([field, message]) => (
+                    <li key={field}>{message}</li>
+                  ))}
+                </ul>
               </div>
             ) : null}
 
-            {step === 2 ? (
-              <>
-                {hasFieldErrors(fieldErrors) ? (
-                  <div
-                    className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
-                    role="alert"
-                  >
-                    <p className="font-medium">Please fix the following:</p>
-                    <ul className="mt-2 list-disc space-y-1 pl-5">
-                      {Object.entries(fieldErrors).map(([field, message]) => (
-                        <li key={field}>{message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="company-name">Company Name *</Label>
-                    <Input id="company-name" value={companyName} onChange={e => setCompanyName(e.target.value)} required disabled={isLoading} className={fieldErrors.companyName ? "border-destructive" : undefined} />
-                    {fieldErrors.companyName ? <p className="text-sm text-destructive" role="alert">{fieldErrors.companyName}</p> : null}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="industry">Industry *</Label>
-                    <Input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} required disabled={isLoading} />
-                  </div>
-                </div>
-
-                <LocationAddressFields
-                  country={country}
-                  state={state}
-                  city={city}
-                  zipCode={zipCode}
-                  setCountry={setCountry}
-                  setState={setState}
-                  setCity={setCity}
-                  setZipCode={setZipCode}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <AuthInput
+                  id="company-name"
+                  label="Company Name *"
+                  value={companyName}
+                  onChange={e => setCompanyName(e.target.value)}
+                  required
                   disabled={isLoading}
-                  showRequiredIndicator
+                  className={fieldErrors.companyName ? "border-destructive" : undefined}
                 />
+                {fieldErrors.companyName ? <p className="text-sm text-destructive mt-1" role="alert">{fieldErrors.companyName}</p> : null}
+              </div>
+              <AuthInput
+                id="industry"
+                label="Industry *"
+                value={industry}
+                onChange={e => setIndustry(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+            </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="full-address">Company Address (Full Address) *</Label>
-                  <Textarea id="full-address" value={fullAddress} onChange={e => setFullAddress(e.target.value)} required disabled={isLoading} />
-                </div>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <LocationAddressFields
+                country={country}
+                state={state}
+                city={city}
+                zipCode={zipCode}
+                setCountry={setCountry}
+                setState={setState}
+                setCity={setCity}
+                setZipCode={setZipCode}
+                disabled={isLoading}
+                showRequiredIndicator
+              />
+            </div>
 
-                <div className="grid gap-2">
-                  <PhoneInternationalField
-                    className="min-w-0"
-                    phoneCountryIso={phoneCountryIso}
-                    phoneNationalDigits={phoneNationalDigits}
-                    setPhoneCountryIso={setPhoneCountryIso}
-                    setPhoneNationalDigits={setPhoneNationalDigits}
-                    addressCountryName={country}
-                    disabled={isLoading}
-                    showRequiredIndicator
-                    hideHint
-                  />
-                  {fieldErrors.phoneNumber ? (
-                    <p className="text-sm text-destructive" role="alert">{fieldErrors.phoneNumber}</p>
-                  ) : null}
-                </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="full-address" className="text-sm font-semibold text-slate-700 ml-1">Company Address (Full Address) *</Label>
+              <Textarea 
+                id="full-address" 
+                value={fullAddress} 
+                onChange={e => setFullAddress(e.target.value)} 
+                required 
+                disabled={isLoading} 
+                className="rounded-xl border-slate-200 focus-visible:ring-primary/20"
+              />
+            </div>
 
-                <Button type="submit" className="w-full h-11" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isLoading ? "Submitting..." : "Submit Company Registration"}
-                </Button>
-              </>
-            ) : null}
-          </form>
-          <div className="mt-4 text-center text-sm">
-            Already approved and have credentials?{" "}
-            <Link href="/company-login" className="underline">
-              Company Login
-            </Link>
+            <div className="grid gap-1.5">
+              <Label className="text-sm font-semibold text-slate-700 ml-1">Phone Number *</Label>
+              <PhoneInternationalField
+                className="min-w-0"
+                phoneCountryIso={phoneCountryIso}
+                phoneNationalDigits={phoneNationalDigits}
+                setPhoneCountryIso={setPhoneCountryIso}
+                setPhoneNationalDigits={setPhoneNationalDigits}
+                addressCountryName={country}
+                disabled={isLoading}
+                showRequiredIndicator
+                hideHint
+              />
+              {fieldErrors.phoneNumber ? (
+                <p className="text-sm text-destructive" role="alert">{fieldErrors.phoneNumber}</p>
+              ) : null}
+            </div>
+
+            <div className="pt-4 flex gap-4">
+              <button 
+                type="button" 
+                onClick={() => setStep(1)}
+                className="px-6 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Back
+              </button>
+              <Button type="submit" className="flex-1 h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold" disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isLoading ? "Submitting..." : "Submit Company Registration"}
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </form>
+
+      <div className="mt-10 text-center text-sm text-slate-500">
+        Already approved and have credentials?{' '}
+        <Link href="/company-login" className="font-semibold text-primary hover:text-primary/80 transition-colors">
+          Log In
+        </Link>
+      </div>
     </div>
   );
 }

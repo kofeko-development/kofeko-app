@@ -1,118 +1,160 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { Menu, X, LayoutDashboard } from 'lucide-react';
-import Logo from './logo';
-import { Button } from './ui/button';
+import { usePathname } from 'next/navigation';
+import { Menu, X } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/lib/auth';
 
-function staffDashboardHref(role: string | undefined) {
-  return role === 'operator' ? '/admin/dashboard' : '/dashboard';
-}
-
-const publicNavLinks = [
-    { href: '/#home', label: 'Home' },
-    { href: '/#features', label: 'Features' },
-    { href: '/#how-it-works', label: 'How It Works' },
-    { href: '/about', label: 'About' },
+const navLinks = [
+  { label: 'Features', href: '/#features', sectionId: 'features' },
+  { label: 'About Us', href: '/about' },
+  { label: 'Contact', href: '/contact' },
 ];
 
 export default function PublicNavbar() {
-    const [isOpen, setIsOpen] = useState(false);
-    const [isScrolled, setIsScrolled] = useState(false);
-    const { user, loading } = useAuth();
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const pathname = usePathname();
 
-    useEffect(() => {
-        const handleScroll = () => {
-            setIsScrolled(window.scrollY > 10);
-        };
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        handleScroll(); // Check on initial render
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
+  const isAuthPage = pathname?.includes('/login') || pathname?.includes('/signup');
+  const isFrosted = scrolled || isAuthPage;
 
-    return (
-        <header className={cn(
-            "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-            (isScrolled || user) ? "bg-white/95 shadow-md backdrop-blur-sm" : "bg-transparent"
-        )}>
-            <div className="container">
-                <div className="flex h-20 items-center">
-                    <Link href="/">
-                         <Logo />
-                    </Link>
+  useEffect(() => {
+    const updateNavigationState = () => {
+      setScrolled(window.scrollY > 20);
 
-                    <div className="hidden md:flex items-center gap-2 ml-auto">
-                        <nav className="flex items-center gap-1">
-                             {publicNavLinks.map((link) => (
-                                <Button key={link.href} variant="ghost" asChild>
-                                    <Link
-                                        href={link.href}
-                                        className={cn(
-                                            "text-sm font-semibold text-foreground hover:text-primary hover:bg-primary/5 px-3 py-2 rounded-lg", 
-                                        )}
-                                    >
-                                        {link.label}
-                                    </Link>
-                                </Button>
-                            ))}
-                        </nav>
-                        <div className="flex items-center pl-2">
-                          {!loading && user ? (
-                            <Button asChild className="btn-glass shadow-md text-sm font-semibold">
-                              <Link href={staffDashboardHref(user.role)}>Dashboard</Link>
-                            </Button>
-                          ) : null}
-                          {!loading && !user ? (
-                            <Button asChild className="btn-glass shadow-md text-sm font-semibold">
-                              <Link href="/register">Register</Link>
-                            </Button>
-                          ) : null}
-                        </div>
-                    </div>
+      if (pathname !== '/') {
+        setActiveSection(null);
+        return;
+      }
 
-                    <div className="md:hidden ml-auto">
-                        <button
-                            onClick={() => setIsOpen(!isOpen)}
-                            className="text-foreground hover:text-primary focus:outline-none"
-                        >
-                            {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6" />}
-                        </button>
-                    </div>
-                </div>
+      const features = document.getElementById('features');
+      if (!features) return;
+
+      const { top, bottom } = features.getBoundingClientRect();
+      setActiveSection(top <= 132 && bottom > 132 ? 'features' : null);
+    };
+
+    updateNavigationState();
+    window.addEventListener('scroll', updateNavigationState, { passive: true });
+    return () => window.removeEventListener('scroll', updateNavigationState);
+  }, [pathname]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, []);
+
+  const isLinkActive = (link: (typeof navLinks)[number]) => {
+    if (link.sectionId) return pathname === '/' && activeSection === link.sectionId;
+    return pathname === link.href;
+  };
+
+  return (
+    <>
+      <a
+        href="#main-content"
+        className="sr-only fixed left-4 top-4 z-[60] rounded-control bg-primary px-4 py-3 font-semibold text-white focus:not-sr-only"
+      >
+        Skip to content
+      </a>
+
+      <nav
+        aria-label="Primary navigation"
+        className={cn(
+          'fixed inset-x-0 top-0 z-50 px-6 transition-all duration-300',
+          isFrosted
+            ? 'border-b border-slate-200/50 bg-white/80 py-4 shadow-sm backdrop-blur-xl'
+            : 'bg-transparent py-6'
+        )}
+      >
+        <div className="page-container flex items-center justify-between">
+          <Link href="/" className="flex items-center rounded-control focus-visible:ring-offset-transparent">
+            <Image src="/kofeko.svg" alt="Kofeko" width={154} height={50} priority className="h-12 w-auto" />
+          </Link>
+
+          <div className="hidden items-center gap-8 md:flex">
+            <div className="flex items-center gap-7">
+              {navLinks.map((link) => {
+                const active = isLinkActive(link);
+                return (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'rounded-control px-1 py-2 text-base font-semibold transition-colors',
+                      active ? 'text-primary' : 'text-slate-600 hover:text-primary'
+                    )}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
             </div>
+            <div className="flex items-center gap-4 border-l border-slate-200 pl-8">
+              <Link href="/company-login" className="rounded-control px-1 py-2 text-base font-semibold text-slate-600 transition-colors hover:text-primary">
+                Log in
+              </Link>
+              <Button asChild className="rounded-full px-6 shadow-sm">
+                <Link href="/company-signup">Register</Link>
+              </Button>
+            </div>
+          </div>
 
-            {isOpen && (
-                <div className="md:hidden bg-white/95 border-t border-gray-200/50 backdrop-blur-sm">
-                    <nav className="flex flex-col items-center gap-2 p-4">
-                        {publicNavLinks.map((link) => (
-                            <Link
-                                key={link.href}
-                                href={link.href}
-                                onClick={() => setIsOpen(false)}
-                                className="text-base font-medium text-foreground hover:text-primary transition-colors block w-full text-center py-2"
-                            >
-                                {link.label}
-                            </Link>
-                        ))}
-                        <div className="mt-4 w-full flex flex-col gap-2">
-                            {!loading && user ? (
-                                <Button asChild className="w-full btn-glass shadow-md">
-                                    <Link href={staffDashboardHref(user.role)}><LayoutDashboard className="mr-2"/> Go to Dashboard</Link>
-                                </Button>
-                            ) : null}
-                            {!loading && !user ? (
-                                <Button asChild className="w-full btn-glass shadow-md">
-                                    <Link href="/register">Register</Link>
-                                </Button>
-                            ) : null}
-                        </div>
-                    </nav>
-                </div>
-            )}
-        </header>
-    );
+          <button
+            type="button"
+            className="flex size-11 items-center justify-center rounded-control text-slate-600 md:hidden"
+            onClick={() => setMobileOpen((open) => !open)}
+            aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-navigation"
+          >
+            {mobileOpen ? <X /> : <Menu />}
+          </button>
+        </div>
+
+        {mobileOpen && (
+          <div id="mobile-navigation" className="absolute inset-x-0 top-full border-b bg-white p-6 shadow-2xl md:hidden">
+            <div className="page-container flex flex-col space-y-3">
+              {navLinks.map((link) => {
+                const active = isLinkActive(link);
+                return (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'rounded-control px-3 py-3 text-lg font-medium transition-colors',
+                      active ? 'bg-primary/10 text-primary' : 'text-slate-700 hover:bg-slate-50'
+                    )}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+              <div className="mt-3 flex flex-col space-y-3 border-t border-slate-100 pt-6">
+                <Button asChild variant="outline" className="h-12 w-full justify-center rounded-control text-base" onClick={() => setMobileOpen(false)}>
+                  <Link href="/company-login">Log in</Link>
+                </Button>
+                <Button asChild className="h-12 w-full justify-center rounded-control text-base" onClick={() => setMobileOpen(false)}>
+                  <Link href="/company-signup">Register</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </nav>
+    </>
+  );
 }
