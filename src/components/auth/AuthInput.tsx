@@ -23,9 +23,8 @@ export function AuthInput({ label, type = 'text', className = '', id, ...props }
         <input
           id={inputId}
           type={currentType}
-          className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 shadow-sm ${
-            isPassword ? 'pr-10' : ''
-          } ${className}`}
+          className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 shadow-sm ${isPassword ? 'pr-10' : ''
+            } ${className}`}
           {...props}
         />
         {isPassword && (
