@@ -21,7 +21,7 @@ export default function PublicNavbar() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const pathname = usePathname();
 
-  const isAuthPage = pathname?.includes('/login') || pathname?.includes('/signup');
+  const isAuthPage = pathname?.includes('/login') || pathname?.includes('/signup') || pathname?.includes('/candidate-auth');
   const isFrosted = scrolled || isAuthPage;
 
   useEffect(() => {
@@ -72,14 +72,22 @@ export default function PublicNavbar() {
         aria-label="Primary navigation"
         className={cn(
           'fixed inset-x-0 top-0 z-50 px-6 transition-all duration-300',
-          isFrosted
-            ? 'border-b border-slate-200/50 bg-white/80 py-4 shadow-sm backdrop-blur-xl'
-            : 'bg-transparent py-6'
+          isFrosted && !isAuthPage
+            ? 'border-b border-slate-200/50 py-4 shadow-sm bg-white/80 backdrop-blur-xl'
+            : !isAuthPage ? 'bg-transparent py-6' : '',
+          isAuthPage && 'bg-white py-4 border-b border-slate-200/50'
         )}
       >
         <div className="page-container flex items-center justify-between">
           <Link href="/" className="flex items-center rounded-control focus-visible:ring-offset-transparent">
-            <Image src="/Kofeko.svg" alt="Kofeko" width={154} height={50} priority className="h-12 w-auto" />
+            <Image
+              src="/Kofeko.svg"
+              alt="Kofeko"
+              width={154}
+              height={50}
+              priority
+              className="h-12 w-auto transition-all"
+            />
           </Link>
 
           <div className="hidden items-center gap-8 md:flex">
@@ -101,8 +109,8 @@ export default function PublicNavbar() {
                 );
               })}
             </div>
-            <div className="flex items-center gap-4 border-l border-slate-200 pl-8">
-              <Link href="/company-login" className="rounded-control px-1 py-2 text-base font-semibold text-slate-600 transition-colors hover:text-primary">
+            <div className="flex items-center gap-4 border-l pl-8 border-slate-200">
+              <Link href="/company-login" className="rounded-control px-1 py-2 text-base font-semibold transition-colors text-slate-600 hover:text-primary">
                 Log in
               </Link>
               <Button asChild className="rounded-full px-6 shadow-sm">

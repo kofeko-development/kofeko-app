@@ -44,14 +44,17 @@ function toastActionFor(display: ErrorDisplay) {
 export function useApiErrorToast() {
   const { toast } = useToast();
 
-  const showError = useCallback((error: unknown): ApiErrorToastResult => {
+  const showError = useCallback((error: unknown, overrides?: Partial<ErrorDisplay>): ApiErrorToastResult => {
     if (error instanceof ApiError) {
       const fieldErrors = mapFieldErrors(error.details);
-      const display = resolveApiErrorDisplay({
-        errorCategory: error.errorCategory,
-        errorCode: error.errorCode,
-        message: error.message,
-      });
+      const display = {
+        ...resolveApiErrorDisplay({
+          errorCategory: error.errorCategory,
+          errorCode: error.errorCode,
+          message: error.message,
+        }),
+        ...overrides,
+      };
       const category = display.category ?? error.errorCategory ?? ERROR_CATEGORIES.SERVER;
       const validationDescription = validationToastDescription(fieldErrors);
       const hasMappedFields = hasFieldErrors(fieldErrors);

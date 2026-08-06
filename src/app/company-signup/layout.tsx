@@ -2,7 +2,6 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { LineChart, BrainCircuit, Zap } from 'lucide-react';
 
-import PublicNavbar from '@/components/public-navbar';
 import AuthLegalTags from '@/components/auth-legal-tags';
 
 export const metadata: Metadata = {
@@ -19,8 +18,7 @@ export const metadata: Metadata = {
 export default function CompanyAuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <PublicNavbar />
-      <div className="flex flex-1 flex-col pt-20 md:flex-row lg:pt-0">
+      <div className="flex flex-1 flex-col md:flex-row">
       
       {/* Left Side: Auth Form Container */}
       <main id="main-content" className="w-full md:w-1/2 lg:w-7/12 flex items-center justify-center p-8 lg:p-24 relative bg-white z-10 order-2 md:order-1 pt-12 lg:pt-24">

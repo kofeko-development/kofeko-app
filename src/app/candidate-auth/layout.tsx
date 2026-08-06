@@ -2,7 +2,6 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { Sparkles, Map, Target } from 'lucide-react';
 
-import PublicNavbar from '@/components/public-navbar';
 import AuthLegalTags from '@/components/auth-legal-tags';
 
 export const metadata: Metadata = {
@@ -19,8 +18,7 @@ export const metadata: Metadata = {
 export default function CandidateAuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <PublicNavbar />
-      <div className="flex flex-1 flex-col pt-20 md:flex-row lg:pt-0">
+      <div className="flex flex-1 flex-col md:flex-row">
       {/* Left Side: Visual Panel */}
       <div className="hidden md:flex md:w-1/2 lg:w-5/12 relative overflow-hidden bg-slate-900 text-white flex-col justify-center p-12 lg:p-16 pt-24">
         

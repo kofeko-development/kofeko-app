@@ -185,8 +185,16 @@ function CandidateAuthContent() {
         toastSuccess({ title: 'Login successful', description: 'Welcome back.' });
       }
       router.push(redirectPath);
-    } catch (error) {
-      const { fieldErrors: mapped } = showError(error);
+    } catch (error: any) {
+      const isEmailNotFound = error?.errorCode === 'EMAIL_NOT_FOUND';
+      const overrides: any = {};
+
+      if (isEmailNotFound && mode === 'login') {
+        overrides.action = 'Register as candidate';
+        overrides.actionHref = '/candidate-auth?mode=signup';
+      }
+
+      const { fieldErrors: mapped } = showError(error, overrides);
       setFieldErrors(mapped);
     } finally {
       setIsLoading(false);
@@ -201,8 +209,16 @@ function CandidateAuthContent() {
       await loginCandidateWithGoogle({ idToken });
       toastSuccess({ title: 'Login successful', description: 'Signed in with Google.' });
       router.push(redirectPath);
-    } catch (error) {
-      const { fieldErrors: mapped } = showError(error);
+    } catch (error: any) {
+      const isEmailNotFound = error?.errorCode === 'EMAIL_NOT_FOUND';
+      const overrides: any = {};
+
+      if (isEmailNotFound && mode === 'login') {
+        overrides.action = 'Register as candidate';
+        overrides.actionHref = '/candidate-auth?mode=signup';
+      }
+
+      const { fieldErrors: mapped } = showError(error, overrides);
       setFieldErrors(mapped);
     } finally {
       setIsGoogleLoading(false);
@@ -211,7 +227,7 @@ function CandidateAuthContent() {
 
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out w-full max-w-md mx-auto">
-      
+
       {/* Account Type Switcher */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between mb-8 w-full">
         <span className="text-sm text-slate-600">Are you a company?</span>
@@ -374,9 +390,9 @@ function CandidateAuthContent() {
         </div>
       </div>
 
-      <AuthGoogleButton 
-        onClick={onGoogle} 
-        disabled={isLoading || isGoogleLoading || sendOtpLoading || confirmOtpLoading} 
+      <AuthGoogleButton
+        onClick={onGoogle}
+        disabled={isLoading || isGoogleLoading || sendOtpLoading || confirmOtpLoading}
       >
         {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (
           <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
