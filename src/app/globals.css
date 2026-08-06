@@ -29,6 +29,15 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 20% 98%;
 
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 355.7 100% 97.3%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 89%;
+
+    --info: 221.2 83.2% 53.3%;
+    --info-foreground: 210 40% 98%;
+
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 271 33% 55%;
@@ -223,6 +232,7 @@
 }
 
 @media (min-width: 1024px) {
+
   .section,
   .section-container {
     padding-block: var(--section-space-lg);
