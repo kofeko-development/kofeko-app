@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { CalendarDays, MessageCircle } from 'lucide-react';
 import type { Metadata } from 'next';
 import ContactForm from './contact-form';
+import { BookDemoButton } from '@/components/book-demo-button';
 
 export const metadata: Metadata = {
   title: 'Contact Kofeko',
@@ -44,7 +45,7 @@ export default function ContactPage() {
               <CalendarDays className="size-6 text-primary" aria-hidden="true" />
               <h3 className="mt-5 text-lg font-bold text-slate-900">Demo scheduling</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">Want to see Kofeko in your hiring workflow? Choose a preferred demo window.</p>
-              <Link href="/book-demo" className="mt-4 inline-flex rounded-control text-sm font-bold text-primary hover:text-primary/80">Book a demo →</Link>
+              <BookDemoButton className="mt-4 inline-flex rounded-control text-sm font-bold text-primary hover:text-primary/80">Book a demo →</BookDemoButton>
             </div>
           </div>
         </section>

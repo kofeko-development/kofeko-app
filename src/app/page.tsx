@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import PublicNavbar from '@/components/public-navbar';
+import { BookDemoButton } from '@/components/book-demo-button';
 import RotatingText from '@/components/rotating-text';
 import SystemIllustration from '@/components/system-illustration';
 import FeatureCapabilities from '@/components/feature-capabilities';
@@ -62,7 +63,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
               <Button asChild size="lg" className="h-14 rounded-full px-8 text-lg font-bold shadow-cta">
-                <Link href="/book-demo">Book a Demo</Link>
+                <BookDemoButton>Book a Demo</BookDemoButton>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-14 rounded-full border-primary/20 bg-white/80 px-8 text-lg font-bold text-primary hover:border-primary/40 hover:bg-white hover:text-primary">
                 <Link href="/company-signup">Get Early Access</Link>
