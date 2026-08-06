@@ -79,7 +79,7 @@ export default function PublicNavbar() {
       >
         <div className="page-container flex items-center justify-between">
           <Link href="/" className="flex items-center rounded-control focus-visible:ring-offset-transparent">
-            <Image src="/kofeko.svg" alt="Kofeko" width={154} height={50} priority className="h-12 w-auto" />
+            <Image src="/Kofeko.svg" alt="Kofeko" width={154} height={50} priority className="h-12 w-auto" />
           </Link>
 
           <div className="hidden items-center gap-8 md:flex">
