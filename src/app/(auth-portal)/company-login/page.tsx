@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthButton } from '@/components/auth/AuthButton';
+import { AuthPortalSwitcher } from '@/components/auth/AuthPortalSwitcher';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
@@ -65,19 +66,12 @@ export default function CompanyLoginPage() {
   };
 
   return (
-    <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
-      
-      {/* Account Type Switcher */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between mb-8">
-        <span className="text-sm text-slate-600">Are you a candidate?</span>
-        <Link href="/candidate-auth?mode=login" className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">
-          Candidate Login →
-        </Link>
-      </div>
+    <div className="flex w-full flex-col">
+      <AuthPortalSwitcher active="company" />
 
       <div className="mb-10 text-center md:text-left">
-        <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Company Login</h2>
-        <p className="text-slate-500 text-sm">Enter your email and password to access your company account.</p>
+        <h2 className="mb-2 text-3xl font-bold tracking-tight text-slate-900">Company Login</h2>
+        <p className="text-sm text-slate-500">Enter your email and password to access your company account.</p>
       </div>
 
       <form onSubmit={handleLogin} className="space-y-5">
@@ -102,15 +96,15 @@ export default function CompanyLoginPage() {
           className={fieldErrors.email ? "border-destructive" : ""}
         />
         {fieldErrors.email ? (
-          <p className="text-sm text-destructive mt-1" role="alert">{fieldErrors.email}</p>
+          <p className="mt-1 text-sm text-destructive" role="alert">{fieldErrors.email}</p>
         ) : null}
         
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label htmlFor="password" className="text-sm font-semibold text-slate-700 ml-1">
+          <div className="mb-1.5 flex items-center justify-between">
+            <label htmlFor="password" className="ml-1 text-sm font-semibold text-slate-700">
               Password
             </label>
-            <Link href="/forgot-password" className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
+            <Link href="/forgot-password" className="text-xs font-semibold text-primary transition-colors hover:text-primary/80">
               Forgot password?
             </Link>
           </div>
@@ -135,7 +129,7 @@ export default function CompanyLoginPage() {
             className={fieldErrors.password ? "border-destructive" : ""}
           />
           {fieldErrors.password ? (
-            <p className="text-sm text-destructive mt-1" role="alert">{fieldErrors.password}</p>
+            <p className="mt-1 text-sm text-destructive" role="alert">{fieldErrors.password}</p>
           ) : null}
         </div>
 
@@ -148,7 +142,7 @@ export default function CompanyLoginPage() {
 
       <div className="mt-10 text-center text-sm text-slate-500">
         Don&apos;t have a company account?{' '}
-        <Link href="/company-signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
+        <Link href="/company-signup" className="font-semibold text-primary transition-colors hover:text-primary/80">
           Register Company
         </Link>
       </div>

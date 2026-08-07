@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,12 +12,13 @@ import { useAppToast } from '@/lib/toast-helpers';
 
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { cn } from '@/lib/utils';
-import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
 import { firebaseAuth, googleAuthProvider } from '@/lib/firebase-client';
 import { apiRequest } from '@/lib/api-client';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthGoogleButton } from '@/components/auth/AuthGoogleButton';
+import { AuthPortalSwitcher } from '@/components/auth/AuthPortalSwitcher';
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const isValidEmailShape = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
@@ -33,7 +33,7 @@ const getSafeRedirect = (url: string | null) => {
 
 function CandidateAuthContent() {
   const { loginCandidate, loginCandidateWithGoogle, registerCandidate } = useAuth();
-  const { toastSuccess, toastWarning, toastError, toastInfo } = useAppToast();
+  const { toastSuccess, toastWarning, toastInfo } = useAppToast();
   const { showError } = useApiErrorToast();
   const router = useRouter();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -45,13 +45,10 @@ function CandidateAuthContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  // OTP State
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
@@ -119,7 +116,6 @@ function CandidateAuthContent() {
       setVerifiedAtEmail(normalizeEmail(raw));
       toastSuccess({ title: 'Email verified', description: 'Creating your account...' });
 
-      // Automatically attempt to complete signup if fields are filled
       const trimmed = fullName.trim();
       if (trimmed && password && password === confirmPassword) {
         setIsLoading(true);
@@ -232,21 +228,14 @@ function CandidateAuthContent() {
   };
 
   return (
-    <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out w-full max-w-md mx-auto">
-
-      {/* Account Type Switcher */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between mb-8 w-full">
-        <span className="text-sm text-slate-600">Are you a company?</span>
-        <Link href="/company-login" className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">
-          Company Login →
-        </Link>
-      </div>
+    <div className="mx-auto flex w-full max-w-md flex-col">
+      <AuthPortalSwitcher active="candidate" />
 
       <div className="mb-10 text-center md:text-left">
-        <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">
+        <h2 className="mb-2 text-3xl font-bold tracking-tight text-slate-900">
           {mode === 'signup' ? 'Candidate Sign Up' : 'Candidate Login'}
         </h2>
-        <p className="text-slate-500 text-sm">
+        <p className="text-sm text-slate-500">
           {mode === 'signup' ? 'Create your account to start applying.' : 'Login with your candidate account credentials.'}
         </p>
       </div>
@@ -292,12 +281,12 @@ function CandidateAuthContent() {
         </div>
 
         <div className="grid gap-2">
-          <div className="flex items-center justify-between mb-[-12px] z-10 relative pointer-events-none">
+          <div className="relative z-10 mb-[-12px] flex items-center justify-between pointer-events-none">
             <span className="opacity-0">Password</span>
             {mode === 'login' ? (
               <Link
                 href="/forgot-password?from=candidate"
-                className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors pointer-events-auto bg-white pr-1"
+                className="pointer-events-auto bg-white pr-1 text-xs font-semibold text-primary transition-colors hover:text-primary/80"
               >
                 Forgot password?
               </Link>
@@ -338,7 +327,7 @@ function CandidateAuthContent() {
         )}
 
         {mode === 'signup' && otpSent && !emailLooksVerified && (
-          <div className="grid gap-2 p-4 mt-2 rounded-xl border border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="mt-2 grid gap-2 rounded-xl border border-primary/20 bg-primary/5 p-4 animate-in fade-in slide-in-from-top-1 duration-300">
             <div className="flex items-center justify-between px-0.5">
               <Label htmlFor="otp" className="text-xs font-bold uppercase tracking-wider text-primary">Enter 6-Digit Code</Label>
               <Button
@@ -357,7 +346,7 @@ function CandidateAuthContent() {
                 placeholder="000000"
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="text-center tracking-[0.4em] font-mono text-lg h-11 border-primary/20 bg-white focus-visible:ring-primary/30 rounded-xl"
+                className="h-11 rounded-xl border-primary/20 bg-white text-center font-mono text-lg tracking-[0.4em] focus-visible:ring-primary/30"
                 maxLength={6}
                 disabled={confirmOtpLoading}
               />
@@ -365,7 +354,7 @@ function CandidateAuthContent() {
                 type="button"
                 onClick={handleConfirmOtp}
                 disabled={confirmOtpLoading || otpCode.length !== 6}
-                className="h-11 px-6 font-semibold rounded-xl bg-primary hover:bg-primary/90 text-white"
+                className="h-11 rounded-xl bg-primary px-6 font-semibold text-white hover:bg-primary/90"
               >
                 {confirmOtpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify'}
               </Button>
@@ -393,7 +382,7 @@ function CandidateAuthContent() {
         <div className="pt-2">
           <Button
             type="submit"
-            className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold transition-all shadow-sm"
+            className="h-12 w-full rounded-xl bg-primary font-semibold text-white shadow-sm transition-all hover:bg-primary/90"
             disabled={isLoading || isGoogleLoading || sendOtpLoading || confirmOtpLoading || (mode === 'signup' && passwordMismatch)}
           >
             {isLoading || sendOtpLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -409,7 +398,7 @@ function CandidateAuthContent() {
           <div className="w-full border-t border-slate-200" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-white px-4 text-slate-400 text-xs font-semibold uppercase tracking-wider">Or</span>
+          <span className="bg-white px-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Or</span>
         </div>
       </div>
 
@@ -418,7 +407,7 @@ function CandidateAuthContent() {
         disabled={isLoading || isGoogleLoading || sendOtpLoading || confirmOtpLoading}
       >
         {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (
-          <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -431,11 +420,11 @@ function CandidateAuthContent() {
       <div className="mt-10 text-center text-sm text-slate-500">
         {mode === 'signup' ? (
           <>
-            Already have a candidate account? <Link href="/candidate-auth?mode=login" className="font-semibold text-primary hover:text-primary/80 transition-colors">Login</Link>
+            Already have a candidate account? <Link href="/candidate-auth?mode=login" className="font-semibold text-primary transition-colors hover:text-primary/80">Login</Link>
           </>
         ) : (
           <>
-            New to Kofeko? <Link href="/candidate-auth?mode=signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">Create account</Link>
+            New to Kofeko? <Link href="/candidate-auth?mode=signup" className="font-semibold text-primary transition-colors hover:text-primary/80">Create account</Link>
           </>
         )}
       </div>
@@ -445,12 +434,14 @@ function CandidateAuthContent() {
 
 export default function CandidateAuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted/20">
-      <div className="flex flex-col items-center gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground font-medium">Loading...</p>
+    <Suspense fallback={
+      <div className="flex min-h-[320px] items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Loading...</p>
+        </div>
       </div>
-    </div>}>
+    }>
       <CandidateAuthContent />
     </Suspense>
   );
