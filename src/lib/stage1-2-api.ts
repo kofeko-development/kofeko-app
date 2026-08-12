@@ -137,29 +137,64 @@ export type EvaluationLabResultItem =
       overallScore: number;
       rankingSummary: string;
       analysis: {
+        parsedResume: {
+          skillsAndTechnologies: string[];
+          experience: Array<{ company?: string; title?: string; dates?: string; highlights?: string[] }>;
+          education: Array<{ institution?: string; degree?: string; field?: string; dates?: string }>;
+          projects: Array<{ name?: string; description?: string; technologies?: string[] }>;
+          certifications: string[];
+        };
         scores: {
           overall: number;
-          sections: Record<string, number>;
-          skillMatches: Array<{
-            skill: string;
+          capabilityFit: number;
+          experienceScopeFit: number;
+          explicitRequirementFit: number;
+          explicitRequirementsApplicable: boolean;
+          evidenceConfidence: 'high' | 'medium' | 'low';
+          capabilityMatches: Array<{
+            capability: string;
             weight: number;
-            matched: boolean;
-            contribution: number;
-            evidence?: string;
+            score: number;
+            evidenceLevel: 'demonstrated' | 'supporting' | 'self_declared' | 'no_evidence';
+            confidence: 'high' | 'medium' | 'low';
+            evidence: string[];
+            rationale: string;
           }>;
-          roleFitNotes: string;
+          requirementMatches: Array<{
+            requirement: string;
+            status: 'met' | 'partially_evidenced' | 'not_evidenced' | 'does_not_meet';
+            evidenceScore: number;
+            confidence: 'high' | 'medium' | 'low';
+            evidence: string[];
+            reasoning: string;
+          }>;
+          scoreRationale: string;
         };
-        rankingSummary: string;
-        hiringIntelligence?: {
-          applicationSummary?: string;
-          keyStrengths?: string[];
-          areasForGrowth?: string[];
-          riskFlags?: string[];
-          interviewRecommendation?: { classification: string; reasoning: string };
-          suggestedInterviewQuestions?: string[];
-          relevanceToRole?: { matchScorePercent: number; strongMatchAreas?: string[]; missingCapabilities?: string[] };
+        hiringIntelligence: {
+          candidateSnapshot: string;
+          roleFitSummary: string;
+          whyRankedHere: string[];
+          relevantExperience: {
+            totalYearsApprox?: string;
+            relevantYearsApprox?: string;
+            relevantDomains?: string[];
+            keyRolesHeld?: string[];
+            scopeAndSeniority?: string;
+            narrative?: string;
+          };
+          evidenceGaps: string[];
+          verificationFlags: string[];
+          interviewRecommendation: {
+            classification: 'high_priority_interview' | 'interview' | 'review' | 'low_match';
+            reasoning: string;
+          };
+          interviewFocus: Array<{
+            question: string;
+            purpose: 'validate_claim' | 'resolve_gap' | 'test_role_critical_judgment';
+            capabilityOrRequirement: string;
+            whyAsk: string;
+          }>;
         };
-        parsedResume?: { summary?: string; skills?: string[] };
       };
     }
   | {

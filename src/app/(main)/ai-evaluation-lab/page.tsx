@@ -51,6 +51,7 @@ function ResultCard({ item, rank }: { item: EvaluationLabResultItem; rank: numbe
   }
 
   const hi = item.analysis.hiringIntelligence;
+  const scores = item.analysis.scores;
 
   return (
     <Card>
@@ -68,19 +69,19 @@ function ResultCard({ item, rank }: { item: EvaluationLabResultItem; rank: numbe
         <CardDescription>{item.rankingSummary}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {hi?.applicationSummary && (
-          <p className="text-sm text-muted-foreground">{hi.applicationSummary}</p>
+        {hi?.candidateSnapshot && (
+          <p className="text-sm font-medium text-primary/80">{hi.candidateSnapshot}</p>
         )}
 
-        {item.analysis.scores.skillMatches.length > 0 && (
+        {scores.capabilityMatches.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {item.analysis.scores.skillMatches.map((m) => (
+            {scores.capabilityMatches.map((m) => (
               <Badge
-                key={m.skill}
+                key={m.capability}
                 variant="outline"
-                className={m.matched ? 'border-green-300 bg-green-50' : 'border-slate-200 bg-slate-50 opacity-70'}
+                className={m.evidenceLevel === 'demonstrated' || m.evidenceLevel === 'supporting' ? 'border-green-300 bg-green-50' : 'border-slate-200 bg-slate-50 opacity-70'}
               >
-                {m.skill} ({m.weight}){m.matched ? ' ✓' : ''}
+                {m.capability} ({m.weight}){m.evidenceLevel === 'demonstrated' ? ' ✓' : ''}
               </Badge>
             ))}
           </div>
@@ -100,45 +101,53 @@ function ResultCard({ item, rank }: { item: EvaluationLabResultItem; rank: numbe
         {expanded && (
           <div className="space-y-4 rounded-lg border bg-muted/30 p-4 text-sm">
             <div>
-              <p className="font-semibold mb-1">Section scores</p>
+              <p className="font-semibold mb-1">Score Breakdown</p>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                {Object.entries(item.analysis.scores.sections).map(([key, val]) => (
-                  <div key={key} className="flex justify-between rounded bg-background px-2 py-1">
-                    <span className="capitalize text-muted-foreground">{key.replace(/([A-Z])/g, ' $1')}</span>
-                    <span className="font-medium">{val}</span>
+                <div className="flex justify-between rounded bg-background px-2 py-1">
+                  <span className="text-muted-foreground">Capability Fit</span>
+                  <span className="font-medium">{scores.capabilityFit}</span>
+                </div>
+                <div className="flex justify-between rounded bg-background px-2 py-1">
+                  <span className="text-muted-foreground">Experience & Scope Fit</span>
+                  <span className="font-medium">{scores.experienceScopeFit}</span>
+                </div>
+                {scores.explicitRequirementsApplicable && (
+                  <div className="flex justify-between rounded bg-background px-2 py-1">
+                    <span className="text-muted-foreground">Requirements Fit</span>
+                    <span className="font-medium">{scores.explicitRequirementFit}</span>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
-            {hi?.keyStrengths && hi.keyStrengths.length > 0 && (
+            {hi?.whyRankedHere && hi.whyRankedHere.length > 0 && (
               <div>
-                <p className="font-semibold mb-1">Key strengths</p>
+                <p className="font-semibold mb-1">Why Ranked Here</p>
                 <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground">
-                  {hi.keyStrengths.map((s) => (
-                    <li key={s}>{s}</li>
+                  {hi.whyRankedHere.map((s, i) => (
+                    <li key={i}>{s}</li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {hi?.areasForGrowth && hi.areasForGrowth.length > 0 && (
+            {hi?.evidenceGaps && hi.evidenceGaps.length > 0 && (
               <div>
-                <p className="font-semibold mb-1">Areas for growth</p>
+                <p className="font-semibold mb-1 text-amber-700">Evidence Gaps</p>
                 <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground">
-                  {hi.areasForGrowth.map((s) => (
-                    <li key={s}>{s}</li>
+                  {hi.evidenceGaps.map((s, i) => (
+                    <li key={i}>{s}</li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {hi?.riskFlags && hi.riskFlags.length > 0 && (
+            {hi?.verificationFlags && hi.verificationFlags.length > 0 && (
               <div>
-                <p className="font-semibold mb-1 text-amber-700">Risk flags</p>
+                <p className="font-semibold mb-1 text-red-700">Verification Flags</p>
                 <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground">
-                  {hi.riskFlags.map((s) => (
-                    <li key={s}>{s}</li>
+                  {hi.verificationFlags.map((s, i) => (
+                    <li key={i}>{s}</li>
                   ))}
                 </ul>
               </div>
@@ -146,17 +155,35 @@ function ResultCard({ item, rank }: { item: EvaluationLabResultItem; rank: numbe
 
             {hi?.interviewRecommendation && (
               <div>
-                <p className="font-semibold mb-1">Interview recommendation</p>
-                <p className="text-muted-foreground capitalize">
-                  {hi.interviewRecommendation.classification.replace(/_/g, ' ')} — {hi.interviewRecommendation.reasoning}
+                <p className="font-semibold mb-1">Interview Recommendation</p>
+                <p className="text-muted-foreground capitalize font-medium">
+                  {hi.interviewRecommendation.classification.replace(/_/g, ' ')}
+                </p>
+                <p className="text-muted-foreground mt-1">
+                  {hi.interviewRecommendation.reasoning}
                 </p>
               </div>
             )}
 
-            {item.analysis.scores.roleFitNotes && (
+            {scores.scoreRationale && (
               <div>
-                <p className="font-semibold mb-1">Role fit notes</p>
-                <p className="text-muted-foreground">{item.analysis.scores.roleFitNotes}</p>
+                <p className="font-semibold mb-1">Score Rationale</p>
+                <p className="text-muted-foreground">{scores.scoreRationale}</p>
+              </div>
+            )}
+
+            {hi?.interviewFocus && hi.interviewFocus.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2">Suggested Interview Focus</p>
+                <div className="space-y-3">
+                  {hi.interviewFocus.map((focus, i) => (
+                    <div key={i} className="rounded bg-background p-3 border text-muted-foreground">
+                      <p className="font-medium text-foreground mb-1">{focus.question}</p>
+                      <p className="text-xs uppercase tracking-wider mb-1 text-primary">{focus.purpose.replace(/_/g, ' ')} — {focus.capabilityOrRequirement}</p>
+                      <p className="text-xs">{focus.whyAsk}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
