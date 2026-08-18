@@ -59,7 +59,7 @@ export function SettingsHub({ defaultTab = 'profile' }: SettingsHubProps) {
       label: 'Company Profile',
       description: 'Brand, logo & online presence',
       icon: Building2,
-      show: true,
+      show: hasPermission('company:read') || hasPermission('rbac:manage'),
     },
     {
       key: 'security' as SettingsTabKey,
@@ -80,7 +80,7 @@ export function SettingsHub({ defaultTab = 'profile' }: SettingsHubProps) {
       label: 'Integrations',
       description: 'LinkedIn, Twitter & APIs',
       icon: Layers,
-      show: hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post') || hasPermission('rbac:manage') || true,
+      show: hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post') || hasPermission('rbac:manage'),
     },
   ].filter((t) => t.show);
 

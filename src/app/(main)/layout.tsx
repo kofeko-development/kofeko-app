@@ -70,6 +70,7 @@ const routePermissions: RouteRule[] = [
     { route: '/applicants', permissions: ['candidate:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/team', permissions: ['user:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/my-profile', permissions: [], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
+    { route: '/security', permissions: [], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/company-profile', permissions: ['company:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/subscription', permissions: ['company:update'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/inbox', permissions: ['communication:read'] },
@@ -125,10 +126,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             return;
         }
 
+        if (hasPermission('rbac:manage') && pathname.startsWith('/security')) {
+            router.replace(`/admin/security`);
+            return;
+        }
+
         // Operator/admin → redirect to admin layout, but spare shared pipeline pages
-        const isSharedPage = 
+        const isSharedPage =
             pathname.startsWith('/profile') ||
             pathname.startsWith('/my-profile') ||
+            pathname.startsWith('/security') ||
             pathname.startsWith('/ai-evaluation-lab');
 
         if (pathname.startsWith('/interviews') || pathname.startsWith('/assessments')) {
@@ -348,7 +355,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         )
     }
 
-    const isRecruiterExperience = hasPermission('job:create') || hasPermission('job:update') || hasPermission('user:read');
+    const isRecruiterExperience = user.role !== 'candidate';
 
     if (isRecruiterExperience) {
         return (
@@ -388,29 +395,29 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 ) : (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Link
-                                                            href={item.href}
-                                                            className={cn(
-                                                                'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
-                                                                pathname.startsWith(item.href) && 
-                                                                (item.href !== '/dashboard' || pathname === '/dashboard') && 
-                                                                (item.href !== '/admin/dashboard' || pathname === '/admin/dashboard') && 
-                                                                'bg-sidebar-accent text-sidebar-accent-foreground',
-                                                                "group-data-[state=collapsed]:justify-center"
-                                                            )}
-                                                        >
-                                                            <item.icon className="shrink-0" />
-                                                            <span className="group-data-[state=collapsed]:hidden">
-                                                                {item.label}
-                                                            </span>
-                                                        </Link>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="right" align="center">
-                                                        {item.label}
-                                                    </TooltipContent>
-                                                </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Link
+                                                                href={item.href}
+                                                                className={cn(
+                                                                    'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
+                                                                    pathname.startsWith(item.href) &&
+                                                                    (item.href !== '/dashboard' || pathname === '/dashboard') &&
+                                                                    (item.href !== '/admin/dashboard' || pathname === '/admin/dashboard') &&
+                                                                    'bg-sidebar-accent text-sidebar-accent-foreground',
+                                                                    "group-data-[state=collapsed]:justify-center"
+                                                                )}
+                                                            >
+                                                                <item.icon className="shrink-0" />
+                                                                <span className="group-data-[state=collapsed]:hidden">
+                                                                    {item.label}
+                                                                </span>
+                                                            </Link>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="right" align="center">
+                                                            {item.label}
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 )}
                                             </SidebarMenuItem>
                                         ))}
