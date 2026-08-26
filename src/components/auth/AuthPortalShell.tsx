@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
+import Logo from '@/components/logo';
 
 import { CandidateAuthPanel, CompanyAuthPanel } from './AuthPortalPanels';
 
@@ -38,6 +39,10 @@ export function AuthPortalShell({ children }: { children: React.ReactNode }) {
             isCandidate ? 'md:left-[41.666667%]' : 'md:left-0',
           )}
         >
+          <div className="absolute top-8 left-8 z-50">
+            <Logo href="/" />
+          </div>
+
           <div
             key={isCandidate ? 'candidate-form' : 'company-form'}
             className={cn(

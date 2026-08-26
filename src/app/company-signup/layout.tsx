@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { LineChart, BrainCircuit, Zap } from 'lucide-react';
 
 import AuthLegalTags from '@/components/auth-legal-tags';
+import Logo from '@/components/logo';
 
 export const metadata: Metadata = {
   title: {
@@ -23,8 +24,8 @@ export default function CompanyAuthLayout({ children }: { children: React.ReactN
       {/* Left Side: Auth Form Container */}
       <main id="main-content" className="w-full md:w-1/2 lg:w-7/12 flex items-center justify-center p-8 lg:p-24 relative bg-white z-10 order-2 md:order-1 pt-12 lg:pt-24">
         {/* Mobile Header (Hidden on Desktop) */}
-        <div className="absolute top-8 left-8 md:hidden">
-          {/* Mobile header removed since PublicNavbar provides it */}
+        <div className="absolute top-8 left-8">
+          <Logo href="/" />
         </div>
         
         <div className="w-full max-w-md mx-auto">
