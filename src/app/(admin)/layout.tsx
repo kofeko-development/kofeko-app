@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   Contact,
   LogOut,
+  Loader2,
   Building,
   Briefcase,
   FilePlus2,
@@ -32,7 +33,7 @@ import Logo, { getAppHomeHref } from '@/components/logo';
 import { getUserDisplayName, getUserInitials } from '@/lib/user-display';
 import { HeaderInboxPopover } from '@/components/header-inbox-popover';
 import { Button } from '@/components/ui/button';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -68,6 +69,7 @@ function getAdminHeaderTitle(pathname: string): string {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, hasPermission, logout, loading } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -100,6 +102,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.push('/admin/dashboard');
     }
   }, [user, loading, router, pathname, hasPermission, user?.permissions]);
+
+  const handleLogout = () => {
+    setIsLoggingOut(true);
+    setTimeout(() => {
+      logout();
+    }, 600);
+  };
 
   if (loading && !user) {
     return <AppShellSkeleton />;
@@ -189,21 +198,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     );
 
-    const LogoutButton = () => (
-      <div
-        role="button"
-        onClick={logout}
-        className={cn(
-          'group flex w-full items-center gap-3 overflow-hidden rounded-md px-3 py-2 text-left text-sm font-medium transition-colors cursor-pointer outline-none',
-          'text-muted-foreground hover:bg-muted hover:text-foreground',
-          state === 'collapsed' && "justify-center !p-2"
-        )}
-      >
-        <LogOut className="shrink-0 h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-        {state !== 'collapsed' && <span className="flex-1">Log out</span>}
-      </div>
-    );
-
     return (
       <div className="flex flex-col mt-auto">
         <div className="flex flex-col gap-1 p-2">
@@ -230,10 +224,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={logout}
-                    className="h-10 w-10 rounded-full shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="h-10 w-10 rounded-full shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50"
                   >
-                    <LogOut className="h-4 w-4" />
+                    {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
                     <span className="sr-only">Log out</span>
                   </Button>
                 </TooltipTrigger>
@@ -245,11 +240,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ) : (
             <Button
               variant="ghost"
-              onClick={logout}
-              className="w-full justify-start h-10 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="w-full justify-start h-10 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50"
             >
-              <LogOut className="h-4 w-4 mr-2" />
-              <span>Log out</span>
+              {isLoggingOut ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
+              <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
             </Button>
           )}
         </div>

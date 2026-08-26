@@ -21,8 +21,10 @@ import {
     Inbox,
     User as UserIcon,
     Users,
+    Users,
     Contact,
     LogOut,
+    Loader2,
     Bell,
     Search,
     FileText,
@@ -39,7 +41,7 @@ import { getUserDisplayName, getUserInitials } from '@/lib/user-display';
 import { getStaffHeaderTitle } from '@/lib/staff-profile';
 import { HeaderInboxPopover } from '@/components/header-inbox-popover';
 import { Button } from '@/components/ui/button';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -88,6 +90,7 @@ const routePermissions: RouteRule[] = [
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
     const { user, hasPermission, logout, loading } = useAuth();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
 
@@ -173,6 +176,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             router.push(matched.redirectTo ?? '/dashboard');
         }
     }, [user, loading, router, pathname, hasPermission, user?.permissions]);
+
+    const handleLogout = () => {
+        setIsLoggingOut(true);
+        setTimeout(() => {
+            logout();
+        }, 600);
+    };
 
     if (loading && !user) {
         return <AppShellSkeleton />;
@@ -326,10 +336,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        onClick={logout}
-                                        className="h-10 w-10 rounded-full shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                        onClick={handleLogout}
+                                        disabled={isLoggingOut}
+                                        className="h-10 w-10 rounded-full shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50"
                                     >
-                                        <LogOut className="h-4 w-4" />
+                                        {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
                                         <span className="sr-only">Log out</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -341,11 +352,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     ) : (
                         <Button
                             variant="ghost"
-                            onClick={logout}
-                            className="w-full justify-start h-10 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                            onClick={handleLogout}
+                            disabled={isLoggingOut}
+                            className="w-full justify-start h-10 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50"
                         >
-                            <LogOut className="h-4 w-4 mr-2" />
-                            <span>Log out</span>
+                            {isLoggingOut ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
+                            <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
                         </Button>
                     )}
                 </div>
@@ -407,9 +419,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                                 <span>My Profile</span>
                                             </Link>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={logout}>
-                                            <LogOut className="mr-2 h-4 w-4" />
-                                            <span>Log out</span>
+                                        <DropdownMenuItem disabled={isLoggingOut} onClick={handleLogout} className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400 cursor-pointer">
+                                            {isLoggingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
+                                            <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
