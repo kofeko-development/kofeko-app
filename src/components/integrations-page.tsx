@@ -330,92 +330,117 @@ export default function IntegrationsPage() {
   const hasConnections = connections.length > 0;
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl">
+    <div className="flex flex-col gap-10">
       <div>
-        <h1 className="text-3xl font-bold font-headline">Integrations</h1>
-        <p className="text-muted-foreground">Connect your accounts to unlock additional features.</p>
+        <h1 className="text-3xl font-bold font-headline tracking-tight text-foreground">Integrations</h1>
+        <p className="text-muted-foreground mt-1 text-base">Connect your external accounts to unlock automation and publishing features.</p>
       </div>
 
       {callbackBanner ? (
-        <Alert variant={callbackBanner.variant}>
+        <Alert variant={callbackBanner.variant} className="border-border/50 bg-background shadow-sm max-w-3xl">
           <AlertTitle>{callbackBanner.title}</AlertTitle>
           <AlertDescription>{callbackBanner.desc}</AlertDescription>
         </Alert>
       ) : null}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-4 space-y-0">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0077B5]">
-            <Linkedin className="h-6 w-6 text-white" />
-          </div>
-          <div className="flex-1">
-            <CardTitle className="text-lg">LinkedIn</CardTitle>
-            <CardDescription>Post job openings to your company pages or personal profiles.</CardDescription>
-          </div>
-          {status?.connected && hasConnections ? (
-            <Badge className="bg-green-100 text-green-800 border-green-200">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              {connections.length} Connected
-            </Badge>
-          ) : null}
-        </CardHeader>
+      <div className="flex flex-col gap-6">
+        <div>
+          <h2 className="text-xl font-bold font-headline tracking-tight text-foreground">Connectors</h2>
+          <p className="text-sm text-muted-foreground mt-1">Available apps and services</p>
+        </div>
 
-        <CardContent className="space-y-4">
-          {isLoading && !status ? (
-            <div className="space-y-4">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-10 w-48" />
-            </div>
-          ) : !hasConnections ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Connect your LinkedIn account to auto-post jobs. You can post as your company page (if you are a page admin) or your personal profile. You can connect multiple accounts.
-              </p>
-              <Button
-                onClick={() => void onConnect()}
-                disabled={!canConnect || isConnecting}
-                className="bg-[#0077B5] hover:bg-[#006097] text-white"
-              >
-                {isConnecting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
-                {isConnecting ? "Connecting…" : "Connect LinkedIn Account"}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex items-center justify-end gap-2">
-                 <Button variant="outline" size="sm" onClick={() => void loadStatus()} disabled={isLoading || isFetching}>
-                   <RefreshCw className="mr-2 h-3 w-3" />
-                   Refresh all
-                 </Button>
+        <div className="max-w-4xl">
+          <Card className="border border-border/60 bg-card shadow-sm overflow-hidden rounded-2xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 bg-muted/10 border-b border-border/40">
+              <div className="flex items-center gap-5">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#0077B5] shadow-sm ring-4 ring-background">
+                  <Linkedin className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                    LinkedIn
+                    {status?.connected && hasConnections && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        <span className="h-1 w-1 rounded-full bg-emerald-500" />
+                        Connected
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Post job openings directly to your company pages or personal profiles.
+                  </p>
+                </div>
               </div>
               
-              <div className="space-y-6">
-                {connections.map((conn) => (
-                  <ConnectionCard 
-                    key={conn.id} 
-                    connection={conn} 
-                    onRefresh={loadStatus} 
-                    canConnect={canConnect} 
-                  />
-                ))}
-              </div>
-
-              <div className="pt-4 flex justify-start border-t">
+              {!hasConnections && !isLoading && (
                 <Button
                   onClick={() => void onConnect()}
                   disabled={!canConnect || isConnecting}
-                  variant="outline"
-                  className="bg-[#0077B5]/10 hover:bg-[#0077B5]/20 text-[#0077B5] border-[#0077B5]/30"
+                  className="rounded-full shadow-sm bg-[#0077B5] hover:bg-[#006097] text-white shrink-0"
                 >
                   {isConnecting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                  {isConnecting ? "Connecting…" : "Connect Another Account"}
+                  {isConnecting ? "Connecting…" : "Add Connection"}
                 </Button>
-              </div>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            <CardContent className="p-6">
+              {isLoading && !status ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-10 w-48" />
+                </div>
+              ) : hasConnections ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                    <h4 className="text-sm font-semibold text-foreground">Active Connections ({connections.length})</h4>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => void loadStatus()} disabled={isLoading || isFetching} className="text-muted-foreground hover:text-foreground">
+                        <RefreshCw className={`mr-2 h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+                      <Button
+                        onClick={() => void onConnect()}
+                        disabled={!canConnect || isConnecting}
+                        variant="outline"
+                        size="sm"
+                        className="bg-[#0077B5]/5 hover:bg-[#0077B5]/10 text-[#0077B5] border-[#0077B5]/20 rounded-full"
+                      >
+                        {isConnecting ? <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-2 h-3.5 w-3.5" />}
+                        {isConnecting ? "Connecting…" : "Add Another"}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-6 md:grid-cols-1">
+                    {connections.map((conn) => (
+                      <ConnectionCard 
+                        key={conn.id} 
+                        connection={conn} 
+                        onRefresh={loadStatus} 
+                        canConnect={canConnect} 
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center py-10 space-y-4">
+                  <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center">
+                    <Unlink className="h-6 w-6 text-muted-foreground/50" />
+                  </div>
+                  <div className="max-w-sm">
+                    <h4 className="font-medium text-foreground">No accounts connected</h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Connect your LinkedIn account to enable automatic job publishing and enhanced candidate sourcing.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

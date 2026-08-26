@@ -22,6 +22,7 @@ import SubscriptionPage from '@/app/(main)/subscription/page';
 import IntegrationsPage from '@/components/integrations-page';
 import { ChangeCompanyAdminEmail } from '@/components/change-company-admin-email';
 import { ChangeCompanyAdminPassword } from '@/components/change-company-admin-password';
+import { cn } from '@/lib/utils';
 
 export type SettingsTabKey = 'profile' | 'security' | 'subscription' | 'integrations';
 
@@ -90,30 +91,19 @@ export function SettingsHub({ defaultTab = 'profile' }: SettingsHubProps) {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex flex-col md:flex-row gap-6 lg:gap-10 h-[calc(100vh-4rem)] -m-6 p-6 bg-background overflow-hidden">
+      <div className="flex flex-col md:flex-row gap-6 lg:gap-10 h-[calc(100vh-4rem)] -m-6 p-6 bg-slate-50 dark:bg-slate-950/50 overflow-hidden">
         {/* Settings Side Panel */}
-        <aside className="shrink-0 border-r border-border/60 pr-3 md:pr-6 flex flex-col justify-between w-full md:w-72 h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="space-y-6">
+        <aside className="shrink-0 md:border-r border-border/40 pr-3 md:pr-6 flex flex-col justify-between w-full md:w-[240px] h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="space-y-8">
             {/* Panel Header */}
-            <div className="flex items-center justify-between px-2 pt-1">
-              <div className="space-y-0.5 overflow-hidden">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                    <SettingsIcon className="h-4.5 w-4.5" />
-                  </div>
-                  <h2 className="font-headline font-bold text-lg text-foreground tracking-tight truncate">
-                    Company Settings
-                  </h2>
-
-                </div>
-                <p className="text-xs text-muted-foreground truncate pl-1">
-                  Manage workspace & preferences
-                </p>
-              </div>
+            <div className="px-3 pt-2">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Settings
+              </h2>
             </div>
 
             {/* Navigation Tabs */}
-            <nav className="space-y-1.5">
+            <nav className="space-y-1">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.key;
@@ -122,39 +112,52 @@ export function SettingsHub({ defaultTab = 'profile' }: SettingsHubProps) {
                   <button
                     key={tab.key}
                     onClick={() => handleTabClick(tab.key)}
-                    className={`w-full flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 group relative ${isActive
-                      ? 'bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20'
-                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground font-medium'
-                      }`}
-                  >
-                    <Icon
-                      className={`h-5 w-5 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'
-                        }`}
-                    />
-                    <div className="flex flex-col min-w-0 overflow-hidden">
-                      <span className="text-sm truncate leading-snug">{tab.label}</span>
-                      <span
-                        className={`text-[11px] truncate leading-tight ${isActive ? 'text-primary-foreground/80' : 'text-muted-foreground/70'
-                          }`}
-                      >
-                        {tab.description}
-                      </span>
-                    </div>
-                    {isActive && (
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-primary-foreground/30 rounded-full" />
+                    className={cn(
+                      "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-300 group relative overflow-hidden",
+                      isActive
+                        ? "text-primary font-medium"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
+                  >
+                    {/* Hover Background Layer */}
+                    <div
+                      className={cn(
+                        "absolute inset-0 bg-primary/10 transition-transform duration-300 ease-out origin-left",
+                        isActive ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100"
+                      )}
+                    />
+
+                    {/* Icon */}
+                    <Icon
+                      className={cn(
+                        "h-4 w-4 shrink-0 relative z-10 transition-transform duration-300 ease-out group-hover:scale-110",
+                        isActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+                      )}
+                    />
+
+                    {/* Text */}
+                    <span
+                      className={cn(
+                        "text-sm truncate leading-snug relative z-10 transition-transform duration-300 ease-out",
+                        isActive ? "translate-x-1" : "group-hover:translate-x-1"
+                      )}
+                    >
+                      {tab.label}
+                    </span>
+
+                    {/* Active Indicator Bar */}
+                    <div
+                      className={cn(
+                        "absolute left-0 top-1/2 -translate-y-1/2 w-1 bg-primary rounded-r-full transition-all duration-300 ease-out",
+                        isActive ? "h-6 opacity-100" : "h-0 opacity-0 group-hover:h-4 group-hover:opacity-40"
+                      )}
+                    />
                   </button>
                 );
               })}
             </nav>
           </div>
 
-          {/* Footer */}
-          <div className="hidden md:block pt-6 border-t border-border/40 text-center">
-            <p className="text-[11px] text-muted-foreground/60">
-              Kofeko Admin Suite • Enterprise Settings
-            </p>
-          </div>
         </aside>
 
         {/* Main Settings Content Area */}

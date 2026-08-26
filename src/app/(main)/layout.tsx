@@ -10,6 +10,8 @@ import {
     SidebarMenuItem,
     SidebarTrigger,
     SidebarRail,
+    SidebarFooter,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import {
     LayoutDashboard,
@@ -64,7 +66,6 @@ const routePermissions: RouteRule[] = [
     // Staff-only routes
     { route: '/job-postings', permissions: ['job:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/jd-builder', permissions: ['job:create'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
-    { route: '/ai-evaluation-lab', permissions: ['job:create', 'evaluation:create'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
     { route: '/assessments', permissions: ['evaluation:read'], blockedRoles: ['candidate'], redirectTo: '/dashboard' },
     { route: '/interviews', permissions: ['pipeline:read'], blockedRoles: ['candidate'], redirectTo: '/dashboard' },
     { route: '/applicants', permissions: ['candidate:read'], blockedRoles: ['candidate'], redirectTo: '/find-jobs' },
@@ -135,8 +136,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         const isSharedPage =
             pathname.startsWith('/profile') ||
             pathname.startsWith('/my-profile') ||
-            pathname.startsWith('/security') ||
-            pathname.startsWith('/ai-evaluation-lab');
+            pathname.startsWith('/security');
 
         if (pathname.startsWith('/interviews') || pathname.startsWith('/assessments')) {
             router.push(hasPermission('rbac:manage') ? '/admin/dashboard' : '/dashboard');
@@ -185,7 +185,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const allRecruiterNav = [
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['job:read', 'candidate:read'] },
         { href: '/jd-builder', label: 'JD Creator', icon: FilePlus2, permissions: ['job:create'] },
-        { href: '/ai-evaluation-lab', label: 'AI Lab', icon: BrainCircuit, permissions: ['job:create', 'evaluation:create'] },
         { href: '/job-postings', label: 'Job Postings', icon: Briefcase, permissions: ['job:read'] },
         { href: '/team', label: 'Team', icon: Users, permissions: ['user:read'] },
     ];
@@ -195,7 +194,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const adminNav = [
         { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/jd-creator', label: 'JD Creator', icon: FilePlus2 },
-        { href: '/ai-evaluation-lab', label: 'AI Lab', icon: BrainCircuit },
         { href: '/admin/job-postings', label: 'Job Postings', icon: Briefcase },
         { href: '/admin/candidates', label: 'Candidates', icon: Contact },
         ...(hasPermission('user:read')
@@ -209,83 +207,151 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         { href: '/my-applications', label: 'Jobs Applied To', icon: FileText }
     ];
 
-    const RecruiterHeader = () => (
-        <header className="flex h-16 items-center justify-between border-b bg-card px-6 shrink-0">
-            <div className='flex items-center gap-4'>
-                <SidebarTrigger />
-                <Logo width={120} height={40} href={getAppHomeHref(user.role)} />
+
+
+    const RecruiterSidebarHeader = () => {
+        const { state } = useSidebar();
+        return (
+            <div className="flex h-14 items-center px-6 shrink-0">
+                {state === 'collapsed' ? (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xl leading-none mx-auto">
+                        K
+                    </div>
+                ) : (
+                    <Logo variant="express" href={getAppHomeHref(user.role)} />
+                )}
             </div>
-            <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-muted-foreground border-r pr-4">
-                    {getStaffHeaderTitle(user, pathname)}
-                </span>
-                <HeaderInboxPopover />
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-transparent hover:text-foreground">
-                            <Avatar className="h-10 w-10">
-                                <AvatarFallback className="font-medium">{getUserInitials(user)}</AvatarFallback>
-                            </Avatar>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-56" align="end" forceMount>
-                        <DropdownMenuLabel className="font-normal">
-                            <div className="flex flex-col space-y-1">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="text-sm font-medium leading-none">{getUserDisplayName(user)}</p>
-                                    {user.companyRole && <Badge variant="outline">{user.companyRole}</Badge>}
-                                </div>
-                                <p className="text-xs leading-none text-muted-foreground">
-                                    {user.email}
-                                </p>
-                            </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                            <Link href="/my-profile">
-                                <UserIcon className="mr-2 h-4 w-4" />
-                                <span>My Profile</span>
-                            </Link>
-                        </DropdownMenuItem>
+        );
+    };
+
+    const RecruiterSidebarFooter = () => {
+        const { state } = useSidebar();
+        const avatarButton = state === 'collapsed' ? (
+            <div className="relative h-10 w-10 rounded-full text-foreground flex items-center justify-center shrink-0">
+                <Avatar className="h-10 w-10">
+                    <AvatarFallback className="font-medium">{getUserInitials(user)}</AvatarFallback>
+                </Avatar>
+            </div>
+        ) : (
+            <div className="relative h-12 w-full rounded-md flex items-center justify-start gap-3 text-foreground p-2 shrink-0 overflow-hidden">
+                <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="font-medium">{getUserInitials(user)}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col items-start text-left flex-1 min-w-0">
+                    <span className="text-sm font-medium truncate w-full block">{getUserDisplayName(user)}</span>
+                    <span className="text-xs text-muted-foreground truncate w-full block">{user.email}</span>
+                </div>
+            </div>
+        );
+
+        const SettingsButton = () => (
+            <div className="group/settings relative w-full">
+                <div
+                    role="button"
+                    onClick={() => router.push(hasPermission('rbac:manage') ? '/admin/security' : '/security')}
+                    className={cn(
+                        'group flex w-full items-center gap-3 overflow-hidden rounded-md px-3 py-2 text-left text-sm font-medium transition-colors cursor-pointer outline-none',
+                        'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        state === 'collapsed' && "justify-center !p-2"
+                    )}
+                >
+                    <Settings className="shrink-0 h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    {state !== 'collapsed' && <span className="flex-1">Settings</span>}
+                </div>
+
+                <div className="absolute left-full bottom-0 hidden group-hover/settings:block z-50 pl-2">
+                    <div className="w-56 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
+                        <div
+                            className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                            onClick={() => router.push('/my-profile')}
+                        >
+                            <UserIcon className="mr-2 h-4 w-4" />
+                            <span>My Profile</span>
+                        </div>
                         {hasPermission('company:read') && (
-                            <DropdownMenuItem asChild>
-                                <Link href={hasPermission('rbac:manage') ? '/admin/company-profile' : '/company-profile'}>
-                                    <Building className="mr-2 h-4 w-4" />
-                                    <span>Company Profile</span>
-                                </Link>
-                            </DropdownMenuItem>
+                            <div
+                                className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                                onClick={() => router.push(hasPermission('rbac:manage') ? '/admin/company-profile' : '/company-profile')}
+                            >
+                                <Building className="mr-2 h-4 w-4" />
+                                <span>Company Profile</span>
+                            </div>
                         )}
-                        <DropdownMenuItem asChild>
-                            <Link href={hasPermission('rbac:manage') ? '/admin/security' : '/security'}>
-                                <ShieldCheck className="mr-2 h-4 w-4" />
-                                <span>Security & Login</span>
-                            </Link>
-                        </DropdownMenuItem>
                         {hasPermission('company:update') && (
-                            <DropdownMenuItem asChild>
-                                <Link href={hasPermission('rbac:manage') ? '/admin/subscription' : '/subscription'}>
-                                    <CreditCard className="mr-2 h-4 w-4" />
-                                    <span>Subscription</span>
-                                </Link>
-                            </DropdownMenuItem>
+                            <div
+                                className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                                onClick={() => router.push(hasPermission('rbac:manage') ? '/admin/subscription' : '/subscription')}
+                            >
+                                <CreditCard className="mr-2 h-4 w-4" />
+                                <span>Subscription</span>
+                            </div>
                         )}
                         {(hasPermission('linkedin:read') || hasPermission('linkedin:connect') || hasPermission('linkedin:post')) && (
-                            <DropdownMenuItem asChild>
-                                <Link href={hasPermission('rbac:manage') ? '/admin/integrations' : '/settings/integrations'}>
-                                    <Settings className="mr-2 h-4 w-4" />
-                                    <span>Integrations</span>
-                                </Link>
-                            </DropdownMenuItem>
+                            <div
+                                className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                                onClick={() => router.push(hasPermission('rbac:manage') ? '/admin/integrations' : '/settings/integrations')}
+                            >
+                                <Settings className="mr-2 h-4 w-4" />
+                                <span>Integrations</span>
+                            </div>
                         )}
-                        <DropdownMenuItem onClick={logout}>
-                            <LogOut className="mr-2 h-4 w-4" />
-                            <span>Log out</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                    </div>
+                </div>
             </div>
-        </header>
-    )
+        );
+
+        return (
+            <div className="flex flex-col mt-auto">
+                <div className="flex flex-col gap-1 p-2">
+                    <SidebarMenuItem>
+                        <HeaderInboxPopover variant="sidebar" collapsed={state === 'collapsed'} />
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SettingsButton />
+                    </SidebarMenuItem>
+                </div>
+
+                <div className={cn(
+                    "flex flex-col w-full",
+                    state === 'collapsed' ? "p-2 gap-2" : "p-4 pt-4 gap-2"
+                )}>
+                    <div className={cn("flex-1 min-w-0", state === 'collapsed' && "flex justify-center w-full")}>
+                        {avatarButton}
+                    </div>
+
+                    {state === 'collapsed' ? (
+                        <div className="flex justify-center w-full">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={logout}
+                                        className="h-10 w-10 rounded-full shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        <span className="sr-only">Log out</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                    <p>Log out</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    ) : (
+                        <Button
+                            variant="ghost"
+                            onClick={logout}
+                            className="w-full justify-start h-10 px-3 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                        >
+                            <LogOut className="h-4 w-4 mr-2" />
+                            <span>Log out</span>
+                        </Button>
+                    )}
+                </div>
+            </div>
+        );
+    };
 
     const CandidateHeader = () => {
 
@@ -362,69 +428,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <TooltipProvider>
                 <SidebarProvider className="flex h-screen w-full flex-col overflow-hidden">
                     <div className="flex h-full min-h-0 flex-col bg-muted/40">
-                        <RecruiterHeader />
-                        <div className="flex min-h-0 flex-1 overflow-hidden">
+                        <div className="flex min-h-0 flex-1 overflow-hidden relative">
                             <Sidebar collapsible="icon">
                                 <SidebarRail />
+                                <RecruiterSidebarHeader />
                                 <SidebarContent>
-                                    <SidebarMenu>
-                                        {(hasPermission('rbac:manage') ? adminNav : recruiterNav).map((item) => (
-                                            <SidebarMenuItem key={item.href}>
-                                                {item.comingSoon ? (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <div
-                                                                aria-disabled="true"
-                                                                className={cn(
-                                                                    'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
-                                                                    'cursor-not-allowed text-muted-foreground opacity-60',
-                                                                    "group-data-[state=collapsed]:justify-center"
-                                                                )}
-                                                            >
-                                                                <item.icon className="shrink-0" />
-                                                                <span className="group-data-[state=collapsed]:hidden flex-1">
-                                                                    {item.label}
-                                                                </span>
-                                                                <Badge variant="secondary" className="group-data-[state=collapsed]:hidden text-[10px] px-1.5 py-0 h-5 font-normal shrink-0">
-                                                                    Coming soon
-                                                                </Badge>
-                                                            </div>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent side="right" align="center">
-                                                            Coming soon
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                ) : (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Link
-                                                                href={item.href}
-                                                                className={cn(
-                                                                    'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-2 [&>svg]:size-5 [&>svg]:shrink-0 h-9',
-                                                                    pathname.startsWith(item.href) &&
-                                                                    (item.href !== '/dashboard' || pathname === '/dashboard') &&
-                                                                    (item.href !== '/admin/dashboard' || pathname === '/admin/dashboard') &&
-                                                                    'bg-sidebar-accent text-sidebar-accent-foreground',
-                                                                    "group-data-[state=collapsed]:justify-center"
-                                                                )}
-                                                            >
-                                                                <item.icon className="shrink-0" />
-                                                                <span className="group-data-[state=collapsed]:hidden">
-                                                                    {item.label}
-                                                                </span>
-                                                            </Link>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent side="right" align="center">
-                                                            {item.label}
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                )}
-                                            </SidebarMenuItem>
-                                        ))}
-                                    </SidebarMenu>
+                                    <RecruiterSidebarMenu navItems={hasPermission('rbac:manage') ? adminNav : recruiterNav} pathname={pathname} />
                                 </SidebarContent>
+                                <SidebarTrigger />
+                                <RecruiterSidebarFooter />
                             </Sidebar>
-                            <main className="min-h-0 min-w-0 flex-1 overflow-auto p-6">
+                            <main className="min-h-0 min-w-0 flex-1 overflow-auto p-6 bg-slate-50/50 dark:bg-slate-950/50 relative">
                                 {children}
                             </main>
                         </div>
@@ -447,4 +461,79 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
 
     return null;
+}
+
+function RecruiterSidebarMenu({ navItems, pathname }: { navItems: any[], pathname: string }) {
+    const { state } = useSidebar();
+
+    return (
+        <SidebarMenu>
+            {navItems.map((item) => {
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '/admin/dashboard' && pathname.includes(item.href));
+
+                const linkContent = (
+                    <div
+                        className={cn(
+                            'group flex w-full items-center gap-3 overflow-hidden rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
+                            item.comingSoon ? 'opacity-50 cursor-not-allowed' : isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                            state === 'collapsed' && "justify-center !p-2"
+                        )}
+                    >
+                        <item.icon className={cn(
+                            "shrink-0 h-4 w-4 transition-colors",
+                            isActive && !item.comingSoon ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                        )} />
+                        {state !== 'collapsed' && (
+                            <>
+                                <span className="flex-1">
+                                    {item.label}
+                                </span>
+                                {item.comingSoon && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-normal shrink-0">
+                                        Soon
+                                    </Badge>
+                                )}
+                            </>
+                        )}
+                    </div>
+                );
+
+                return (
+                    <SidebarMenuItem key={item.href}>
+                        {item.comingSoon ? (
+                            state === 'collapsed' ? (
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                        {linkContent}
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" align="center">
+                                        Coming soon
+                                    </TooltipContent>
+                                </Tooltip>
+                            ) : (
+                                linkContent
+                            )
+                        ) : (
+                            state === 'collapsed' ? (
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                        <Link href={item.href}>
+                                            {linkContent}
+                                        </Link>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" align="center">
+                                        {item.label}
+                                    </TooltipContent>
+                                </Tooltip>
+                            ) : (
+                                <Link href={item.href}>
+                                    {linkContent}
+                                </Link>
+                            )
+                        )}
+                    </SidebarMenuItem>
+                )
+            })}
+        </SidebarMenu>
+    );
 }

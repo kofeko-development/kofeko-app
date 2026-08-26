@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
+import { PanelLeft, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -21,7 +21,7 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
+const SIDEBAR_WIDTH = "14rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3.5rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
@@ -217,8 +217,8 @@ const Sidebar = React.forwardRef<
         ref={ref}
         className={cn("group peer hidden md:block text-sidebar-foreground",
           "h-full transition-all duration-300 ease-in-out",
-           "data-[state=expanded]:w-[var(--sidebar-width)] data-[state=collapsed]:w-[var(--sidebar-width-icon)]",
-           "bg-card border-r"
+          "data-[state=expanded]:w-[var(--sidebar-width)] data-[state=collapsed]:w-[var(--sidebar-width-icon)]",
+          "bg-muted/30 relative"
         )}
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -227,10 +227,10 @@ const Sidebar = React.forwardRef<
         {...props}
       >
         <div
-            data-sidebar="sidebar"
-            className="flex h-full w-full flex-col"
-          >
-            {children}
+          data-sidebar="sidebar"
+          className="flex h-full w-full flex-col"
+        >
+          {children}
         </div>
       </div>
     )
@@ -242,22 +242,22 @@ const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button>
 >(({ className, onClick, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, state } = useSidebar()
 
   return (
     <Button
       ref={ref}
       data-sidebar="trigger"
-      variant="ghost"
+      variant="outline"
       size="icon"
-      className={cn("h-8 w-8", className)}
+      className={cn("absolute -right-3 top-6 z-50 h-6 w-6 rounded-full border border-border flex items-center justify-center shadow-sm bg-background p-0 hover:bg-muted", className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
       }}
       {...props}
     >
-      <PanelLeft />
+      {state === 'expanded' ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
@@ -530,7 +530,7 @@ const SidebarMenuButton = React.forwardRef<
     ref
   ) => {
     const { state } = useSidebar();
-    
+
     return (
       <button
         ref={ref}
@@ -567,7 +567,7 @@ const SidebarMenuAction = React.forwardRef<
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
+        "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
         className
       )}
       {...props}
