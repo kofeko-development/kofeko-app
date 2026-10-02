@@ -1,7 +1,7 @@
 name: Deploy frontend (AWS Amplify)
 
 # Amplify does the actual build; this workflow starts it and follows it so every deploy is visible in GitHub.
-# Requires: Amplify auto-build turned OFF for the main branch, and repo variable AMPLIFY_APP_ID.
+# Requires: Amplify auto-build turned OFF for the main branch.
 
 on:
   push:
@@ -20,6 +20,7 @@ env:
   AWS_REGION: ap-south-1
   AWS_ROLE_ARN: arn:aws:iam::396535943194:role/kofeko-github-frontend-deploy
   BRANCH: main
+  AMPLIFY_APP_ID: d3pbtrgfid6ymn
 
 jobs:
   deploy:
@@ -39,22 +40,22 @@ jobs:
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message || 'manual run' }}
         run: |
-          job_id=$(aws amplify start-job --app-id "${{ vars.AMPLIFY_APP_ID }}" --branch-name "$BRANCH" \
+          job_id=$(aws amplify start-job --app-id "$AMPLIFY_APP_ID" --branch-name "$BRANCH" \
             --job-type RELEASE --commit-id "${{ github.sha }}" --commit-message "${COMMIT_MSG:0:200}" \
             --query jobSummary.jobId --output text)
           echo "job_id=$job_id" >> "$GITHUB_OUTPUT"
-          echo "Amplify job $job_id: https://${{ env.AWS_REGION }}.console.aws.amazon.com/amplify/apps/${{ vars.AMPLIFY_APP_ID }}/branches/$BRANCH/deployments"
+          echo "Amplify job $job_id: https://${{ env.AWS_REGION }}.console.aws.amazon.com/amplify/apps/$AMPLIFY_APP_ID/branches/$BRANCH/deployments"
 
       - name: Wait for Amplify build and deploy
         run: |
           while true; do
-            status=$(aws amplify get-job --app-id "${{ vars.AMPLIFY_APP_ID }}" --branch-name "$BRANCH" \
+            status=$(aws amplify get-job --app-id "$AMPLIFY_APP_ID" --branch-name "$BRANCH" \
               --job-id "${{ steps.start.outputs.job_id }}" --query job.summary.status --output text)
             echo "$(date -u +%H:%M:%S) $status"
             case "$status" in
               SUCCEED) exit 0 ;;
               FAILED|CANCELLED)
-                aws amplify get-job --app-id "${{ vars.AMPLIFY_APP_ID }}" --branch-name "$BRANCH" \
+                aws amplify get-job --app-id "$AMPLIFY_APP_ID" --branch-name "$BRANCH" \
                   --job-id "${{ steps.start.outputs.job_id }}" --query "job.steps[].[stepName,status]" --output table
                 exit 1 ;;
             esac
