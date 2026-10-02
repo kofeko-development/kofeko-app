@@ -21,7 +21,6 @@ import {
     Inbox,
     User as UserIcon,
     Users,
-    Users,
     Contact,
     LogOut,
     Loader2,

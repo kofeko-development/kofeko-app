@@ -22,8 +22,10 @@ export function resolveUploadUrl(url: string | null | undefined): string {
     return `${apiOrigin()}${trimmed}`;
   }
 
-  if (API_FILES_RE.test(trimmed)) {
-    return trimmed;
+  // Stored URLs embed whichever API host saved them (Render, localhost, ...); always use the current API.
+  const apiFilesMatch = trimmed.match(API_FILES_RE);
+  if (apiFilesMatch?.[1]) {
+    return `${apiOrigin()}/api/v1/files/${apiFilesMatch[1]}`;
   }
 
   return trimmed;
