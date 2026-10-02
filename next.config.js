@@ -50,6 +50,8 @@ const nextConfig = {
         source: '/login',
         destination: '/company-login',
         permanent: true,
+        // superadmin.<domain>/login is the super admin login (handled in middleware)
+        missing: [{ type: 'host', value: 'superadmin\\..*' }],
       },
       {
         source: '/signup',

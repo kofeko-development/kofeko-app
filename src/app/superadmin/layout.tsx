@@ -8,7 +8,10 @@ import { PageContentSkeleton } from '@/components/loading/page-content-skeleton'
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const { superAdmin, loading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
+  // On superadmin.<domain> the browser path is /login, /dashboard...; locally it is /superadmin/login...
+  const rawPathname = usePathname();
+  const route = rawPathname.startsWith('/superadmin') ? rawPathname.slice('/superadmin'.length) || '/' : rawPathname;
+  const pathname = `/superadmin${route === '/' ? '/login' : route}`;
 
   useEffect(() => {
     if (loading) return;
