@@ -31,6 +31,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import Logo from '@/components/logo';
 
 const generateTenantSlug = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -419,14 +420,9 @@ export default function SuperAdminDashboardPage() {
       {/* Top Header */}
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center text-white">
-              <Shield className="h-5 w-5" />
-            </div>
-            <div>
-              <span className="font-extrabold text-lg tracking-tight text-foreground">KOFEKO</span>
-              <span className="text-xs block text-muted-foreground font-semibold -mt-1 uppercase tracking-wider">Superadmin Portal</span>
-            </div>
+          <div className="flex items-center gap-3">
+            <Logo height={32} />
+            <span className="border-l pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Superadmin Portal</span>
           </div>
 
           <div className="flex items-center gap-2">

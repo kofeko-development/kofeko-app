@@ -11,6 +11,7 @@ import { useAppToast } from '@/lib/toast-helpers';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { cn } from '@/lib/utils';
+import Logo from '@/components/logo';
 
 function ForgotPasswordContent() {
   const { toastInfo } = useAppToast();
@@ -42,6 +43,7 @@ function ForgotPasswordContent() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
+        <Logo className="mb-2" />
         <CardTitle>Forgot Password</CardTitle>
         <CardDescription>
           Enter your email to receive a reset link for your {isCandidate ? 'candidate profile' : 'account'}.

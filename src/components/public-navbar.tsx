@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import Logo from '@/components/logo';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
@@ -80,14 +80,7 @@ export default function PublicNavbar() {
       >
         <div className="page-container flex items-center justify-between">
           <Link href="/" className="flex items-center rounded-control focus-visible:ring-offset-transparent">
-            <Image
-              src="/Kofeko.svg"
-              alt="Kofeko"
-              width={154}
-              height={50}
-              priority
-              className="h-12 w-auto transition-all"
-            />
+            <Logo height={40} />
           </Link>
 
           <div className="hidden items-center gap-8 md:flex">

@@ -7,7 +7,7 @@ const structuredData = {
       '@type': 'Organization',
       name: 'Kofeko',
       url: siteUrl,
-      logo: absoluteUrl('/Kofeko.svg'),
+      logo: absoluteUrl('/brand/kofeko-logo.svg'),
     },
     {
       '@type': 'WebSite',

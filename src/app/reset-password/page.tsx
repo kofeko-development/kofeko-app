@@ -13,6 +13,7 @@ import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { stageOneApi } from '@/lib/stage1-2-api';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import Logo from '@/components/logo';
 
 const strongPassword = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 
@@ -72,6 +73,7 @@ function ResetPasswordContent() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-muted/20">
       <Card className="w-full max-w-md">
         <CardHeader>
+          <Logo className="mb-2" />
           <CardTitle>Reset Password</CardTitle>
           <CardDescription>Enter a new password for your {isCandidate ? 'candidate profile' : 'account'}.</CardDescription>
         </CardHeader>

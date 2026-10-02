@@ -1,11 +1,12 @@
 import Link from 'next/link';
+import Logo from './logo';
 import { BookDemoButton } from './book-demo-button';
 export default function PublicFooter() {
   return (
     <footer className="border-t border-slate-800 bg-slate-900 py-16 text-white">
       <div className="page-container grid gap-12 md:grid-cols-3">
         <div>
-          <div className="mb-4 text-2xl font-bold">Kofeko</div>
+          <Logo tone="white" height={36} className="mb-4" />
           <p className="text-sm text-slate-400">AI-Powered Hiring OS</p>
         </div>
         <div>

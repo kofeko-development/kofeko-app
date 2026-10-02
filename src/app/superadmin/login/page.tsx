@@ -12,6 +12,7 @@ import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import Logo from '@/components/logo';
 
 export default function SuperAdminLoginPage() {
   const router = useRouter();
@@ -85,6 +86,7 @@ export default function SuperAdminLoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/20 px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
+          <Logo className="mb-2" />
           <CardTitle>Superadmin Login</CardTitle>
           <CardDescription>
             {step === 'credentials'

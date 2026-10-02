@@ -256,13 +256,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const AdminSidebarHeader = () => {
     const { state } = useSidebar();
     return (
-      <div className="flex h-14 items-center px-6 shrink-0">
+      <div className={cn('flex h-14 shrink-0 items-center', state === 'collapsed' ? 'justify-center' : 'px-6')}>
         {state === 'collapsed' ? (
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xl leading-none mx-auto">
-            K
-          </div>
+          <Logo variant="icon" height={32} href={getAppHomeHref(user.role)} />
         ) : (
-          <Logo variant="express" href={getAppHomeHref(user.role)} />
+          <Logo height={30} href={getAppHomeHref(user.role)} />
         )}
       </div>
     );

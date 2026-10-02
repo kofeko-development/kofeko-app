@@ -2,10 +2,19 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
+// Brand assets (cropped to the artwork): full = icon + "Kofeko" wordmark, icon = mark only.
+const LOGOS = {
+  full: { src: '/brand/kofeko-logo.svg', ratio: 778 / 220, defaultHeight: 32 },
+  icon: { src: '/brand/kofeko-icon.svg', ratio: 1, defaultHeight: 32 },
+} as const;
+
 interface LogoProps {
-  variant?: 'default' | 'express';
-  width?: number;
+  /** `full` (icon + name) everywhere there is room; `icon` for tight spots like a collapsed sidebar. */
+  variant?: keyof typeof LOGOS;
+  /** Rendered height in px; width follows the logo's proportions. */
   height?: number;
+  /** `white` for dark backgrounds. */
+  tone?: 'brand' | 'white';
   href?: string;
   className?: string;
 }
@@ -16,29 +25,22 @@ export function getAppHomeHref(role?: string): string {
   return '/dashboard';
 }
 
-export default function Logo({ variant = 'default', width, height, href, className }: LogoProps) {
-  const logoPath = '/Kofeko.svg';
+export default function Logo({ variant = 'full', height, tone = 'brand', href, className }: LogoProps) {
+  const logo = LOGOS[variant];
+  const h = height ?? logo.defaultHeight;
+  const w = Math.round(h * logo.ratio);
 
-  const image =
-    variant === 'express' ? (
-      <Image
-        src={logoPath}
-        alt="Kofeko Express Logo"
-        width={width || 150}
-        height={height || 30}
-        priority
-        className={cn(!href && className)}
-      />
-    ) : (
-      <Image
-        src={logoPath}
-        alt="Kofeko Logo"
-        width={width || 120}
-        height={height || 40}
-        priority
-        className={cn(!href && className)}
-      />
-    );
+  const image = (
+    <Image
+      src={logo.src}
+      alt="Kofeko"
+      width={w}
+      height={h}
+      priority
+      style={{ height: h, width: w }}
+      className={cn(tone === 'white' && 'brightness-0 invert', !href && className)}
+    />
+  );
 
   if (!href) return image;
 

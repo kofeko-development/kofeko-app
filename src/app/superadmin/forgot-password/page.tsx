@@ -10,6 +10,7 @@ import { useAppToast } from '@/lib/toast-helpers';
 import { useApiErrorToast } from '@/hooks/use-api-error-toast';
 import { superadminApi } from '@/lib/superadmin-api';
 import { cn } from '@/lib/utils';
+import Logo from '@/components/logo';
 
 export default function SuperAdminForgotPasswordPage() {
   const { toastInfo } = useAppToast();
@@ -40,6 +41,7 @@ export default function SuperAdminForgotPasswordPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-muted/20">
       <Card className="w-full max-w-md">
         <CardHeader>
+          <Logo className="mb-2" />
           <CardTitle>Forgot Password</CardTitle>
           <CardDescription>Enter your superadmin email to receive a reset link.</CardDescription>
         </CardHeader>

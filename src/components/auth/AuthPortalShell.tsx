@@ -31,18 +31,26 @@ export function AuthPortalShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-white">
       <div className="relative min-h-screen flex-1">
+        {/* Pinned to the screen's top-left for both portals; white while it sits on the dark candidate panel */}
+        <div className="absolute top-8 left-8 z-50">
+          <Logo
+            href="/"
+            height={36}
+            className={cn(
+              'transition-[filter] duration-700',
+              isCandidate && 'lg:brightness-0 lg:invert',
+            )}
+          />
+        </div>
+
         <main
           id="main-content"
           className={cn(
-            'relative z-20 flex min-h-screen items-start justify-center overflow-y-auto bg-white px-8 pb-12 pt-10 md:absolute md:inset-y-0 md:w-full md:px-8 md:py-12 lg:w-7/12 lg:px-24 lg:py-16',
+            'relative z-20 flex min-h-screen items-start justify-center overflow-y-auto bg-white px-8 pb-12 pt-24 lg:absolute lg:inset-y-0 lg:w-7/12 lg:px-24 lg:py-16',
             'transition-[left] duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]',
-            isCandidate ? 'md:left-[41.666667%]' : 'md:left-0',
+            isCandidate ? 'lg:left-[41.666667%]' : 'lg:left-0',
           )}
         >
-          <div className="absolute top-8 left-8 z-50">
-            <Logo href="/" />
-          </div>
-
           <div
             key={isCandidate ? 'candidate-form' : 'company-form'}
             className={cn(
@@ -58,7 +66,7 @@ export function AuthPortalShell({ children }: { children: React.ReactNode }) {
 
         <div
           className={cn(
-            'absolute inset-y-0 z-10 hidden w-full overflow-hidden bg-slate-900 text-white transition-[left] duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] md:block lg:w-5/12',
+            'absolute inset-y-0 z-10 hidden w-full overflow-hidden bg-slate-900 text-white transition-[left] duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] lg:block lg:w-5/12',
             isCandidate ? 'left-0' : 'left-[58.333333%]',
           )}
         >
